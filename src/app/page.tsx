@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BrandMark } from "@/components/brand-mark";
 
 const highlights = [
@@ -25,9 +26,9 @@ export default function Home() {
       <div className="landing__glow landing__glow--two" aria-hidden="true" />
 
       <header className="topbar">
-        <a className="topbar__brand" href="/" aria-label="Connexa — início">
+        <Link className="topbar__brand" href="/" aria-label="Connexa — início">
           <BrandMark />
-        </a>
+        </Link>
         <span className="topbar__status">
           <span className="status-dot" aria-hidden="true" />
           Um novo jeito de trabalhar em equipe

@@ -11,10 +11,27 @@ type LoginPageProps = {
   searchParams: Promise<{ next?: string }>;
 };
 
+function getSafeRedirectDestination(next?: string) {
+  if (!next?.startsWith("/") || next.startsWith("//")) {
+    return "/admin";
+  }
+
+  try {
+    const destination = new URL(next, "https://connexa.invalid");
+
+    if (destination.origin !== "https://connexa.invalid") {
+      return "/admin";
+    }
+
+    return `${destination.pathname}${destination.search}${destination.hash}`;
+  } catch {
+    return "/admin";
+  }
+}
+
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const { next } = await searchParams;
-  const destination =
-    next?.startsWith("/") && !next.startsWith("//") ? next : "/admin";
+  const destination = getSafeRedirectDestination(next);
 
   return (
     <main className="auth-page">

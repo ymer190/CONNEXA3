@@ -20,6 +20,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: https://dzsacdtolxrqgwlekzdg.supabase.co
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_VxDDuEIFkXx4OrkVdg4xbg_7RAzlmR9
       HAS_AUTH_TEST_SECRETS: ${{ secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' }}
+      HAS_AUTH_ADMIN_TEST_SECRETS: ${{ secrets.AUTH_TEST_ADMIN_EMAIL != '' && secrets.AUTH_TEST_ADMIN_PASSWORD != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -97,6 +98,31 @@ jobs:
           done
 
           node scripts/auth-regular-user-smoke.cjs
+
+
+      - name: Test platform administrator login, access, and logout
+        if: env.HAS_AUTH_ADMIN_TEST_SECRETS == 'true'
+        env:
+          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
+          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
+        shell: bash
+        run: |
+          npm run start -- --hostname 127.0.0.1 > /tmp/connexa-admin-auth-test.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/login > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          node scripts/auth-admin-smoke.cjs
+
+      - name: Explain skipped administrator browser test
+        if: env.HAS_AUTH_ADMIN_TEST_SECRETS != 'true'
+        run: echo "Administrator browser test skipped because its GitHub Actions secrets are not configured."
 
       - name: Explain skipped authenticated browser test
         if: env.HAS_AUTH_TEST_SECRETS != 'true'

@@ -15,6 +15,9 @@ jobs:
   validate:
     name: Validate application
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://dzsacdtolxrqgwlekzdg.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_VxDDuEIFkXx4OrkVdg4xbg_7RAzlmR9
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,3 +38,33 @@ jobs:
 
       - name: Build Next.js application
         run: npm run build
+
+      - name: Smoke test protected admin route without a session
+        shell: bash
+        run: |
+          npm run start -- --hostname 127.0.0.1 > /tmp/connexa-next.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          status=""
+          for attempt in {1..30}; do
+            status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/admin || true)
+            if [ "$status" = "307" ]; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$status" != "307" ]; then
+            echo "Expected HTTP 307 for unauthenticated /admin; received: $status"
+            cat /tmp/connexa-next.log
+            exit 1
+          fi
+
+          location=$(curl -sS -D - -o /dev/null http://127.0.0.1:3000/admin | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\r$/, ""); print $2 }')
+          if [[ "$location" != /login* ]]; then
+            echo "Expected redirect to /login; received: $location"
+            exit 1
+          fi
+
+          echo "PASS: unauthenticated /admin requests redirect to /login."

@@ -28,7 +28,9 @@ export async function middleware(request: NextRequest) {
           cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options);
           });
-          headers?.forEach((value, key) => response.headers.set(key, value));
+          Object.entries(headers ?? {}).forEach(([key, value]) => {
+            response.headers.set(key, value);
+          });
         },
       },
     },
@@ -38,7 +40,11 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (request.nextUrl.pathname.startsWith("/admin")) {
+  const isAdminRoute =
+    request.nextUrl.pathname === "/admin" ||
+    request.nextUrl.pathname.startsWith("/admin/");
+
+  if (isAdminRoute) {
     if (!user) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/login";

@@ -62,7 +62,8 @@ jobs:
           fi
 
           location=$(curl -sS -D - -o /dev/null http://127.0.0.1:3000/admin | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\r$/, ""); print $2 }')
-          if [[ "$location" != /login* ]]; then
+          location_path="${location#http://localhost:3000}"
+          if [[ "$location_path" != /login* ]]; then
             echo "Expected redirect to /login; received: $location"
             exit 1
           fi

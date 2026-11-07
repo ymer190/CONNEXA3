@@ -69,3 +69,33 @@ jobs:
           fi
 
           echo "PASS: unauthenticated /admin requests redirect to /login."
+
+      - name: Install browser test dependencies
+        if: ${{ secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' }}
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Test regular user login and admin denial
+        if: ${{ secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' }}
+        env:
+          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
+          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
+        shell: bash
+        run: |
+          npm run start -- --hostname 127.0.0.1 > /tmp/connexa-auth-test.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/login > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          node scripts/auth-regular-user-smoke.cjs
+
+      - name: Explain skipped authenticated browser test
+        if: ${{ secrets.AUTH_TEST_USER_EMAIL == '' || secrets.AUTH_TEST_USER_PASSWORD == '' }}
+        run: echo "Authenticated browser test skipped because GitHub Actions secrets are not configured."

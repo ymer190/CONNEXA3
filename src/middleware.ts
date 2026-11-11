@@ -3,11 +3,21 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
+  const isAdminRoute =
+    request.nextUrl.pathname === "/admin" ||
+    request.nextUrl.pathname.startsWith("/admin/");
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabasePublishableKey =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!supabaseUrl || !supabasePublishableKey) {
+    if (isAdminRoute) {
+      const forbiddenUrl = request.nextUrl.clone();
+      forbiddenUrl.pathname = "/acesso-negado";
+      forbiddenUrl.search = "";
+      return NextResponse.redirect(forbiddenUrl);
+    }
+
     return response;
   }
 
@@ -39,10 +49,6 @@ export async function middleware(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const isAdminRoute =
-    request.nextUrl.pathname === "/admin" ||
-    request.nextUrl.pathname.startsWith("/admin/");
 
   if (isAdminRoute) {
     if (!user) {

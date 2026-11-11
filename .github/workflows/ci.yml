@@ -64,7 +64,7 @@ jobs:
             exit 1
           fi
 
-          location=$(curl -sS -D - -o /dev/null http://127.0.0.1:3000/admin | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\r$/, ""); print $2 }')
+          location=$(curl -sS -D - -o /dev/null http://127.0.0.1:3000/admin | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\\r$/, ""); print $2 }')
           location_path="${location#http://localhost:3000}"
           if [[ "$location_path" != /login* ]]; then
             echo "Expected redirect to /login; received: $location"
@@ -72,6 +72,43 @@ jobs:
           fi
 
           echo "PASS: unauthenticated /admin requests redirect to /login."
+
+      - name: Smoke test admin route fails closed when Supabase configuration is missing
+        shell: bash
+        run: |
+          env -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY npm run start -- --hostname 127.0.0.1 > /tmp/connexa-no-supabase-config.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          status=""
+          for attempt in {1..30}; do
+            status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/admin || true)
+            if [ "$status" = "307" ]; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$status" != "307" ]; then
+            echo "Expected HTTP 307 when Supabase configuration is missing; received: $status"
+            cat /tmp/connexa-no-supabase-config.log
+            exit 1
+          fi
+
+          location=$(curl -sS -D - -o /dev/null http://127.0.0.1:3000/admin | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\\r$/, ""); print $2 }')
+          location_path="${location#http://localhost:3000}"
+          if [[ "$location_path" != /acesso-negado* ]]; then
+            echo "Expected redirect to /acesso-negado; received: $location"
+            exit 1
+          fi
+
+          public_status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/login || true)
+          if [ "$public_status" != "200" ]; then
+            echo "Expected public /login to remain available; received: $public_status"
+            exit 1
+          fi
+
+          echo "PASS: /admin fails closed without Supabase configuration and /login remains public."
 
       - name: Install browser test dependencies
         if: env.HAS_AUTH_TEST_SECRETS == 'true'
@@ -126,4 +163,4 @@ jobs:
 
       - name: Explain skipped authenticated browser test
         if: env.HAS_AUTH_TEST_SECRETS != 'true'
-        run: echo "Authenticated browser test skipped because GitHub Actions secrets are not configured."
+        run: echo "Authenticated browser test skipped because its GitHub Actions secrets are not configured."

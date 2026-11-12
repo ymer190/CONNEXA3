@@ -45,9 +45,9 @@ jobs:
       - name: Smoke test protected admin route without a session
         shell: bash
         run: |
-          npm run start -- --hostname 127.0.0.1 > /tmp/connexa-next.log 2>&1 &
+          setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-next.log 2>&1 &
           server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
 
           status=""
           for attempt in {1..30}; do
@@ -85,9 +85,9 @@ jobs:
         shell: bash
         run: |
           # Use a dedicated port so a previous Next.js process cannot answer this request.
-          env -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/connexa-no-supabase-config.log 2>&1 &
+          env -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY setsid npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/connexa-no-supabase-config.log 2>&1 &
           server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
 
           status=""
           for attempt in {1..30}; do
@@ -137,9 +137,9 @@ jobs:
           AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
         shell: bash
         run: |
-          npm run start -- --hostname 127.0.0.1 > /tmp/connexa-auth-test.log 2>&1 &
+          setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-auth-test.log 2>&1 &
           server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
 
           for attempt in {1..30}; do
             if curl -fsS http://127.0.0.1:3000/login > /dev/null; then
@@ -157,9 +157,9 @@ jobs:
           AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
         shell: bash
         run: |
-          npm run start -- --hostname 127.0.0.1 > /tmp/connexa-admin-auth-test.log 2>&1 &
+          setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-admin-auth-test.log 2>&1 &
           server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
 
           for attempt in {1..30}; do
             if curl -fsS http://127.0.0.1:3000/login > /dev/null; then

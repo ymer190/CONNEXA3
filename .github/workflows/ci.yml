@@ -84,13 +84,14 @@ jobs:
       - name: Smoke test admin route fails closed when Supabase configuration is missing
         shell: bash
         run: |
-          env -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY npm run start -- --hostname 127.0.0.1 > /tmp/connexa-no-supabase-config.log 2>&1 &
+          # Use a dedicated port so a previous Next.js process cannot answer this request.
+          env -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/connexa-no-supabase-config.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 
           status=""
           for attempt in {1..30}; do
-            status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/admin || true)
+            status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/admin || true)
             if [ "$status" = "307" ]; then
               break
             fi
@@ -103,14 +104,15 @@ jobs:
             exit 1
           fi
 
-          location=$(curl -sS -D - -o /dev/null http://127.0.0.1:3000/admin | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\\r$/, ""); print $2 }')
-          location_path="${location#http://localhost:3000}"
+          location=$(curl -sS -D - -o /dev/null http://127.0.0.1:3001/admin | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\\r$/, ""); print $2 }')
+          location_path="${location#http://localhost:3001}"
           if [[ "$location_path" != /acesso-negado* ]]; then
             echo "Expected redirect to /acesso-negado; received: $location"
+            cat /tmp/connexa-no-supabase-config.log
             exit 1
           fi
 
-          public_status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/login || true)
+          public_status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/login || true)
           if [ "$public_status" != "200" ]; then
             echo "Expected public /login to remain available; received: $public_status"
             exit 1

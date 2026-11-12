@@ -73,6 +73,14 @@ jobs:
 
           echo "PASS: unauthenticated /admin requests redirect to /login."
 
+      # NEXT_PUBLIC_* values are inlined into Next.js middleware at build time.
+      # Build a separate artifact without them to exercise the fail-closed branch.
+      - name: Build Next.js application without Supabase configuration
+        shell: bash
+        run: |
+          rm -rf .next
+          env -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY npm run build
+
       - name: Smoke test admin route fails closed when Supabase configuration is missing
         shell: bash
         run: |
@@ -110,6 +118,10 @@ jobs:
 
           echo "PASS: /admin fails closed without Supabase configuration and /login remains public."
 
+      # Restore the normal build for authenticated browser tests.
+      - name: Build Next.js application with Supabase configuration
+        run: npm run build
+
       - name: Install browser test dependencies
         if: env.HAS_AUTH_TEST_SECRETS == 'true'
         run: |
@@ -135,7 +147,6 @@ jobs:
           done
 
           node scripts/auth-regular-user-smoke.cjs
-
 
       - name: Test platform administrator login, access, and logout
         if: env.HAS_AUTH_ADMIN_TEST_SECRETS == 'true'

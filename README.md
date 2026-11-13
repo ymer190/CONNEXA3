@@ -1,6 +1,17 @@
 # CONNEXA3
 
-Aplicação web de comunicação e colaboração para equipes.
+Plataforma web de comunicação e atendimento empresarial. O CONNEXA3 reúne conversas com clientes e colaboração de equipes em uma caixa de entrada compartilhada, com contatos, etiquetas, responsáveis e respostas rápidas.
+
+## Direção do produto
+
+A experiência é inspirada na praticidade conversacional do WhatsApp Business, ampliada para equipes e operações de atendimento. O CONNEXA3 mantém identidade visual e produto próprios.
+
+Princípios:
+- **Atendimento centralizado:** acompanhar conversas e canais em um único espaço.
+- **Colaboração:** permitir que equipes compartilhem contexto e organizem responsabilidades.
+- **Relacionamento:** manter informações e histórico do cliente próximos da conversa.
+- **Clareza operacional:** destacar prioridades, pendências e estados de cada atendimento.
+- **Acesso web:** funcionar no navegador, com experiência responsiva e sem instalação obrigatória.
 
 ## Stack inicial
 
@@ -10,7 +21,7 @@ Aplicação web de comunicação e colaboração para equipes.
 - **CSS global:** estilos responsivos iniciais, sem dependência de biblioteca visual externa.
 - **Supabase:** integração de autenticação e dados será adicionada em módulos próprios nas próximas Issues.
 
-A escolha mantém a aplicação em uma base web única, com renderização e rotas suportadas pela Vercel, tipagem desde o início e baixo número de dependências. A interface inicial não depende de serviços externos de fontes, analytics ou APIs de terceiros.
+A aplicação mantém uma base web única, tipagem desde o início e baixo número de dependências. Não adicionar chaves ou segredos ao código versionado.
 
 ## Requisitos
 
@@ -52,16 +63,21 @@ src/
     page.tsx
   components/
     brand-mark.tsx
+docs/
+  ux/
+    business-mobile-experience.md
+    business-navigation-usability.md
+    business-interface-states.md
 ```
 
 - `src/app`: layout raiz, estilos globais e rotas do App Router.
 - `src/components`: componentes de interface reutilizáveis.
-- `src/lib` (a ser expandido): módulos de integração e regras compartilhadas, sem acoplar componentes diretamente aos serviços.
+- `docs/ux`: especificações de experiência, navegação e estados da interface.
 
 ## Ambientes
 
-A aplicação está preparada para ser conectada à Vercel usando o repositório GitHub. As variáveis de ambiente e a inicialização segura do cliente Supabase serão documentadas na Issue #59; não adicione chaves ou segredos ao código versionado.
+A aplicação está preparada para ser conectada à Vercel usando o repositório GitHub. A integração de autenticação, dados e tempo real será realizada com Supabase em etapas próprias. Nunca versionar variáveis secretas.
 
-## Escopo atual
+## Escopo do protótipo atual
 
-A página inicial é uma apresentação visual inicial do Connexa. Cadastro, autenticação, workspaces, canais, mensagens e tempo real serão implementados nas Issues correspondentes. A prévia de conversa exibida na página é ilustrativa e não representa dados persistidos ou uma funcionalidade já conectada.
+A interface de referência apresenta uma caixa de entrada empresarial com conversas, busca, filtros, respostas rápidas, etiquetas e painel de contato. Os dados exibidos são fictícios e locais, destinados à avaliação de UX. Conexão com canais, autenticação, persistência, atribuição real de atendimentos e estados confirmados de entrega/leitura ainda dependem das próximas etapas técnicas.

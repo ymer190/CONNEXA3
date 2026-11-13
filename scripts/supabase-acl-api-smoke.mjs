@@ -65,11 +65,31 @@ const accessToken = loginPayload.access_token;
 const userId = loginPayload.user.id;
 console.log("PASS: authenticated test user login");
 
-const ownProfile = await request(
-  `/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,full_name&limit=1`,
-  { token: accessToken },
-);
+const profilePath = `/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,full_name&limit=1`;
+let ownProfile = await request(profilePath, { token: accessToken });
 assert.equal(ownProfile.status, 200, `Own profile SELECT failed: ${JSON.stringify(ownProfile.payload)}`);
+assert.ok(
+  Array.isArray(ownProfile.payload) && ownProfile.payload.length <= 1,
+  "Expected at most one profile for the authenticated user",
+);
+
+if (ownProfile.payload.length === 0) {
+  const createProfile = await request("/rest/v1/profiles", {
+    method: "POST",
+    token: accessToken,
+    body: { id: userId, full_name: "Connexa ACL API smoke test" },
+    prefer: "return=minimal",
+  });
+  assert.equal(
+    createProfile.status,
+    201,
+    `Own profile INSERT failed: HTTP ${createProfile.status} ${JSON.stringify(createProfile.payload)}`,
+  );
+  console.log("PASS: authenticated user can INSERT their own profile");
+  ownProfile = await request(profilePath, { token: accessToken });
+  assert.equal(ownProfile.status, 200, `Own profile SELECT after INSERT failed: ${JSON.stringify(ownProfile.payload)}`);
+}
+
 assert.equal(ownProfile.payload?.length, 1, "RLS should expose exactly the authenticated user's profile");
 console.log("PASS: authenticated user can SELECT their own profile");
 

@@ -61,7 +61,7 @@ Comparação:
 
 ### 4.1 README fora da direção aprovada
 
-O README da branch main descreve atendimento empresarial, caixa de entrada compartilhada, contatos, etiquetas, responsáveis e respostas rápidas. Também descreve dados fictícios de atendimento. Essa descrição não representa a direção de comunicação interna confirmada e deve ser substituída.
+O README da branch main descreve atendimento empresarial, caixa de entrada compartilhada, contatos, etiquetas, responsáveis e respostas rápidas. Também descreve dados fictícios de atendimento. Essa descrição não representa a direção de comunicação interna confirmada. O README foi alinhado nesta branch.
 
 ### 4.2 Conversas individuais versus canais
 

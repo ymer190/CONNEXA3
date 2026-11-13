@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import { BrandMark } from "@/components/brand-mark";
 
 type Message = { id: number; from: "them" | "me"; text: string; time: string; status?: string };

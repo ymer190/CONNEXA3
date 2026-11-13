@@ -111,15 +111,15 @@ export default function Home() {
 
       <section className={mobileView === "chat" ? "inbox-panel mobile-hidden" : "inbox-panel"} aria-label="Caixa de entrada">
         <header className="inbox-header">
-          <div className="workspace-line"><span className="workspace-avatar">N</span><div><strong>Nova Aurora</strong><small>Workspace empresarial</small></div><button className="icon-button" aria-label="Opções do workspace" onClick={() => notify("Opções do workspace.")}>⌄</button></div>
-          <div className="inbox-title"><div><p className="eyebrow">ATENDIMENTO</p><h1>Conversas <span className="count-pill">{conversations.length}</span></h1></div><button className="new-chat" onClick={() => notify("Nova conversa: conecte um canal para começar.")} aria-label="Nova conversa">＋</button></div>
-          <label className="search-box"><span aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar conversas ou contatos" aria-label="Buscar conversas ou contatos" /><kbd>⌘ K</kbd></label>
+          <div className="workspace-line"><span className="workspace-avatar">N</span><div><strong>Órbita Studio</strong><small>Workspace · Equipe comercial</small></div><button className="icon-button" aria-label="Opções do workspace" onClick={() => notify("Opções do workspace.")}>⌄</button></div>
+          <div className="inbox-title"><div><p className="eyebrow">RELACIONAMENTO EM MOVIMENTO</p><h1>Atendimentos <span className="count-pill">{conversations.length}</span></h1></div><button className="new-chat" onClick={() => notify("Nova conversa: conecte um canal para começar.")} aria-label="Nova conversa">＋</button></div>
+          <label className="search-box"><span aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar cliente, empresa ou conversa" aria-label="Buscar cliente, empresa ou conversa" /><kbd>⌘ K</kbd></label>
           <div className="filter-row" aria-label="Filtros de conversas">
             {["Todas", "Não lidas", "Novo lead", "Prioridade"].map((item) => <button key={item} className={filter === item ? "filter-chip selected" : "filter-chip"} onClick={() => setFilter(item)}>{item}</button>)}
           </div>
         </header>
         <div className="conversation-list">
-          <div className="list-caption"><span>CAIXA DE ENTRADA</span><button onClick={() => notify("Ordenação por atividade recente.")}>Recentes⌄</button></div>
+          <div className="list-caption"><span>FILA DE TRABALHO</span><button onClick={() => notify("Ordenação por atividade recente.")}>Recentes⌄</button></div>
           {visible.map((item) => <button key={item.id} className={activeId === item.id ? "conversation active" : "conversation"} onClick={() => chooseConversation(item.id)}>
             <span className={"contact-avatar " + item.color}>{item.initials}{item.online && <i />}</span>
             <span className="conversation-copy"><span className="conversation-top"><strong>{item.name}</strong><time>{item.time}</time></span><span className="conversation-company">{item.company}</span><span className="conversation-bottom"><span>{item.preview}</span>{item.unread > 0 && <b className="unread-count">{item.unread}</b>}</span><span className="conversation-tags"><i className={item.channel === "WhatsApp" ? "channel-dot whatsapp" : "channel-dot web"} />{item.channel}<em>{item.label}</em></span></span>
@@ -139,15 +139,15 @@ export default function Home() {
           <button className="header-action" onClick={() => setShowContact(!showContact)} aria-label="Detalhes do contato">ⓘ</button>
           <button className="header-action" onClick={() => notify("Mais opções da conversa.")} aria-label="Mais opções">⋯</button>
         </header>
-        <div className="chat-context"><span className="secure-icon">▣</span> Esta conversa é um canal de relacionamento com o cliente. <button onClick={() => notify("Detalhes de privacidade.")}>Saiba mais</button></div>
+        <div className="chat-context"><span className="secure-icon">▣</span> Contexto da conta · histórico e próximos passos da equipe. <button onClick={() => notify("Detalhes de privacidade.")}>Saiba mais</button></div>
         <div className="message-history" aria-live="polite">
           <div className="date-divider"><span>HOJE</span></div>
           {active.messages.map((item) => <div key={item.id} className={item.from === "me" ? "message-row outgoing" : "message-row incoming"}><div className="bubble">{item.text}<div className="bubble-meta">{item.time} {item.from === "me" && <span>{item.status === "Lida" ? "✓✓" : "✓"}</span>}</div></div></div>)}
         </div>
-        <div className="quick-replies"><span>RESPOSTAS RÁPIDAS</span>{quickReplies.map((reply) => <button key={reply} onClick={() => setMessage(reply)}>{reply}</button>)}</div>
+        <div className="quick-replies"><span>ATALHOS DA EQUIPE</span>{quickReplies.map((reply) => <button key={reply} onClick={() => setMessage(reply)}>{reply}</button>)}</div>
         <form className="composer" onSubmit={sendMessage}>
           <button type="button" className="composer-tool" aria-label="Anexar arquivo" onClick={() => notify("Anexos estarão disponíveis quando o canal estiver conectado.")}>＋</button>
-          <input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Digite uma mensagem..." aria-label="Digite uma mensagem" />
+          <input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Escreva para continuar o relacionamento..." aria-label="Escreva uma mensagem para o cliente" />
           <button type="button" className="composer-tool" aria-label="Inserir resposta rápida" onClick={() => setMessage(quickReplies[0])}>ϟ</button>
           <button className="send-button" type="submit" disabled={!message.trim()} aria-label="Enviar mensagem">➤</button>
         </form>

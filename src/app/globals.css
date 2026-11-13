@@ -128,3 +128,62 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 }
 @media (max-width: 360px) { .chat-person strong { font-size: 10px; }.header-action { width: 27px; }.contact-avatar.small { width: 32px; height: 32px; }.conversation { gap: 8px; padding-right: 10px; padding-left: 10px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+
+
+/* CONNEXA signature: ink plum, warm porcelain and vivid persimmon.
+   Intentionally avoids the familiar green messenger visual language. */
+:root {
+  --canvas: #f4f0eb;
+  --surface: #fffdfa;
+  --surface-muted: #f7f2ed;
+  --text: #28212e;
+  --muted: #817987;
+  --line: #ebe3dc;
+  --brand: #7652a5;
+  --brand-dark: #5d3d88;
+  --brand-soft: #f0e9f7;
+  --whatsapp: #d66b48;
+  --shadow: 0 14px 40px rgba(53, 36, 61, .09);
+}
+body { background: var(--canvas); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline-color: #e69a78; }
+.nav-rail { background: #292034; color: #e8dff0; }
+.rail-brand { background: #49365b; }
+.rail-brand .brand__symbol { border-color: #e7d8f2; }
+.rail-brand .brand__symbol span { background: #f39a73; }
+.rail-button { color: #c9bdd2; }
+.rail-button:hover, .rail-button.active { background: #493b55; color: #fff; }
+.profile-mini, .assignee-avatar { background: #f1c4a9; color: #583b35; }
+.workspace-avatar { background: #f0e6f5; color: var(--brand); }
+.count-pill { background: var(--brand-soft); color: var(--brand); }
+.new-chat, .send-button { background: #d66b48; }
+.new-chat:hover, .send-button:hover:not(:disabled) { background: #b95437; }
+.filter-chip.selected { border-color: #d7c4e8; background: var(--brand-soft); color: var(--brand-dark); }
+.conversation.active { border-left-color: #d66b48; background: #faf4f0; }
+.mint { background: #e8dff1; color: #65458a; }
+.blue { background: #dce5f3; color: #49638c; }
+.peach { background: #f8e2d6; color: #a8583d; }
+.lilac { background: #e8e2f5; color: #70569c; }
+.channel-dot.whatsapp { background: #d66b48; }
+.online-dot, .contact-avatar i { background: #7c9c70; }
+.chat-panel { background: #f4f0eb; }
+.chat-header { background: #fffdfa; }
+.chat-context { background: #eee8f2; color: #75677f; }
+.chat-context .secure-icon { color: #7652a5; }
+.message-history {
+  background-color: #f6f1eb;
+  background-image: linear-gradient(rgba(255,255,255,.38) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.38) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+.date-divider span { border-color: #e9dfd7; background: #fffdfa; }
+.bubble { border-color: #e9e0d8; border-radius: 13px 13px 13px 4px; background: #fffdfa; color: #342b39; }
+.outgoing .bubble { border-color: #e9c9b8; border-radius: 13px 13px 4px 13px; background: #f9e7dc; }
+.bubble-meta span { color: #9b654f; }
+.quick-replies button { border-color: #e4d6eb; color: var(--brand); }
+.composer { border-color: #e8ded6; background: #fffdfa; }
+.composer-tool:hover { background: var(--brand-soft); color: var(--brand); }
+.profile-channel { color: #b65c3e; }
+.toast { background: #30243a; }
+.outline-button:hover { background: var(--brand-soft); }
+.mobile-nav { background: #fffdfa; }
+.mobile-nav button.selected { color: var(--brand); }

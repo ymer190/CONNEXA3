@@ -30,7 +30,7 @@ As quatro tabelas estão com RLS habilitado. Foram observadas seis policies, a f
 | `20261102003616` | `create_organizations_profiles_and_members` | Cria organizations, profiles, organization_members, índices, função/trigger de updated_at, RLS, grants e policies |
 | `20261107201938` | `create_platform_users` | Cria platform_users, RLS, grants e policy de leitura do próprio papel |
 
-Os SQLs originais foram recuperados do ledger de migrations do Supabase DEV. Não reaplicar essas migrations no DEV e não recriar seu conteúdo por aproximação. O PROD não foi alterado nesta atividade.
+Os SQLs originais foram recuperados do ledger de migrations do Supabase DEV e versionados, sem alteração intencional de conteúdo, em `supabase/migrations/` com os mesmos timestamps e nomes. Não reaplicar essas migrations no DEV: elas já constam no ledger. O PROD não foi alterado nesta atividade.
 
 ## 3. Comparação com o modelo documentado
 
@@ -110,7 +110,7 @@ A issue #37 documenta a base conceitual; #95, #99 e #108 tornam explícitas nece
 3. Definir a matriz de autorização para owner/admin/member e administrador da plataforma, incluindo leitura de canais privados.
 4. Projetar constraints e policies RLS para impedir referências cruzadas entre organizações e acesso indevido a mensagens.
 5. Criar migrations incrementais somente após revisão do modelo e dos testes de segurança.
-6. Versionar as duas migrations históricas recuperadas com o SQL exato e validar o alinhamento com o ledger DEV, sem reaplicá-las.
+6. **Concluído nesta branch:** versionar as duas migrations históricas recuperadas com os timestamps originais; conferir os arquivos com o SQL recuperado e manter o DEV sem reaplicação.
 7. Aplicar e validar novas migrations somente no DEV. Produção permanece bloqueada até revisão e aprovação explícita.
 
 ## 8. Limites desta atividade

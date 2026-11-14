@@ -1,0 +1,42 @@
+name: Generate npm lockfile
+
+on:
+  push:
+    branches:
+      - feature/issue-91-auth-platform-admin
+
+permissions:
+  contents: write
+
+jobs:
+  generate-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate deterministic npm lockfile
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Commit lockfile
+        shell: bash
+        run: |
+          test -f package-lock.json
+          git add package-lock.json
+
+          if git diff --cached --quiet -- package-lock.json; then
+            echo "package-lock.json is already up to date."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "build(deps): add npm lockfile"
+          git push

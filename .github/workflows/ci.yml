@@ -7,31 +7,28 @@ on:
     branches:
       - main
       - feature/57-initialize-web-app
+      - feature/issue-91-auth-platform-admin
 
 permissions:
   contents: read
-
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   validate:
     name: Validate application
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://dzsacdtolxrqgwlekzdg.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_VxDDuEIFkXx4OrkVdg4xbg_7RAzlmR9
+      HAS_AUTH_TEST_SECRETS: ${{ secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' }}
+      HAS_AUTH_ADMIN_TEST_SECRETS: ${{ secrets.AUTH_TEST_ADMIN_EMAIL != '' && secrets.AUTH_TEST_ADMIN_PASSWORD != '' }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          persist-credentials: false
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -44,3 +41,137 @@ jobs:
 
       - name: Build Next.js application
         run: npm run build
+
+      - name: Smoke test protected admin route without a session
+        shell: bash
+        run: |
+          setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-next.log 2>&1 &
+          server_pid=$!
+          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
+
+          status=""
+          for attempt in {1..30}; do
+            status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/admin || true)
+            if [ "$status" = "307" ]; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$status" != "307" ]; then
+            echo "Expected HTTP 307 for unauthenticated /admin; received: $status"
+            cat /tmp/connexa-next.log
+            exit 1
+          fi
+
+          location=$(curl -sS -D - -o /dev/null http://127.0.0.1:3000/admin | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\\r$/, ""); print $2 }')
+          location_path="${location#http://localhost:3000}"
+          if [[ "$location_path" != /login* ]]; then
+            echo "Expected redirect to /login; received: $location"
+            exit 1
+          fi
+
+          echo "PASS: unauthenticated /admin requests redirect to /login."
+
+      # NEXT_PUBLIC_* values are inlined into Next.js middleware at build time.
+      # Build a separate artifact without them to exercise the fail-closed branch.
+      - name: Build Next.js application without Supabase configuration
+        shell: bash
+        run: |
+          rm -rf .next
+          env -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY npm run build
+
+      - name: Smoke test admin route fails closed when Supabase configuration is missing
+        shell: bash
+        run: |
+          # Use a dedicated port so a previous Next.js process cannot answer this request.
+          env -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY setsid npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/connexa-no-supabase-config.log 2>&1 &
+          server_pid=$!
+          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
+
+          status=""
+          for attempt in {1..30}; do
+            status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/admin || true)
+            if [ "$status" = "307" ]; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$status" != "307" ]; then
+            echo "Expected HTTP 307 when Supabase configuration is missing; received: $status"
+            cat /tmp/connexa-no-supabase-config.log
+            exit 1
+          fi
+
+          location=$(curl -sS -D - -o /dev/null http://127.0.0.1:3001/admin | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\\r$/, ""); print $2 }')
+          location_path="${location#http://localhost:3001}"
+          if [[ "$location_path" != /acesso-negado* ]]; then
+            echo "Expected redirect to /acesso-negado; received: $location"
+            cat /tmp/connexa-no-supabase-config.log
+            exit 1
+          fi
+
+          public_status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/login || true)
+          if [ "$public_status" != "200" ]; then
+            echo "Expected public /login to remain available; received: $public_status"
+            exit 1
+          fi
+
+          echo "PASS: /admin fails closed without Supabase configuration and /login remains public."
+
+      # Restore the normal build for authenticated browser tests.
+      - name: Build Next.js application with Supabase configuration
+        run: npm run build
+
+      - name: Install browser test dependencies
+        if: env.HAS_AUTH_TEST_SECRETS == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Test regular user login and admin denial
+        if: env.HAS_AUTH_TEST_SECRETS == 'true'
+        env:
+          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
+          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
+        shell: bash
+        run: |
+          setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-auth-test.log 2>&1 &
+          server_pid=$!
+          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
+
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/login > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          node scripts/auth-regular-user-smoke.cjs
+
+      - name: Test platform administrator login, access, and logout
+        if: env.HAS_AUTH_ADMIN_TEST_SECRETS == 'true'
+        env:
+          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
+          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
+        shell: bash
+        run: |
+          setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-admin-auth-test.log 2>&1 &
+          server_pid=$!
+          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
+
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/login > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          node scripts/auth-admin-smoke.cjs
+
+      - name: Explain skipped administrator browser test
+        if: env.HAS_AUTH_ADMIN_TEST_SECRETS != 'true'
+        run: echo "Administrator browser test skipped because its GitHub Actions secrets are not configured."
+
+      - name: Explain skipped authenticated browser test
+        if: env.HAS_AUTH_TEST_SECRETS != 'true'
+        run: echo "Authenticated browser test skipped because its GitHub Actions secrets are not configured."

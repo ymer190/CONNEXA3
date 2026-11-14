@@ -1,0 +1,38 @@
+name: Supabase ACL API smoke tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - feature/issue-123-sql-privilege-hardening
+
+permissions:
+  contents: read
+
+jobs:
+  api-acl:
+    name: Validate Supabase table grants through the API
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: https://dzsacdtolxrqgwlekzdg.supabase.co
+      SUPABASE_PUBLISHABLE_KEY: sb_publishable_VxDDuEIFkXx4OrkVdg4xbg_7RAzlmR9
+      AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
+      AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate required test credentials
+        shell: bash
+        run: |
+          test -n "$AUTH_TEST_USER_EMAIL" || { echo "AUTH_TEST_USER_EMAIL is not configured"; exit 1; }
+          test -n "$AUTH_TEST_USER_PASSWORD" || { echo "AUTH_TEST_USER_PASSWORD is not configured"; exit 1; }
+
+      - name: Run positive and negative API tests
+        run: node scripts/supabase-acl-api-smoke.mjs

@@ -187,3 +187,135 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline-color:
 .outline-button:hover { background: var(--brand-soft); }
 .mobile-nav { background: #fffdfa; }
 .mobile-nav button.selected { color: var(--brand); }
+
+/* Authentication and platform administration.
+   Scoped styles preserve the current Connexa workspace visual system. */
+.auth-page {
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  padding: 28px 18px;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(20, 125, 101, .10), transparent 28rem),
+    radial-gradient(circle at 90% 90%, rgba(214, 107, 72, .08), transparent 25rem),
+    var(--canvas);
+}
+.auth-card {
+  width: min(100%, 440px);
+  padding: clamp(26px, 6vw, 42px);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.auth-brand {
+  display: inline-block;
+  margin-bottom: 34px;
+  color: var(--brand-dark);
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -.06em;
+  text-decoration: none;
+}
+.auth-eyebrow {
+  margin: 0 0 12px;
+  color: var(--brand);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .15em;
+}
+.auth-card h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(27px, 7vw, 34px);
+  letter-spacing: -.045em;
+}
+.auth-description {
+  margin: 12px 0 28px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.auth-form { display: grid; gap: 10px; }
+.auth-form label {
+  margin-top: 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+.auth-form input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-muted);
+  color: var(--text);
+  font-size: 14px;
+}
+.auth-form input::placeholder { color: var(--muted); }
+.auth-form input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(20, 125, 101, .12);
+  outline: none;
+}
+.auth-form button, .auth-submit, .auth-link-button {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 16px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 750;
+  text-decoration: none;
+  transition: background .18s ease, transform .18s ease;
+}
+.auth-form button:hover:not(:disabled), .auth-submit:hover:not(:disabled), .auth-link-button:hover {
+  background: var(--brand-dark);
+}
+.auth-form button:active, .auth-submit:active, .auth-link-button:active { transform: translateY(1px); }
+.auth-form button:disabled, .auth-submit:disabled { cursor: wait; opacity: .65; }
+.auth-error {
+  margin: 8px 0 0;
+  color: #b64235;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.auth-footer { margin: 26px 0 0; text-align: center; }
+.auth-footer a, .auth-card > a:not(.auth-brand) {
+  color: var(--brand-dark);
+  font-size: 12px;
+  font-weight: 650;
+  text-decoration: none;
+}
+.auth-footer a:hover, .auth-card > a:not(.auth-brand):hover { text-decoration: underline; }
+.admin-card { width: min(100%, 520px); }
+.admin-details { display: grid; gap: 14px; margin: 28px 0 12px; }
+.admin-details div {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+.admin-details dt { color: var(--muted); font-size: 11px; }
+.admin-details dd {
+  margin: 6px 0 0;
+  color: var(--text);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.auth-submit, .auth-link-button { width: 100%; }
+@media (max-width: 480px) {
+  .auth-page { align-items: start; padding: 18px 14px; }
+  .auth-card { margin: auto 0; padding: 26px 21px; border-radius: 16px; }
+  .auth-brand { margin-bottom: 28px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-form button, .auth-submit, .auth-link-button { transition: none; }
+}
+

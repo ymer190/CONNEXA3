@@ -1,5 +1,8 @@
 # Arquitetura inicial e modelo de dados — Connexa
 
+> **Status de reconciliação (2026-11-13):** este documento registra o modelo lógico inicial, não o schema completo já implementado. O Supabase DEV contém atualmente apenas `organizations`, `profiles`, `organization_members` e `platform_users`. Canais, participantes e mensagens ainda não existem no DEV. As issues #99 e #108 também exigem conversas individuais, portanto o modelo abaixo precisa ser complementado antes de novas migrations. Consulte [a reconciliação arquitetural](database-reconciliation.md). Não aplicar o modelo físico deste documento diretamente em produção.
+
+
 ## 1. Objetivo
 
 Definir a arquitetura inicial do Connexa e o modelo de dados mínimo para suportar autenticação, isolamento entre empresas, perfis, papéis de usuário, canais públicos e privados e mensagens.
@@ -290,9 +293,14 @@ As políticas finais devem ser testadas com usuários de empresas diferentes e c
 
 A entrega de mensagens em tempo real deverá respeitar a mesma autorização aplicada à leitura das mensagens. A implementação deverá validar o comportamento do mecanismo Realtime escolhido no Supabase, incluindo usuários que entram ou saem de canais privados e usuários suspensos. Não considerar o recebimento de um evento como uma autorização independente.
 
-## 11. Fora do escopo da primeira versão
+## 11. Escopo e lacunas em relação ao backlog
 
-- Mensagens diretas entre usuários.
+As conversas individuais e em grupos fazem parte do backlog de produto (issues #99 e #108), portanto **não devem ser tratadas como fora do escopo**. O modelo apresentado neste documento ainda não descreve completamente as conversas individuais nem define como elas se relacionam com canais e grupos.
+
+Antes da implementação física, é necessário decidir se conversas individuais, grupos e canais serão representados por uma entidade genérica de conversa ou por estruturas distintas. Também devem ser definidos participantes, autoria, histórico, estados de envio/entrega, edição/exclusão e regras de acesso.
+
+Continuam fora do escopo inicial, salvo decisão posterior:
+
 - Chamadas de áudio ou vídeo.
 - Upload e compartilhamento de anexos.
 - Threads e respostas encadeadas.
@@ -301,9 +309,12 @@ A entrega de mensagens em tempo real deverá respeitar a mesma autorização apl
 
 ## 12. Pontos a confirmar antes da implementação
 
-1. **Gestão de membros:** detalhar o fluxo de convite, aceite e suspensão, sem permitir vínculo de um usuário a mais de uma empresa.
-2. **Exclusão e retenção:** definir por quanto tempo mensagens e canais excluídos logicamente serão mantidos.
-3. **Políticas RLS e Realtime:** escrever e testar as políticas concretas antes de liberar o acesso pelo cliente.
+1. **Modelo de conversas:** decidir a representação de conversas individuais, grupos e canais e a relação entre esses conceitos.
+2. **Gestão de membros:** detalhar o fluxo de convite, aceite e suspensão, sem permitir vínculo de um usuário a mais de uma empresa.
+3. **Departamentos e grupos:** formalizar a distinção entre estrutura organizacional e espaços de conversa, incluindo quem pode criar e administrar cada recurso.
+4. **Papéis administrativos:** separar claramente permissões de owner/admin da organização e administrador global da plataforma.
+5. **Exclusão e retenção:** definir por quanto tempo mensagens e conversas excluídas logicamente serão mantidas.
+6. **Políticas RLS e Realtime:** escrever e testar as políticas concretas para cada tipo de conversa antes de liberar o acesso pelo cliente.
 
 ## 13. Critérios de aceite da Issue #37
 

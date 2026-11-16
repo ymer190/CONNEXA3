@@ -1,83 +1,43 @@
 # CONNEXA3
 
-Plataforma web de comunicação e atendimento empresarial. O CONNEXA3 reúne conversas com clientes e colaboração de equipes em uma caixa de entrada compartilhada, com contatos, etiquetas, responsáveis e respostas rápidas.
+Plataforma web de **comunicação corporativa interna**, com experiência mobile-first inspirada na praticidade conversacional do WhatsApp. O produto é destinado à comunicação entre colaboradores de uma organização, com conversas individuais, grupos e espaços de comunicação corporativos.
 
 ## Direção do produto
 
-A experiência é inspirada na praticidade conversacional do WhatsApp Business, ampliada para equipes e operações de atendimento. O CONNEXA3 mantém identidade visual e produto próprios.
+O CONNEXA3 não é uma plataforma de atendimento a clientes nem uma inbox compartilhada de suporte. Seu foco é a comunicação interna segura entre colaboradores.
 
 Princípios:
-- **Atendimento centralizado:** acompanhar conversas e canais em um único espaço.
-- **Colaboração:** permitir que equipes compartilhem contexto e organizem responsabilidades.
-- **Relacionamento:** manter informações e histórico do cliente próximos da conversa.
-- **Clareza operacional:** destacar prioridades, pendências e estados de cada atendimento.
-- **Acesso web:** funcionar no navegador, com experiência responsiva e sem instalação obrigatória.
+- **Comunicação individual e em grupos:** conversas entre colaboradores e espaços coletivos.
+- **Organização corporativa:** colaboradores, departamentos, grupos e permissões administradas conforme regras do negócio.
+- **Privacidade:** isolamento dos dados por organização e autorização aplicada no Supabase.
+- **Tempo real:** atualização de mensagens e histórico persistente.
+- **Mobile-first:** experiência prioritariamente projetada para celulares, com suporte a desktop.
+- **Segurança:** autenticação pelo Supabase Auth, políticas RLS e nenhuma credencial privilegiada exposta ao navegador.
 
-## Stack inicial
+## Stack e infraestrutura
 
-- **Next.js 15 (App Router):** aplicação web e rotas, com compatibilidade de deploy na Vercel.
-- **React 19:** composição da interface.
-- **TypeScript:** tipagem estática.
-- **CSS global:** estilos responsivos iniciais, sem dependência de biblioteca visual externa.
-- **Supabase:** integração de autenticação e dados será adicionada em módulos próprios nas próximas Issues.
+- **GitHub:** código-fonte, documentação, revisão e automações CI.
+- **Vercel:** hospedagem e deploy da aplicação web.
+- **Supabase:** Auth, PostgreSQL, Row Level Security e Realtime.
+- **Next.js, React e TypeScript:** aplicação web.
 
-A aplicação mantém uma base web única, tipagem desde o início e baixo número de dependências. Não adicionar chaves ou segredos ao código versionado.
+Os ambientes de execução e serviços do projeto são online: GitHub, Vercel e Supabase. Não versionar chaves, tokens, senhas ou credenciais.
 
-## Requisitos
+## Arquitetura de dados
 
-- Node.js 20.9 ou superior.
-- npm.
+A base inicial já contempla organizações, perfis, vínculos de membros e administradores da plataforma. A estrutura de canais, grupos, conversas individuais, participantes e mensagens está em evolução e deve seguir o documento [Reconciliação arquitetural](docs/architecture/database-reconciliation.md) e o [Modelo de dados](docs/architecture/database-model.md).
 
-## Executar localmente
-
-1. Clone o repositório.
-2. Instale as dependências:
-
-   ```bash
-   npm install
-   ```
-
-3. Inicie o servidor de desenvolvimento:
-
-   ```bash
-   npm run dev
-   ```
-
-4. Acesse [http://localhost:3000](http://localhost:3000).
-
-## Verificações
-
-```bash
-npm run lint
-npm run typecheck
-npm run build
-```
-
-## Estrutura
-
-```text
-src/
-  app/
-    globals.css
-    layout.tsx
-    page.tsx
-  components/
-    brand-mark.tsx
-docs/
-  ux/
-    business-mobile-experience.md
-    business-navigation-usability.md
-    business-interface-states.md
-```
-
-- `src/app`: layout raiz, estilos globais e rotas do App Router.
-- `src/components`: componentes de interface reutilizáveis.
-- `docs/ux`: especificações de experiência, navegação e estados da interface.
+Nenhuma nova migration deve ser aplicada em produção sem revisão, validação no ambiente DEV e aprovação explícita.
 
 ## Ambientes
 
-A aplicação está preparada para ser conectada à Vercel usando o repositório GitHub. A integração de autenticação, dados e tempo real será realizada com Supabase em etapas próprias. Nunca versionar variáveis secretas.
+- **Desenvolvimento:** branch principal de trabalho e projeto Supabase DEV, com deploys de validação pela Vercel.
+- **Produção:** projeto Supabase PROD e deploy de produção pela Vercel, protegidos por revisão e aprovação.
 
-## Escopo do protótipo atual
+A integração GitHub–Vercel realiza os deploys vinculados ao repositório. As automações do GitHub Actions devem validar o código e, em fluxo separado e controlado, aplicar migrations aprovadas no Supabase.
 
-A interface de referência apresenta uma caixa de entrada empresarial com conversas, busca, filtros, respostas rápidas, etiquetas e painel de contato. Os dados exibidos são fictícios e locais, destinados à avaliação de UX. Conexão com canais, autenticação, persistência, atribuição real de atendimentos e estados confirmados de entrega/leitura ainda dependem das próximas etapas técnicas.
+## Documentação
+
+- `docs/architecture/database-model.md`: modelo lógico inicial e regras de isolamento.
+- `docs/architecture/database-reconciliation.md`: comparação entre documentação, backlog e schema atual do Supabase DEV.
+

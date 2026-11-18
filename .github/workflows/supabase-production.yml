@@ -1,0 +1,59 @@
+name: Supabase PROD migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_production:
+        description: "Select YES only after the PROD schema and migration history have been reconciled."
+        required: true
+        type: choice
+        options:
+          - "NO"
+          - "YES"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-prod-migrations
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Apply migrations to connexa (PROD)
+    if: ${{ inputs.confirm_production == 'YES' && vars.SUPABASE_PROD_MIGRATIONS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Validate PROD target and credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo "Missing SUPABASE_ACCESS_TOKEN in production environment"; exit 1; }
+          test -n "$SUPABASE_DB_PASSWORD" || { echo "Missing SUPABASE_DB_PASSWORD in production environment"; exit 1; }
+          test "$SUPABASE_PROJECT_REF" = "uwrzrwwzkurjdhxituwq" || { echo "Refusing to run: project ref does not match connexa (PROD)"; exit 1; }
+          test -d supabase/migrations || { echo "supabase/migrations directory not found"; exit 1; }
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13
+        with:
+          version: 2.84.2
+
+      - name: Link the PROD project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Show migration status
+        run: supabase migration list --linked
+
+      - name: Apply pending migrations to PROD
+        run: supabase db push --yes

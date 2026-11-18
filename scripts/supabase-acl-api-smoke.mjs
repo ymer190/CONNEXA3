@@ -14,7 +14,7 @@ for (const name of required) {
   if (!process.env[name]) throw new Error(`Missing required environment variable: ${name}`);
 }
 
-const baseUrl = process.env.SUPABASE_URL.replace(/\\/+$/, "");
+const baseUrl = process.env.SUPABASE_URL.replace(/\/+$/, "");
 const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
 
 async function request(path, { method = "GET", token, body, prefer } = {}) {

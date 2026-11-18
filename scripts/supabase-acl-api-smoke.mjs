@@ -64,7 +64,7 @@ async function login(email, password, label) {
   return { token: payload.access_token, userId: payload.user.id };
 }
 
-async function ensureOwnProfile(user, label) {
+async function ensureOwnProfile(user, label, requireInsert = false) {
   const path = `/rest/v1/profiles?id=eq.${encodeURIComponent(user.userId)}&select=id,full_name&limit=1`;
   let result = await request(path, { token: user.token });
   assert.equal(result.status, 200, `${label} own profile SELECT failed: ${JSON.stringify(result.payload)}`);
@@ -83,6 +83,7 @@ async function ensureOwnProfile(user, label) {
     result = await request(path, { token: user.token });
     assert.equal(result.status, 200);
   } else {
+    assert.equal(requireInsert, false, `${label} must start without a profile so the positive INSERT policy is exercised`);
     console.log(`INFO: ${label} profile already exists; own-profile INSERT scenario not exercised`);
   }
 
@@ -103,7 +104,19 @@ const userB = await login(process.env.AUTH_TEST_USER_2_EMAIL, process.env.AUTH_T
 assert.notEqual(userA.userId, userB.userId, "The two test credentials must belong to different Auth users");
 
 await ensureOwnProfile(userA, "user A");
-await ensureOwnProfile(userB, "user B");
+await ensureOwnProfile(userB, "user B", true);
+
+// Each authenticated user must see only their own organization and membership.
+for (const [label, user] of [["user A", userA], ["user B", userB]]) {
+  const organizations = await request("/rest/v1/organizations?select=id&limit=10", { token: user.token });
+  assert.equal(organizations.status, 200, `${label} organization SELECT failed with HTTP ${organizations.status}`);
+  assert.equal(organizations.payload.length, 1, `${label} should see exactly one test organization`);
+  const memberships = await request("/rest/v1/organization_members?select=user_id,organization_id&limit=10", { token: user.token });
+  assert.equal(memberships.status, 200, `${label} membership SELECT failed with HTTP ${memberships.status}`);
+  assert.equal(memberships.payload.length, 1, `${label} should see exactly one membership`);
+  assert.equal(memberships.payload[0].user_id, user.userId, `${label} saw a foreign membership`);
+  console.log(`PASS: ${label} sees only their own organization and membership`);
+}
 
 // A user's token must not expose another user's profile or membership.
 for (const [label, caller, other] of [

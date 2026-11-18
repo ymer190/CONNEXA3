@@ -1,83 +1,53 @@
 # CONNEXA3
 
-Plataforma web de comunicação e atendimento empresarial. O CONNEXA3 reúne conversas com clientes e colaboração de equipes em uma caixa de entrada compartilhada, com contatos, etiquetas, responsáveis e respostas rápidas.
+Plataforma web de comunicação corporativa interna, concebida para conectar colaboradores, departamentos e equipes em conversas individuais e grupos, com troca de mensagens, arquivos, comunicados e chamadas em tempo real.
 
-## Direção do produto
+O CONNEXA3 é inspirado em padrões de usabilidade de plataformas como WhatsApp, Discord e Teams, mas terá identidade, regras de negócio e experiência próprias.
 
-A experiência é inspirada na praticidade conversacional do WhatsApp Business, ampliada para equipes e operações de atendimento. O CONNEXA3 mantém identidade visual e produto próprios.
+## Direção oficial do produto
+
+O produto é destinado à comunicação interna de uma organização com aproximadamente 900 colaboradores. A experiência será **100% mobile-first**, acessível pelo navegador e sem instalação obrigatória de aplicativo.
 
 Princípios:
-- **Atendimento centralizado:** acompanhar conversas e canais em um único espaço.
-- **Colaboração:** permitir que equipes compartilhem contexto e organizem responsabilidades.
-- **Relacionamento:** manter informações e histórico do cliente próximos da conversa.
-- **Clareza operacional:** destacar prioridades, pendências e estados de cada atendimento.
-- **Acesso web:** funcionar no navegador, com experiência responsiva e sem instalação obrigatória.
+- **Comunicação direta:** conversas individuais e grupos de departamentos, projetos e equipes.
+- **Organização corporativa:** estrutura de departamentos, grupos e comunicados administrados pela TI.
+- **Segurança e governança:** autenticação, autorização, gestão de dispositivos e auditoria de ações administrativas.
+- **Colaboração em tempo real:** mensagens, compartilhamento de conteúdo e chamadas de áudio/vídeo.
+- **Privacidade:** acesso conforme permissões, transparência sobre políticas corporativas e tratamento adequado de dados pessoais.
+- **Acessibilidade e mobilidade:** interface responsiva, priorizando smartphones.
 
-## Stack inicial
+## Escopo funcional em definição
 
-- **Next.js 15 (App Router):** aplicação web e rotas, com compatibilidade de deploy na Vercel.
-- **React 19:** composição da interface.
-- **TypeScript:** tipagem estática.
-- **CSS global:** estilos responsivos iniciais, sem dependência de biblioteca visual externa.
-- **Supabase:** integração de autenticação e dados será adicionada em módulos próprios nas próximas Issues.
+A elicitação de requisitos já aprovou, entre outros pontos:
+- Conversas individuais e grupos corporativos.
+- Mensagens de texto, imagens, documentos, áudios gravados e vídeos.
+- Chamadas individuais e em grupo de áudio e vídeo em tempo real.
+- Chamadas em grupo com até 50 participantes, sujeitas à validação técnica.
+- Compartilhamento de tela durante chamadas.
+- Comunicados corporativos e gestão de colaboradores, departamentos e dispositivos pela TI.
+- Histórico, notificações, busca e controles de privacidade conforme permissões.
 
-A aplicação mantém uma base web única, tipagem desde o início e baixo número de dependências. Não adicionar chaves ou segredos ao código versionado.
+As especificações completas e os pontos ainda pendentes devem ser consultados em `docs/requirements/`. A aprovação funcional não significa que todas as funcionalidades já estejam implementadas.
 
-## Requisitos
+## Stack e ambientes oficiais
 
-- Node.js 20.9 ou superior.
-- npm.
+O projeto utilizará exclusivamente serviços online:
+- **GitHub Online:** repositório, versionamento, issues, revisão e documentação.
+- **Vercel Online:** hospedagem, preview e deploy da aplicação web.
+- **Supabase Online:** autenticação, banco de dados, armazenamento e serviços gerenciados conforme arquitetura aprovada.
 
-## Executar localmente
+Não faz parte da estratégia do projeto implantar infraestrutura on-premises ou exigir ambiente local como ambiente oficial de desenvolvimento/operação. Segredos e credenciais privilegiadas nunca devem ser versionados nem expostos no navegador.
 
-1. Clone o repositório.
-2. Instale as dependências:
+## Documentação
 
-   ```bash
-   npm install
-   ```
+- `docs/requirements/calls-audio-video.md`: requisitos aprovados para chamadas individuais e em grupo, regras de negócio, critérios de aceitação, diagramas e pendências técnicas.
+- `docs/architecture/`: documentação de arquitetura; documentos anteriores devem ser revisados contra a direção oficial atual antes de orientar implementação.
+- `docs/ux/`: artefatos de UX e protótipos existentes; conteúdos que descrevem o protótipo de atendimento anterior não devem ser tratados automaticamente como especificação funcional vigente.
 
-3. Inicie o servidor de desenvolvimento:
+## Governança de requisitos
 
-   ```bash
-   npm run dev
-   ```
-
-4. Acesse [http://localhost:3000](http://localhost:3000).
-
-## Verificações
-
-```bash
-npm run lint
-npm run typecheck
-npm run build
-```
-
-## Estrutura
-
-```text
-src/
-  app/
-    globals.css
-    layout.tsx
-    page.tsx
-  components/
-    brand-mark.tsx
-docs/
-  ux/
-    business-mobile-experience.md
-    business-navigation-usability.md
-    business-interface-states.md
-```
-
-- `src/app`: layout raiz, estilos globais e rotas do App Router.
-- `src/components`: componentes de interface reutilizáveis.
-- `docs/ux`: especificações de experiência, navegação e estados da interface.
-
-## Ambientes
-
-A aplicação está preparada para ser conectada à Vercel usando o repositório GitHub. A integração de autenticação, dados e tempo real será realizada com Supabase em etapas próprias. Nunca versionar variáveis secretas.
-
-## Escopo do protótipo atual
-
-A interface de referência apresenta uma caixa de entrada empresarial com conversas, busca, filtros, respostas rápidas, etiquetas e painel de contato. Os dados exibidos são fictícios e locais, destinados à avaliação de UX. Conexão com canais, autenticação, persistência, atribuição real de atendimentos e estados confirmados de entrega/leitura ainda dependem das próximas etapas técnicas.
+- Decisões aprovadas pela PO são a referência funcional oficial.
+- Recomendações técnicas não se tornam decisões de produto sem validação.
+- Pendências devem permanecer identificadas como pendências.
+- Alterações de escopo devem manter rastreabilidade entre requisito, issue, implementação e testes.
+- Não considerar um requisito documentado como funcionalidade implementada sem evidência no repositório e validação correspondente.

@@ -30,6 +30,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Validate test script syntax
+        run: node --check scripts/supabase-acl-api-smoke.mjs
+
       - name: Validate required test credentials
         shell: bash
         run: |

@@ -77,7 +77,7 @@ Teste de regressão versionado: `supabase/tests/issue_95_department_management.s
 - `service_role` tem privilégios de tabela para operações server-side confiáveis; nunca expor a chave ao browser.
 - As RPCs acima têm EXECUTE somente para `authenticated`; as próprias funções verificam `auth.uid()` e `platform_admin`.
 - `it_support` não tem permissão administrativa departamental.
-- A categoria `collaborator` e capacidades explícitas `departments.read` / `departments.members.manage` ainda dependem da implementação coordenada das Issues #92/#96. Não conceder acesso por inferência de `organization_members.role` legado.
+- A categoria `collaborator` e capacidades explícitas `departments.read` / `departments.members.manage` ainda dependem do modelo explícito de permissões/capacidades da #96 e da validação do ciclo de vida da conta na #94. A #92 cobre criação/cadastro de contas, não é a fonte de autorização. Não conceder acesso por inferência de `organization_members.role` legado.
 - Gestão de participantes não concede acesso ao conteúdo de conversas.
 
 ## 4. Integração com Issue #96
@@ -113,7 +113,7 @@ Suíte `supabase/tests/issue_95_department_integrity.sql`: 16/16 verificações 
 
 - Obter relatório completo e reproduzível dos 9 testes pgTAP da Etapa 2.
 - Integrar eventos de auditoria pelo contrato da #97 antes de considerar edição/desativação/transferência prontas para produção.
-- Implementar capacidades explícitas de colaboradores e escopo por departamento após estabilização do modelo de colaboradores (#92) e da autorização (#96).
+- Implementar capacidades explícitas de colaboradores e escopo por departamento após estabilização do modelo de autorização/capacidades na #96 e das transições de status de conta na #94. A #92 trata do cadastro de contas.
 - Integrar metadados de grupos ao modelo canônico de conversas quando a #96 disponibilizar o schema/serviços.
 - Migration de índices de FKs adicionada para cobrir `department_id, organization_id`, `user_id, organization_id`, `created_by` e `ended_by`, conforme advisor de performance; aguarda execução automática no DEV.
 - Advisor de segurança: RLS sem policies é intencional porque `anon`/`authenticated` não têm acesso direto às tabelas; RPCs `SECURITY DEFINER` no schema público são endpoints privilegiados intencionais, limitados por `auth.uid()`, checagem server-side de `platform_admin`, `search_path` vazio e grants explícitos. Manter como item de revisão/hardening, não ignorar o alerta.

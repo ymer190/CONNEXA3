@@ -115,7 +115,7 @@ Suíte `supabase/tests/issue_95_department_integrity.sql`: 16/16 verificações 
 - Integrar eventos de auditoria pelo contrato da #97 antes de considerar edição/desativação/transferência prontas para produção.
 - Implementar capacidades explícitas de colaboradores e escopo por departamento após estabilização do modelo de autorização/capacidades na #96 e das transições de status de conta na #94. A #92 trata do cadastro de contas.
 - Integrar metadados de grupos ao modelo canônico de conversas quando a #96 disponibilizar o schema/serviços.
-- Migration de índices de FKs adicionada para cobrir `department_id, organization_id`, `user_id, organization_id`, `created_by` e `ended_by`, conforme advisor de performance; aguarda execução automática no DEV.
+- Migration `20261119215400_add_department_member_fk_indexes` aplicada no DEV; os quatro índices de FKs foram verificados. O advisor deixou de reportar FKs sem índice e passou a sinalizar os novos índices como ainda não utilizados, esperado no ambiente DEV sem carga representativa.
 - Advisor de segurança: RLS sem policies é intencional porque `anon`/`authenticated` não têm acesso direto às tabelas; RPCs `SECURITY DEFINER` no schema público são endpoints privilegiados intencionais, limitados por `auth.uid()`, checagem server-side de `platform_admin`, `search_path` vazio e grants explícitos. Manter como item de revisão/hardening, não ignorar o alerta.
 - Workflow GitHub Actions de aplicação DEV e validação da aplicação concluídos com sucesso para o commit anterior; Vercel Preview Ready. A nova migration de índices deve passar pelo mesmo fluxo.
 - PR #132 permanece Draft e não foi mergeada.

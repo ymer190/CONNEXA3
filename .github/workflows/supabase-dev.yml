@@ -2,10 +2,13 @@ name: Supabase DEV migrations
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - feat/issue-95-departments-stage-1
     paths:
       - "supabase/migrations/**"
       - "supabase/config.toml"
+      - ".github/workflows/supabase-dev.yml"
   workflow_dispatch:
 
 permissions:
@@ -29,6 +32,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: ${{ github.ref }}
           persist-credentials: false
 
       - name: Validate DEV target and credentials

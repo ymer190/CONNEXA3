@@ -74,7 +74,7 @@ The product owner approved a unified conversation model as the architectural bas
 - `conversation_members`: participants and their conversation-scoped membership/permissions.
 - `messages`: messages belonging to a conversation.
 - `message_attachments`: attachment metadata and references to stored objects; access to the underlying object must be authorized against the parent conversation and message.
-- `conversation_audit_logs`: conversation-specific security/audit events, integrated with the approved audit governance, retention, and data-minimization rules. It must not duplicate message content.
+- `conversation_audit_logs`: conversation-domain events, such as conversation creation/archival, participant join/leave/removal, and conversation-scoped membership changes. It follows the approved audit governance, retention, and data-minimization rules and never stores message bodies or attachment contents. It is not the source of truth for platform-wide administrative/security actions owned by Issue #97.
 
 The approved conversation types are:
 
@@ -218,7 +218,7 @@ Proposed columns:
 Constraints/indexes:
 - Index `(organization_id, created_at)`, `(conversation_id, created_at)`, and `(actor_id, created_at)`.
 - Application actors have no direct UPDATE/DELETE; clients have no direct INSERT. Trusted server operations append events. The general audit retention/visibility rules in section 4 apply.
-- This table is for conversation-specific security events, not a replacement for the general administrative audit model in Issue #97. Avoid duplicating the same event in both stores without a documented event ownership rule.
+- **Event ownership:** `conversation_audit_logs` is authoritative for conversation-domain lifecycle and membership events (create/archive/rename, join/leave/remove, and conversation-scoped participant changes). The general audit model from Issue #97 is authoritative for platform/organization administration and security operations (role/capability changes, support-ticket/device/session actions, exceptional-access grants/revocations/consultations, and administrative governance). Do not write the same event independently to both tables. When one operation has both a conversation-domain effect and a platform/security effect, each store may record only its own distinct event, linked by the same `correlation_id` (or equivalent stable operation identifier); neither record copies the other's payload. Both stores remain append-only for application actors and follow the shared retention, minimization, and access-governance rules.
 
 #### F. `user_blocks` — direct communication restriction
 
@@ -247,7 +247,6 @@ Proposed columns:
 #### I. Decisions still required before executable migrations
 
 1. Reconcile the department FK with the final Issue #95 schema and account-active checks with Issue #94.
-2. Define the ownership boundary between `conversation_audit_logs` and the general audit model in Issue #97.
 3. Define the exact Storage bucket/object naming and scanning service integration before implementing attachment upload.
 
 ### 4.1.2 RLS authorization contract (approved technical baseline)

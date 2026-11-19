@@ -193,6 +193,7 @@ Proposed columns:
 - `organization_id uuid not null`, `conversation_id uuid not null`, `message_id uuid not null`
 - `uploaded_by uuid not null`
 - `bucket_id text not null`, `object_path text not null` — references a private Storage object, never a public URL.
+- **Storage layout (approved logical pattern):** use private-only storage areas for quarantine and approved delivery. Object keys are based on internal identifiers, following the logical pattern `organizations/{organization_id}/conversations/{conversation_id}/messages/{message_id}/{attachment_id}`; do not include usernames, email addresses, or user-provided filenames in object keys. Keep the original filename only as protected metadata. Exact physical bucket names and provider configuration remain an implementation detail to settle before upload is built.
 - `original_filename text not null`, `detected_mime_type text not null`, `file_category text not null`, `size_bytes bigint not null`.
 - `scan_status text not null` — proposed values `quarantined`, `clean`, `rejected`, `pending_deletion`, `deleted`.
 - `created_at timestamptz not null`, `deleted_at timestamptz null`, `purge_after timestamptz null`.
@@ -203,6 +204,7 @@ Constraints/indexes:
 - Unique `(bucket_id, object_path)`; no permanent signed/public URL is stored.
 - Index `(message_id)` and `(scan_status, purge_after)` for access checks and cleanup.
 - Only `clean` attachments belonging to a non-deleted message can be delivered. Message deletion revokes access immediately and sets a 30-day physical deletion deadline, unless a documented hold applies. Storage authorization must resolve the object to this row and its parent conversation on every new delivery authorization.
+- **Upload and release flow (approved):** upload into a private quarantine area; keep the object inaccessible to participants while server-side size, actual file signature/type, allowlist, and malware/content checks run. Only a successful scan and validation may transition the attachment to `clean` and make it eligible for authorized delivery. Rejection, scanner failure, timeout, or scanner unavailability keeps the file inaccessible (fail closed); rejected objects follow controlled cleanup. Use short-lived access-controlled delivery issued only after current membership and organization checks. The scanning provider/product and exact bucket names are not selected by this decision and must be validated before implementation.
 
 #### E. `conversation_audit_logs` — conversation security events
 
@@ -247,7 +249,7 @@ Proposed columns:
 #### I. Decisions still required before executable migrations
 
 1. Reconcile the department FK with the final Issue #95 schema and account-active checks with Issue #94.
-2. Define the exact Storage bucket/object naming and scanning service integration before implementing attachment upload.
+2. Select and validate the malware/content-scanning provider and finalize physical bucket names, policies, and operational integration before implementing attachment upload.
 
 ### 4.1.2 RLS authorization contract (approved technical baseline)
 

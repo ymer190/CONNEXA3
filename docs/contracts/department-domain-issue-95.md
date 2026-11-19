@@ -62,9 +62,9 @@ As operações iniciais são funções PostgreSQL `SECURITY DEFINER`, com `searc
 As operações abaixo foram adicionadas em migration na branch da PR. **Ainda aguardam aplicação/validação no DEV**:
 
 - `public.admin_update_department(uuid, uuid, text)`: altera nome de departamento ativo.
-- `public.admin_deactivate_department(uuid, uuid)`: desativa o departamento e encerra seus vínculos ativos na mesma transação, preservando cada linha como histórico.
+- `public.admin_deactivate_department(uuid, uuid)`: bloqueia a linha do departamento (`FOR UPDATE`), desativa o departamento e encerra seus vínculos ativos na mesma transação, preservando cada linha como histórico. O bloqueio serializa a desativação com a validação de novas associações/transferências.
 - `public.admin_list_department_members(uuid, uuid)`: consulta vínculos atuais e históricos do departamento.
-- `public.admin_transfer_department_member(uuid, uuid, uuid)`: encerra o vínculo anterior e cria o novo em transação; usa lock transacional por colaborador para serializar transferências concorrentes.
+- `public.admin_transfer_department_member(uuid, uuid, uuid)`: encerra o vínculo anterior e cria o novo em transação; usa lock transacional por colaborador para serializar transferências concorrentes. O trigger também bloqueia o departamento de destino com `FOR SHARE`, coordenando a operação com desativações.
 
 Por enquanto, essas operações continuam restritas a `platform_admin`. Não liberamos capacidades de `collaborator` por falta de contrato/tabela de concessão explícita estabilizada na #92/#96. Não há promoção automática de gestor nem confiança em papel informado pelo cliente.
 

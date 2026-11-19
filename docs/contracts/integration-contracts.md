@@ -27,7 +27,7 @@ O documento database-model.md está marcado como modelo legado e não deve orien
 ## 2. Autenticação e sessão
 
 ### Login
-- Operação: Supabase Auth signInWithPassword(email, password), pelo cliente SSR.
+- Operação: Supabase Auth signInWithPassword({ email, password }), pelo cliente SSR.
 - Entrada: email e password, strings obrigatórias. Enviar por TLS ao Supabase Auth; não colocar credenciais em URL, logs, analytics ou mensagens de erro.
 - Sucesso: user.id e user.email identificam a conta. Tokens/expiração são geridos pela sessão SSR e não fazem parte de payloads de negócio.
 - Erro: SDK retorna AuthError com status/code/message quando disponíveis. A UI usa mensagem genérica para credenciais recusadas, sem confirmar se o e-mail existe.
@@ -129,7 +129,7 @@ Auditar antes de devolver conteúdo. Nunca gravar corpo de mensagem, conteúdo d
 - RPGD: apenas eventos necessários para supervisão do ciclo de vida de acesso excepcional.
 - it_support: não pode consultar histórico administrativo completo.
 - collaborator comum: sem acesso à trilha administrativa.
-- Retenção padrão de 12 meses; prazo maior só com obrigação legal, investigação ou retenção formal documentada. Ao fim da obrigação, excluir/anonymizar com segurança quando permitido.
+- Retenção padrão de 12 meses; prazo maior só com obrigação legal, investigação ou retenção formal documentada. Ao fim da obrigação, excluir/anonimizar com segurança quando permitido.
 
 Resposta contém os campos semânticos acima, nunca conteúdo de conversa. Paginação proposta: padrão 50, máximo 100 por página e escopo/permissão revalidados. Validar esses limites conjuntamente antes da implementação.
 

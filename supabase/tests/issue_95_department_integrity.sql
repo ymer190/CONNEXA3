@@ -5,7 +5,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(9);
+select plan(10);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 values
@@ -86,15 +86,19 @@ select throws_ok(
 );
 
 select lives_ok(
-  $$update public.department_members
+  $update public.department_members
        set ended_at = now(), ended_by = '95000000-0000-4000-8000-000000000001'
      where user_id = '95000000-0000-4000-8000-000000000001'
-       and ended_at is null;
-     insert into public.department_members (organization_id, department_id, user_id)
-       values ('95000000-0000-4000-8000-000000000101',
-               '95000000-0000-4000-8000-000000000202',
-               '95000000-0000-4000-8000-000000000001')$$,
-  'department transfer ends the prior link and creates the new active link'
+       and ended_at is null$,
+  'department transfer can end the previous association'
+);
+
+select lives_ok(
+  $insert into public.department_members (organization_id, department_id, user_id)
+    values ('95000000-0000-4000-8000-000000000101',
+            '95000000-0000-4000-8000-000000000202',
+            '95000000-0000-4000-8000-000000000001')$,
+  'department transfer can create the new active association'
 );
 
 select is(

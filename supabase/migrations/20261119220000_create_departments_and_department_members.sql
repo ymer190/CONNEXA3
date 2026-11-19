@@ -43,8 +43,10 @@ create table public.department_members (
   constraint department_members_user_same_organization_fk
     foreign key (user_id, organization_id)
     references public.organization_members (user_id, organization_id) on delete restrict,
+  -- A historical association may outlive the user who performed the transfer;
+  -- ON DELETE SET NULL must not make deletion of that actor fail.
   constraint department_members_end_metadata_consistent
-    check ((ended_at is null) = (ended_by is null))
+    check (ended_at is not null or ended_by is null)
 );
 
 -- A collaborator may have only one active department in their organization.
@@ -134,4 +136,4 @@ comment on column public.department_members.ended_at is
 comment on column public.department_members.created_by is
   'Trusted server-recorded actor that created the association; never accepted as authorization input.';
 comment on column public.department_members.ended_by is
-  'Trusted server-recorded actor that ended the association.';
+  'Trusted server-recorded actor that ended the association; may become null if that actor is deleted.';

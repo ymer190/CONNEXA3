@@ -23,6 +23,11 @@ create unique index departments_active_name_per_organization_uidx
 create index departments_organization_status_idx
   on public.departments (organization_id, status);
 
+-- organization_members.user_id is already globally unique; this composite index
+-- provides an explicit tenant-safe FK target without changing its legacy role/status rules.
+create unique index organization_members_user_organization_uidx
+  on public.organization_members (user_id, organization_id);
+
 create table public.department_members (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null,
@@ -41,11 +46,6 @@ create table public.department_members (
   constraint department_members_end_metadata_consistent
     check ((ended_at is null) = (ended_by is null))
 );
-
--- organization_members.user_id is already globally unique; this composite index
--- provides an explicit tenant-safe FK target without changing its legacy role/status rules.
-create unique index organization_members_user_organization_uidx
-  on public.organization_members (user_id, organization_id);
 
 create unique index department_members_one_active_link_uidx
   on public.department_members (department_id, user_id)

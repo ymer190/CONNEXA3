@@ -1,6 +1,6 @@
 # Issue #96 — Authorization and permissions design
 
-Status: privacy boundary for exceptional conversation access agreed in principle; eligibility, broader role matrix, and resource model remain pending.
+Status: approved privacy rule — no administrator has routine conversation-content access; exceptional access is possible only through explicit business approval and a separate audited capability. Eligibility, approval authority, broader role matrix, and resource model remain pending.
 
 ## 1. Purpose
 
@@ -32,11 +32,12 @@ This document records the agreed privacy boundary and the remaining business dec
 
 ## 4. Agreed privacy boundary — exceptional conversation access
 
-The agreed direction for Issue #96 is:
+The product owner approved the following rule for Issue #96:
 
+- No administrator, including `platform_admin`, receives routine or automatic access to conversation content.
 - The operational IT team must not receive direct access to conversation content as part of ordinary support duties.
-- Exceptional conversation-content access, if approved for a specific person or role, must be granted through a separate, explicit capability. The currently existing `platform_admin` account is not automatically eligible; its eligibility has not yet been approved.
-- General platform administration does not implicitly grant conversation-content access. The exceptional permission must be distinct and checked independently.
+- Exceptional conversation-content access is permitted only when explicitly approved by the business for a specifically designated identity or role, and granted through a separate capability. The currently existing `platform_admin` account is not automatically eligible; its eligibility has not been approved.
+- General platform administration does not implicitly grant conversation-content access. The exceptional permission must be distinct, independently checked, explicitly granted, and revocable.
 - Every exceptional consultation requires a non-empty justification.
 - Authorization and scope must be validated server-side before any conversation content is returned.
 - Each consultation must be audited with at least administrator identity, justification, conversation/resource scope, and timestamp.
@@ -62,13 +63,13 @@ These identifiers are proposals, not grants. Their assignment remains pending th
 | `audit.read` | Consult administrative audit records |
 | `conversations.exceptional_read` | Perform an exceptional administrative conversation consultation |
 
-No capability is granted by this catalog alone. In particular, `conversations.exceptional_read` is not implied by `platform_admin`; eligible identities, approval authority, and grant/revocation process remain to be defined.
+No capability is granted by this catalog alone. In particular, `conversations.exceptional_read` is not implied by `platform_admin`. Business approval, eligible identities, approval authority, and grant/revocation process must be defined before any exceptional access is implemented.
 
 ## 6. Implementation design and safety gates
 
 ### Stage 1 — Role and permission matrix (3 SP)
 - Confirm role names and role hierarchy for principal IT administrators, operational IT, department managers, and collaborators.
-- Decide whether exceptional access should exist, who may approve it, and which specific identities (if any) may receive it through controlled authorization data.
+- Define who may approve exceptional access and which specific identities (if any) may receive it through controlled authorization data; the product owner has approved the principle that access is exceptional only, not routine.
 - Define the remaining capability grants and scope boundaries.
 - Decide which roles may read audit records and the retention period.
 
@@ -88,7 +89,7 @@ No capability is granted by this catalog alone. In particular, `conversations.ex
 
 ## 7. Remaining decisions and prerequisites
 
-1. Decide whether exceptional conversation-content access will be enabled at all, who is eligible to receive it, and who can approve/revoke it. DEV currently has one `platform_admin` row, but that does not confer exceptional-read eligibility.
+1. Define who is eligible for exceptional conversation-content access and who can approve/revoke it. The product owner has approved that no administrator, including `platform_admin`, has routine access; DEV currently has one `platform_admin` row, but that does not confer exceptional-read eligibility.
 2. Define the exact operational capabilities for the IT support team, excluding conversation-content access.
 3. Decide whether department managers are a distinct platform role or collaborators with department-scoped capabilities.
 4. Define audit readers and retention period.

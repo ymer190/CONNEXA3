@@ -57,6 +57,19 @@ As operações iniciais são funções PostgreSQL `SECURITY DEFINER`, com `searc
 - Saída: registro criado.
 - Negação: sessão ausente (`28000`), usuário sem `platform_admin` (`42501`), entrada inválida (`22023`), organização inexistente (FK) ou nome ativo duplicado (unique violation).
 
+### Gestão de departamentos e vínculos — Etapa 2 (PR #132)
+
+As operações abaixo foram adicionadas em migration na branch da PR. **Ainda aguardam aplicação/validação no DEV**:
+
+- `public.admin_update_department(uuid, uuid, text)`: altera nome de departamento ativo.
+- `public.admin_deactivate_department(uuid, uuid)`: desativa o departamento e encerra seus vínculos ativos na mesma transação, preservando cada linha como histórico.
+- `public.admin_list_department_members(uuid, uuid)`: consulta vínculos atuais e históricos do departamento.
+- `public.admin_transfer_department_member(uuid, uuid, uuid)`: encerra o vínculo anterior e cria o novo em transação; usa lock transacional por colaborador para serializar transferências concorrentes.
+
+Por enquanto, essas operações continuam restritas a `platform_admin`. Não liberamos capacidades de `collaborator` por falta de contrato/tabela de concessão explícita estabilizada na #92/#96. Não há promoção automática de gestor nem confiança em papel informado pelo cliente.
+
+Teste de regressão adicionado: `supabase/tests/issue_95_department_management.sql`. Ele cobre edição, consulta de vínculos, transferência, preservação de histórico, desativação e negação para colaborador comum. A execução no DEV ainda está pendente da aplicação controlada da nova migration.
+
 ## 3. Segurança e privilégios
 
 - RLS habilitado em `departments` e `department_members`.
@@ -96,7 +109,8 @@ Suíte `supabase/tests/issue_95_department_integrity.sql`: 16/16 verificações 
 
 ## 6. Próximas entregas
 
-- Implementar operações de edição/desativação e transferência com auditoria conforme contrato da #97.
+- Aplicar e validar no DEV a migration da Etapa 2 e a suíte de regressão de gestão.
+- Integrar eventos de auditoria pelo contrato da #97 antes de considerar edição/desativação/transferência prontas para produção.
 - Implementar capacidades explícitas de colaboradores e escopo por departamento após estabilização do modelo de colaboradores (#92) e da autorização (#96).
 - Integrar metadados de grupos ao modelo canônico de conversas quando a #96 disponibilizar o schema/serviços.
 - Não aplicar alterações em PROD sem validação e aprovação explícita.

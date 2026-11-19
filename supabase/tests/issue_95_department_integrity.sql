@@ -5,7 +5,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(10);
+select plan(16);
 create temporary table issue95_test_output (result text);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
@@ -27,6 +27,9 @@ insert into public.organization_members (organization_id, user_id, role, status)
 values
   ('95000000-0000-4000-8000-000000000101', '95000000-0000-4000-8000-000000000001', 'member', 'active'),
   ('95000000-0000-4000-8000-000000000101', '95000000-0000-4000-8000-000000000002', 'member', 'suspended');
+
+insert into public.platform_users (user_id, role)
+values ('95000000-0000-4000-8000-000000000001', 'platform_admin');
 
 insert into public.departments (id, organization_id, name, status)
 values
@@ -121,6 +124,54 @@ insert into issue95_test_output select ok(
   and has_table_privilege('service_role', 'public.department_members', 'select'),
   'direct client reads are denied and trusted server role retains table access'
 );
+select set_config('request.jwt.claim.sub', '95000000-0000-4000-8000-000000000001', true);
+
+insert into issue95_test_output select lives_ok(
+  $select * from public.admin_list_departments('95000000-0000-4000-8000-000000000101')$,
+  'platform administrator can list departments in an organization'
+);
+
+insert into issue95_test_output select lives_ok(
+  $select * from public.admin_create_department(
+      '95000000-0000-4000-8000-000000000101', 'Customer Success')$,
+  'platform administrator can create a department through guarded RPC'
+);
+
+insert into issue95_test_output select is(
+  (select count(*)::integer from public.departments
+    where organization_id = '95000000-0000-4000-8000-000000000101'
+      and name = 'Customer Success'),
+  1,
+  'platform-admin RPC persisted exactly one department'
+);
+
+select set_config('request.jwt.claim.sub', '95000000-0000-4000-8000-000000000002', true);
+
+insert into issue95_test_output select throws_ok(
+  $select * from public.admin_create_department(
+      '95000000-0000-4000-8000-000000000101', 'Forbidden')$,
+  '42501',
+  'Platform administrator role required',
+  'ordinary collaborator cannot create departments through RPC'
+);
+
+select set_config('request.jwt.claim.sub', '', true);
+
+insert into issue95_test_output select throws_ok(
+  $select * from public.admin_list_departments('95000000-0000-4000-8000-000000000101')$,
+  '28000',
+  'Authentication required',
+  'unauthenticated caller cannot list departments through RPC'
+);
+
+insert into issue95_test_output select ok(
+  not has_function_privilege('anon', 'public.admin_list_departments(uuid)', 'execute')
+  and has_function_privilege('authenticated', 'public.admin_list_departments(uuid)', 'execute')
+  and not has_function_privilege('anon', 'public.admin_create_department(uuid,text)', 'execute')
+  and has_function_privilege('authenticated', 'public.admin_create_department(uuid,text)', 'execute'),
+  'department RPCs are executable only by authenticated sessions'
+);
+
 
 insert into issue95_test_output select * from finish();
 select result from issue95_test_output;

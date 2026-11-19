@@ -35,10 +35,10 @@ values
   ('95000000-0000-4000-8000-000000000204', '95000000-0000-4000-8000-000000000102', 'Other Org', 'active');
 
 select lives_ok(
-  $$insert into public.department_members (organization_id, department_id, user_id)
+  $$$insert into public.department_members (organization_id, department_id, user_id)
     values ('95000000-0000-4000-8000-000000000101',
             '95000000-0000-4000-8000-000000000201',
-            '95000000-0000-4000-8000-000000000001')$$,
+            '95000000-0000-4000-8000-000000000001')$$$,
   'active employee can be assigned to an active department'
 );
 
@@ -50,16 +50,16 @@ select throws_ok(
 );
 
 select throws_ok(
-  $$insert into public.department_members (organization_id, department_id, user_id)
+  $$$insert into public.department_members (organization_id, department_id, user_id)
     values ('95000000-0000-4000-8000-000000000102',
             '95000000-0000-4000-8000-000000000201',
-            '95000000-0000-4000-8000-000000000001')$$,
+            '95000000-0000-4000-8000-000000000001')$$$,
   '23503',
   'cross-organization department assignment is rejected'
 );
 
 select throws_ok(
-  $$insert into public.department_members (organization_id, department_id, user_id)
+  $$$insert into public.department_members (organization_id, department_id, user_id)
     values ('95000000-0000-4000-8000-000000000101',
             '95000000-0000-4000-8000-000000000201',
             '95000000-0000-4000-8000-000000000002')$$,
@@ -68,36 +68,36 @@ select throws_ok(
 );
 
 select throws_ok(
-  $$insert into public.department_members (organization_id, department_id, user_id)
+  $$$insert into public.department_members (organization_id, department_id, user_id)
     values ('95000000-0000-4000-8000-000000000101',
             '95000000-0000-4000-8000-000000000203',
-            '95000000-0000-4000-8000-000000000001')$$,
+            '95000000-0000-4000-8000-000000000001')$$$,
   '23514',
   'inactive department cannot receive an active assignment'
 );
 
 select throws_ok(
-  $$insert into public.department_members (organization_id, department_id, user_id)
+  $$$insert into public.department_members (organization_id, department_id, user_id)
     values ('95000000-0000-4000-8000-000000000101',
             '95000000-0000-4000-8000-000000000202',
-            '95000000-0000-4000-8000-000000000001')$$,
+            '95000000-0000-4000-8000-000000000001')$$$,
   '23505',
   'employee cannot have two active department assignments'
 );
 
 select lives_ok(
-  $update public.department_members
+  $$update public.department_members
        set ended_at = now(), ended_by = '95000000-0000-4000-8000-000000000001'
      where user_id = '95000000-0000-4000-8000-000000000001'
-       and ended_at is null$,
+       and ended_at is null$$,
   'department transfer can end the previous association'
 );
 
 select lives_ok(
-  $insert into public.department_members (organization_id, department_id, user_id)
+  $$insert into public.department_members (organization_id, department_id, user_id)
     values ('95000000-0000-4000-8000-000000000101',
             '95000000-0000-4000-8000-000000000202',
-            '95000000-0000-4000-8000-000000000001')$,
+            '95000000-0000-4000-8000-000000000001')$$,
   'department transfer can create the new active association'
 );
 

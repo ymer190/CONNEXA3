@@ -81,7 +81,7 @@ begin
     from public.departments as d
    where d.id = new.department_id
      and d.organization_id = new.organization_id
-   for key share;
+   for share;
 
   if department_status is distinct from 'active' then
     raise exception 'Department must be active to create an active association'
@@ -93,7 +93,7 @@ begin
     from public.organization_members as om
    where om.user_id = new.user_id
      and om.organization_id = new.organization_id
-   for key share;
+   for share;
 
   if member_status is distinct from 'active' then
     raise exception 'Employee must be an active organization member'

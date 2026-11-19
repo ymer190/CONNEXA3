@@ -119,4 +119,4 @@ Suíte `supabase/tests/issue_95_department_integrity.sql`: 16/16 verificações 
 - Advisor de segurança: RLS sem policies é intencional porque `anon`/`authenticated` não têm acesso direto às tabelas; RPCs `SECURITY DEFINER` no schema público são endpoints privilegiados intencionais, limitados por `auth.uid()`, checagem server-side de `platform_admin`, `search_path` vazio e grants explícitos. Manter como item de revisão/hardening, não ignorar o alerta.
 - Workflow GitHub Actions de aplicação DEV e validação da aplicação concluídos com sucesso para o commit anterior; Vercel Preview Ready. A nova migration de índices deve passar pelo mesmo fluxo.
 - PR #132 permanece Draft e não foi mergeada.
-- Não aplicar alterações em PROD sem validação e aprovação explícita.
+- PROD não foi alterado; qualquer promoção exige validação e aprovação explícita.

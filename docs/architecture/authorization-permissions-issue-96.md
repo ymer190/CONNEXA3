@@ -247,7 +247,7 @@ Proposed columns:
 #### I. Decisions still required before executable migrations
 
 1. Reconcile the department FK with the final Issue #95 schema and account-active checks with Issue #94.
-3. Define the exact Storage bucket/object naming and scanning service integration before implementing attachment upload.
+2. Define the exact Storage bucket/object naming and scanning service integration before implementing attachment upload.
 
 ### 4.1.2 RLS authorization contract (approved technical baseline)
 

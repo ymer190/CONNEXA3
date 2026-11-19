@@ -1,6 +1,6 @@
 # Contrato do domínio de departamentos — Issue #95
 
-**Estado:** domínio de dados e operações iniciais implementados e validados no Supabase DEV.  
+**Estado:** Etapas 1 e 2 aplicadas no Supabase DEV; operações de gestão validadas funcionalmente em transação. A suíte pgTAP da Etapa 2 ainda precisa de relatório integral reproduzível.  
 **Escopo:** departamentos e vínculos de colaboradores. Grupos/conversas continuam sob responsabilidade da Issue #96.
 
 ## 1. Entidades disponíveis
@@ -59,7 +59,7 @@ As operações iniciais são funções PostgreSQL `SECURITY DEFINER`, com `searc
 
 ### Gestão de departamentos e vínculos — Etapa 2 (PR #132)
 
-As operações abaixo foram adicionadas em migration na branch da PR. **Ainda aguardam aplicação/validação no DEV**:
+As operações abaixo foram adicionadas pela migration `20261119214000_add_department_management_rpcs.sql` e já estão aplicadas no Supabase DEV:
 
 - `public.admin_update_department(uuid, uuid, text)`: altera nome de departamento ativo.
 - `public.admin_deactivate_department(uuid, uuid)`: bloqueia a linha do departamento (`FOR UPDATE`), desativa o departamento e encerra seus vínculos ativos na mesma transação, preservando cada linha como histórico. O bloqueio serializa a desativação com a validação de novas associações/transferências.
@@ -68,7 +68,7 @@ As operações abaixo foram adicionadas em migration na branch da PR. **Ainda ag
 
 Por enquanto, essas operações continuam restritas a `platform_admin`. Não liberamos capacidades de `collaborator` por falta de contrato/tabela de concessão explícita estabilizada na #92/#96. Não há promoção automática de gestor nem confiança em papel informado pelo cliente.
 
-Teste de regressão adicionado: `supabase/tests/issue_95_department_management.sql`. Ele cobre edição, consulta de vínculos, transferência, preservação de histórico, desativação e negação para colaborador comum. A execução no DEV ainda está pendente da aplicação controlada da nova migration.
+Teste de regressão versionado: `supabase/tests/issue_95_department_management.sql`, com 9 assertions pgTAP previstas. A ferramenta SQL utilizada não apresentou o relatório completo do pgTAP; foi executada validação transacional complementar das operações de edição, listagem, transferência, preservação do histórico, desativação e negação para colaborador comum. Os fixtures foram revertidos e a consulta posterior confirmou zero usuários, departamentos e vínculos de teste residuais. Não declarar 9/9 pgTAP até obter relatório integral.
 
 ## 3. Segurança e privilégios
 
@@ -104,13 +104,16 @@ Migrações registradas no Supabase DEV:
 - `20261119212410_create_departments_and_department_members`
 - `20261119212543_fix_department_member_scope_error_codes`
 - `20261119212759_add_platform_admin_department_rpcs`
+- `20261119214000_add_department_management_rpcs`
 
 Suíte `supabase/tests/issue_95_department_integrity.sql`: 16/16 verificações aprovadas no Supabase DEV. A suíte executa fixtures em transação e termina com `ROLLBACK`; foi confirmado que nenhum fixture permaneceu.
 
 ## 6. Próximas entregas
 
-- Aplicar e validar no DEV a migration da Etapa 2 e a suíte de regressão de gestão.
+- Obter relatório completo e reproduzível dos 9 testes pgTAP da Etapa 2.
 - Integrar eventos de auditoria pelo contrato da #97 antes de considerar edição/desativação/transferência prontas para produção.
 - Implementar capacidades explícitas de colaboradores e escopo por departamento após estabilização do modelo de colaboradores (#92) e da autorização (#96).
 - Integrar metadados de grupos ao modelo canônico de conversas quando a #96 disponibilizar o schema/serviços.
+- Workflow GitHub Actions de aplicação DEV e validação da aplicação concluídos com sucesso; Vercel Preview Ready.
+- PR #132 permanece Draft e não foi mergeada.
 - Não aplicar alterações em PROD sem validação e aprovação explícita.

@@ -118,6 +118,135 @@ The product owner approved the following initial channel-entry rules:
 These rules define the initial product behavior, not the final database schema or RLS predicates. Implement only after the remaining details are reviewed.
 
 
+
+### 4.1.3 Proposed physical conversation schema (review draft)
+
+**Status: technical proposal, not yet approved for migration.** This section translates the approved conversation behavior into a proposed relational structure. It must be reconciled with the department/group schema from Issue #95 and account lifecycle from Issue #94 before implementation. It does not change the existing DEV database.
+
+#### A. `conversations` — canonical conversation
+
+Proposed columns:
+- `id uuid primary key`
+- `organization_id uuid not null` — tenant boundary; composite foreign keys should preserve same-organization relationships.
+- `type text not null` — allow only `channel`, `direct`, `group`.
+- `title text null` — required for channels/groups as applicable; not used to identify direct pairs.
+- `visibility text null` — `public` or `private` only when `type = 'channel'`; null for direct/group.
+- `department_id uuid null` — optional relationship to the department model from Issue #95 for department-linked groups/channels; must reference a department in the same organization.
+- `created_by uuid not null` — references the creator's profile and must be an active organization member at creation.
+- `status text not null` — proposed values `active`, `archived`; archived conversations are not used as the active direct conversation for new starts.
+- `direct_user_low uuid null`, `direct_user_high uuid null` — populated only for direct conversations; store the two distinct user IDs in deterministic sorted order.
+- `created_at timestamptz not null`, `updated_at timestamptz not null`, `archived_at timestamptz null`.
+
+Constraints/indexes:
+- CHECK constraints enforce valid `type`, `status`, and type-specific nullability: channel requires visibility; direct requires both sorted, distinct direct-user IDs and no channel visibility; group requires no direct-pair columns and no channel visibility.
+- Composite unique key `(id, organization_id)` supports same-tenant foreign keys from child tables.
+- Partial unique index on `(organization_id, direct_user_low, direct_user_high)` for `type = 'direct' AND status = 'active'` enforces one active direct conversation per unordered pair.
+- The application normalizes the pair before insert and, on uniqueness conflict, retrieves/reuses the existing active direct conversation. Do not rely on a read-before-write check alone; the unique index is the concurrency-safe guarantee.
+- `department_id` is optional because not every corporate conversation must belong to a department. If present, the department must belong to the same organization; exact FK depends on Issue #95's final department schema.
+
+#### B. `conversation_members` — explicit participation and lifecycle
+
+Proposed columns:
+- `id uuid primary key`
+- `organization_id uuid not null`
+- `conversation_id uuid not null`
+- `user_id uuid not null`
+- `status text not null` — proposed values `active`, `removed`, `left`, `invited`.
+- `added_by uuid null` — actor who invited/added the participant.
+- `joined_at timestamptz null`, `removed_at timestamptz null`, `created_at timestamptz not null`, `updated_at timestamptz not null`.
+
+Constraints/indexes:
+- Foreign key `(conversation_id, organization_id)` references `conversations(id, organization_id)`.
+- Organization membership must be validated against `organization_members` and its active status. A composite unique key on `organization_members(organization_id, user_id)` may be added as a redundant candidate key if needed for declarative same-tenant FKs; the existing global uniqueness of `user_id` must be preserved unless a separately approved product change replaces the one-organization-per-user rule.
+- Partial unique index on `(conversation_id, user_id)` where `status = 'active'` prevents duplicate active memberships while preserving lifecycle history.
+- Index `(user_id, status, conversation_id)` supports listing a user's active conversations; index `(conversation_id, status)` supports participant checks and roster queries.
+- Direct conversations must have exactly two active participants matching the normalized pair stored on `conversations`. Enforce this through a trusted transactional creation/membership operation and integrity tests; ordinary clients cannot write membership rows directly.
+- A removed participant does not regain access by history alone. Re-entry is a new explicit authorization event and must be recorded; prior membership history is retained.
+
+#### C. `messages` — shared message timeline
+
+Proposed columns:
+- `id uuid primary key`
+- `organization_id uuid not null`, `conversation_id uuid not null`
+- `sender_id uuid not null`
+- `content text null` — null after deletion; do not copy message bodies to audit records.
+- `message_type text not null` — initial allowlist to be finalized by message feature scope (for example text/system).
+- `created_at timestamptz not null`, `updated_at timestamptz not null`, `edited_at timestamptz null`
+- `deleted_at timestamptz null`, `deleted_by uuid null`.
+
+Constraints/indexes:
+- Composite FK `(conversation_id, organization_id)` references the parent conversation.
+- Sender must be an active participant at send time and an active member of the same organization; enforce through the trusted send operation and RLS.
+- Index `(conversation_id, created_at, id)` for stable chronological pagination; index `(sender_id, created_at)` for author-scoped operations.
+- Message edit is an UPDATE restricted to its author and approved editable fields. Message deletion is a controlled soft-delete; content is cleared and the UI renders the approved “Message deleted” placeholder. Ordinary clients cannot physically DELETE rows or alter sender/tenant/parent identifiers.
+
+#### D. `message_attachments` — private object metadata
+
+Proposed columns:
+- `id uuid primary key`
+- `organization_id uuid not null`, `conversation_id uuid not null`, `message_id uuid not null`
+- `uploaded_by uuid not null`
+- `bucket_id text not null`, `object_path text not null` — references a private Storage object, never a public URL.
+- `original_filename text not null`, `detected_mime_type text not null`, `file_category text not null`, `size_bytes bigint not null`.
+- `scan_status text not null` — proposed values `quarantined`, `clean`, `rejected`, `pending_deletion`, `deleted`.
+- `created_at timestamptz not null`, `deleted_at timestamptz null`, `purge_after timestamptz null`.
+
+Constraints/indexes:
+- Composite FK to the parent message/conversation/organization; add a unique key on `messages(id, conversation_id, organization_id)` to support this relationship.
+- CHECK `size_bytes > 0`; enforce category-specific maximums on the server and recheck actual file signature/content before marking clean.
+- Unique `(bucket_id, object_path)`; no permanent signed/public URL is stored.
+- Index `(message_id)` and `(scan_status, purge_after)` for access checks and cleanup.
+- Only `clean` attachments belonging to a non-deleted message can be delivered. Message deletion revokes access immediately and sets a 30-day physical deletion deadline, unless a documented hold applies. Storage authorization must resolve the object to this row and its parent conversation on every new delivery authorization.
+
+#### E. `conversation_audit_logs` — conversation security events
+
+Proposed columns:
+- `id uuid primary key`
+- `organization_id uuid not null`, `conversation_id uuid null`
+- `actor_id uuid null`, `target_user_id uuid null`
+- `event_type text not null`, `outcome text not null`
+- `justification text null`, `correlation_id uuid not null`
+- `metadata jsonb not null default '{}'` — allowlisted, minimized event attributes only; never message bodies, attachment contents, tokens, or credentials.
+- `created_at timestamptz not null`.
+
+Constraints/indexes:
+- Index `(organization_id, created_at)`, `(conversation_id, created_at)`, and `(actor_id, created_at)`.
+- Application actors have no direct UPDATE/DELETE; clients have no direct INSERT. Trusted server operations append events. The general audit retention/visibility rules in section 4 apply.
+- This table is for conversation-specific security events, not a replacement for the general administrative audit model in Issue #97. Avoid duplicating the same event in both stores without a documented event ownership rule.
+
+#### F. `user_blocks` — direct communication restriction
+
+Proposed columns:
+- `id uuid primary key`, `blocker_user_id uuid not null`, `blocked_user_id uuid not null`, `created_at timestamptz not null`, `revoked_at timestamptz null`.
+- CHECK prevents self-blocking; unique active pair (blocker, blocked) prevents duplicate active blocks.
+- Index active blocks in both lookup directions. A direct-message/call operation must check both directions; block status must not reveal the blocking user to the blocked user.
+- Blocking prevents new direct messages and calls and terminates an already active direct call as approved. It does not revoke access to existing direct-message history or automatically remove either user from shared groups/channels.
+
+#### G. Transaction boundaries and invariants
+
+- Create a conversation and its initial membership rows in one database transaction. A private channel creator must be enrolled as an active participant in that same transaction; any membership failure rolls back the conversation.
+- Direct-conversation creation normalizes the pair, checks active blocks in both directions, attempts creation, and handles the unique-index conflict by returning the existing active conversation. The operation must be concurrency-safe.
+- Message creation, edit, soft-delete, participant changes, and exceptional access must use trusted server-side operations with RLS as defense in depth. Do not grant ordinary authenticated clients unrestricted direct writes to membership or authorization tables.
+- Cross-tenant relationships must be prevented declaratively where possible with composite foreign keys, and otherwise validated by the trusted transaction. Never trust a client-supplied `organization_id`.
+- Realtime subscriptions must apply the same authorization boundary; database row visibility and channel subscription authorization are both required.
+
+#### H. Explicitly outside this schema slice
+
+- Department and department-membership tables are owned by Issue #95; this model references a future `departments` table only through optional `department_id`.
+- Account activation/deactivation source of truth must align with Issue #94; the conversation model must consume that trusted state rather than invent a parallel account status.
+- General administrative audit and device/session entities remain in Issue #97.
+- Call sessions, signaling, media/SFU metadata, read receipts, reactions, typing indicators, and message delivery/read receipts require separate requirements and are not silently introduced by this proposal.
+- The existing `organization_members.role` check constraint (`owner/admin/member`) is legacy and must not be used to authorize the new conversation capabilities. Do not change it as part of this schema proposal.
+
+#### I. Decisions still required before executable migrations
+
+1. Confirm the exact allowed message types and whether system messages share the `messages` table or a separate event stream.
+2. Confirm the exact group/channel title, rename, archive, and deletion lifecycle; this proposal uses active/archived conversations and does not physically delete conversation history.
+3. Confirm whether a public channel participant can voluntarily leave and what happens to prior history on leaving; current approved rule explicitly guarantees history after joining, but does not yet define leave behavior.
+4. Reconcile the department FK with the final Issue #95 schema and account-active checks with Issue #94.
+5. Define the ownership boundary between `conversation_audit_logs` and the general audit model in Issue #97.
+6. Define the exact Storage bucket/object naming and scanning service integration before implementing attachment upload.
+
 ### 4.1.2 RLS authorization contract (approved technical baseline)
 
 The following rules define the mandatory authorization contract for the future conversation schema. They are logical predicates and operation boundaries, not executable SQL: the final SQL must be written only after the column-level schema, foreign keys, indexes, constraints, and mutation workflows are reviewed.

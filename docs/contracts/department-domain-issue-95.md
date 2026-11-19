@@ -105,6 +105,7 @@ Migrações registradas no Supabase DEV:
 - `20261119212543_fix_department_member_scope_error_codes`
 - `20261119212759_add_platform_admin_department_rpcs`
 - `20261119214000_add_department_management_rpcs`
+- `20261119215400_add_department_member_fk_indexes`
 
 Suíte `supabase/tests/issue_95_department_integrity.sql`: 16/16 verificações aprovadas no Supabase DEV. A suíte executa fixtures em transação e termina com `ROLLBACK`; foi confirmado que nenhum fixture permaneceu.
 
@@ -114,6 +115,8 @@ Suíte `supabase/tests/issue_95_department_integrity.sql`: 16/16 verificações 
 - Integrar eventos de auditoria pelo contrato da #97 antes de considerar edição/desativação/transferência prontas para produção.
 - Implementar capacidades explícitas de colaboradores e escopo por departamento após estabilização do modelo de colaboradores (#92) e da autorização (#96).
 - Integrar metadados de grupos ao modelo canônico de conversas quando a #96 disponibilizar o schema/serviços.
-- Workflow GitHub Actions de aplicação DEV e validação da aplicação concluídos com sucesso; Vercel Preview Ready.
+- Migration de índices de FKs adicionada para cobrir `department_id, organization_id`, `user_id, organization_id`, `created_by` e `ended_by`, conforme advisor de performance; aguarda execução automática no DEV.
+- Advisor de segurança: RLS sem policies é intencional porque `anon`/`authenticated` não têm acesso direto às tabelas; RPCs `SECURITY DEFINER` no schema público são endpoints privilegiados intencionais, limitados por `auth.uid()`, checagem server-side de `platform_admin`, `search_path` vazio e grants explícitos. Manter como item de revisão/hardening, não ignorar o alerta.
+- Workflow GitHub Actions de aplicação DEV e validação da aplicação concluídos com sucesso para o commit anterior; Vercel Preview Ready. A nova migration de índices deve passar pelo mesmo fluxo.
 - PR #132 permanece Draft e não foi mergeada.
 - Não aplicar alterações em PROD sem validação e aprovação explícita.

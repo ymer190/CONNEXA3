@@ -66,6 +66,26 @@ The product owner approved the following rule for Issue #96:
 
 The RPGD designation (including the leadership decision appointing or replacing the function holder), eligible identities, approval/revocation records, approved scope, validity period, and capability lifecycle must be represented through controlled authorization data and audited administrative operations. The person's name and detailed administrative procedure are intentionally deferred to organizational leadership. Do not hardcode user IDs in policies, infer eligibility from the number of rows, or trust client-editable metadata.
 
+## 4.1 Product-owner-approved conversation data model
+
+The product owner approved a unified conversation model as the architectural basis for conversation resources. The model uses shared entities rather than separate message-storage implementations for each conversation type:
+
+- `conversations`: canonical conversation record and its type.
+- `conversation_members`: participants and their conversation-scoped membership/permissions.
+- `messages`: messages belonging to a conversation.
+- `message_attachments`: attachment metadata and references to stored objects; access to the underlying object must be authorized against the parent conversation and message.
+- `conversation_audit_logs`: conversation-specific security/audit events, integrated with the approved audit governance, retention, and data-minimization rules. It must not duplicate message content.
+
+The approved conversation types are:
+
+- `channel`: organization channel, supporting the already-established public/private channel distinction.
+- `direct`: private conversation between two people.
+- `group`: private conversation among multiple people.
+
+All types share the same conversation, membership, message, and attachment foundations. Organization/tenant scope must be explicit for organization-owned conversations and validated server-side. Normal content access is based on valid participation/membership and the applicable channel visibility/join rules; administrative role alone never grants read access. Exceptional access remains a separate, explicitly approved, time-bounded `conversations.exceptional_read` capability with scope, justification, pre-disclosure audit persistence, and fail-closed behavior.
+
+This approval establishes the architectural entities and conversation categories, not the final column-level schema or every membership lifecycle rule. Detailed decisions still required before migrations include public-channel discovery/join semantics, whether a private-channel creator is automatically a participant, direct-conversation uniqueness/lifecycle, group membership changes, message editing/deletion rules, attachment storage policy, and exact RLS predicates. Do not infer these details or deploy a schema until they are specified and reviewed.
+
 ## 5. Provisional capability catalog
 
 These identifiers are proposals, not grants. Their assignment remains pending the complete role matrix and resource model.
@@ -113,7 +133,7 @@ No capability is granted by this catalog alone. The product owner approved depar
 1. Implement the approved formal RPGD designation rule: organizational leadership appoints and replaces the RPGD through a documented decision. The named individual and detailed administrative procedure remain for leadership to define later. The RPGD is independent of operational IT, does not gain conversation access by approving it, and can approve only specific identities/scopes for a defined validity period. The controlled approval/revocation workflow and records remain implementation work.
 2. Implement and test the approved `it_support` safeguards: require an active, identified support ticket and a non-empty justification for every operation; audit device/session consultations and revocations; limit revocation to devices/sessions of the user covered by the ticket; validate ticket status, organization, and target user server-side for every operation; deny closed/expired tickets and cross-organization or out-of-ticket targets. The role cannot change roles, administer organizations, access conversation content, or read the complete administrative audit history.
 3. Implement the approved audit policy: `platform_admin` alone can read the complete administrative audit history; RPGD can read only exceptional-access oversight records; `it_support` cannot read the complete history. Record permission/role changes, administrative actions, support device/session operations, and exceptional conversation consultations with actor, action, target/scope, timestamp, outcome, correlation ID, and applicable justification. Exclude message bodies, attachments, passwords, tokens, and credentials. Standard retention is 12 months; longer retention requires a documented legal obligation, investigation, or formal preservation hold, followed by secure deletion or anonymization when permitted.
-4. Implement the conversation data model before conversation-level RLS and exceptional-read workflow can be tested end-to-end.
+4. Implement the approved unified conversation data model (`conversations`, `conversation_members`, `messages`, `message_attachments`, and `conversation_audit_logs`) with `channel`, `direct`, and `group` types. Before migrations, resolve the remaining membership, visibility, lifecycle, attachment, and exact RLS details listed in section 4.1; then implement conversation-level RLS and exceptional-read workflow.
 
 Until these prerequisites are resolved, do not create a broad conversation-reading path or infer privileges from the existing `platform_admin` role.
 

@@ -86,6 +86,17 @@ All types share the same conversation, membership, message, and attachment found
 
 This approval establishes the architectural entities and conversation categories, not the final column-level schema or every membership lifecycle rule. Detailed decisions still required before migrations include public-channel discovery/join semantics, whether a private-channel creator is automatically a participant, direct-conversation uniqueness/lifecycle, group membership changes, message editing/deletion rules, attachment storage policy, and exact RLS predicates. Do not infer these details or deploy a schema until they are specified and reviewed.
 
+### 4.1.1 Public and private channel discovery and participation
+
+The product owner approved the following initial channel-entry rules:
+
+- **Public channels:** any active member of the owning organization may discover the channel and explicitly join it without an invitation. Discovery and joining remain organization-scoped; users from another organization must be denied.
+- **Private channels:** the channel is not discoverable to non-participants. Access requires an explicit invitation or an explicit addition by an authorized participant/manager under the channel's applicable management rules. Merely being an organization member, department manager, or platform administrator does not grant access.
+- In both cases, message access is governed by valid conversation membership and server-side/RLS checks. The public-channel rule authorizes discovery and self-joining; it does not establish retroactive access to messages from before the user joined. History visibility after joining must be specified as part of the message-retention/read policy before implementation.
+- Whether the creator of a private channel is automatically enrolled as a participant remains an explicit open decision.
+
+These rules define the initial product behavior, not the final database schema or RLS predicates. Implement only after the remaining details are reviewed.
+
 ## 5. Provisional capability catalog
 
 These identifiers are proposals, not grants. Their assignment remains pending the complete role matrix and resource model.

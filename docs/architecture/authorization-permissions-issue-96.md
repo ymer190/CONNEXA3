@@ -1,6 +1,6 @@
 # Issue #96 — Authorization and permissions design
 
-Status: approved role structure and privacy boundary — platform administration, operational IT support, and collaborators are distinct authorization categories; department managers remain collaborators with department-scoped capabilities, not global administrators. Exceptional conversation access requires explicit business approval and a separate audited capability. Detailed grants, scope rules, approval authority, and resource model remain pending.
+Status: approved role structure and privacy boundary — platform administration, operational IT support, and collaborators are distinct authorization categories; department managers remain collaborators with department-scoped capabilities, not global administrators. Exceptional conversation access requires explicit approval by a formally designated business owner independent of operational IT, and a separate audited capability. Detailed grants, scope rules, and resource model remain pending.
 
 ## 1. Purpose
 
@@ -47,6 +47,7 @@ The product owner approved the following rule for Issue #96:
 - No administrator, including `platform_admin`, receives routine or automatic access to conversation content.
 - The operational IT team must not receive direct access to conversation content as part of ordinary support duties.
 - Exceptional conversation-content access is permitted only when explicitly approved by the business for a specifically designated identity or role, and granted through a separate capability. The currently existing `platform_admin` account is not automatically eligible; its eligibility has not been approved.
+- **Approval and revocation authority:** only a formally designated business owner, independent of the operational IT team, may approve or revoke exceptional conversation-content access. Operational IT personnel cannot approve, grant, or revoke this capability for themselves or others.
 - General platform administration does not implicitly grant conversation-content access. The exceptional permission must be distinct, independently checked, explicitly granted, and revocable.
 - Every exceptional consultation requires a non-empty justification.
 - Authorization and scope must be validated server-side before any conversation content is returned.
@@ -56,7 +57,7 @@ The product owner approved the following rule for Issue #96:
 - Ordinary authenticated clients must not be able to insert, update, or delete audit records.
 - Audit-read access is restricted to `platform_admin`. The `it_support` role may perform its explicitly authorized operational support actions but cannot consult the complete administrative audit history. This is a role-level boundary; the exact audit scope, sensitive-field visibility, and retention policy remain to be specified.
 
-Any future eligible person must be designated through controlled, server/database-managed authorization data after explicit business approval. Do not hardcode user IDs in policies, infer eligibility from the number of rows, or trust client-editable metadata.
+The business owner designation, eligible identities, approval/revocation records, and capability lifecycle must be represented through controlled authorization data and audited administrative operations. Do not hardcode user IDs in policies, infer eligibility from the number of rows, or trust client-editable metadata.
 
 ## 5. Provisional capability catalog
 
@@ -74,14 +75,14 @@ These identifiers are proposals, not grants. Their assignment remains pending th
 | `audit.read` | Consult administrative audit records |
 | `conversations.exceptional_read` | Perform an exceptional administrative conversation consultation |
 
-No capability is granted by this catalog alone. The product owner approved department-scoped `departments.read`, `departments.members.manage`, `groups.read`, `groups.manage`, and `groups.members.manage` for collaborators explicitly designated as managers of the corresponding department. These capabilities must be constrained to the assigned department and its linked groups; they do not permit access to other departments, organization administration, or global permission management. The product owner also approved `devices.read` and the narrowly defined revocation operation represented by `devices.manage` for `it_support`, restricted to users in the organization associated with the support request being handled. The organization and target-user scope must be validated server-side for every operation; cross-organization access is denied. `it_support` cannot change roles, administer organizations, access conversation content, or read the complete administrative audit history. `audit.read` is restricted to `platform_admin`. In particular, `conversations.exceptional_read` is not implied by `platform_admin`. Business approval, eligible identities, approval authority, and grant/revocation process must be defined before any exceptional access is implemented.
+No capability is granted by this catalog alone. The product owner approved department-scoped `departments.read`, `departments.members.manage`, `groups.read`, `groups.manage`, and `groups.members.manage` for collaborators explicitly designated as managers of the corresponding department. These capabilities must be constrained to the assigned department and its linked groups; they do not permit access to other departments, organization administration, or global permission management. The product owner also approved `devices.read` and the narrowly defined revocation operation represented by `devices.manage` for `it_support`, restricted to users in the organization associated with the support request being handled. The organization and target-user scope must be validated server-side for every operation; cross-organization access is denied. `it_support` cannot change roles, administer organizations, access conversation content, or read the complete administrative audit history. `audit.read` is restricted to `platform_admin`. In particular, `conversations.exceptional_read` is not implied by `platform_admin`. Only the formally designated business owner independent of operational IT may approve/revoke the exceptional capability; eligible identities and the grant/revocation workflow must be specified before implementation.
 
 ## 6. Implementation design and safety gates
 
 ### Stage 1 — Role and permission matrix (3 SP)
 - Apply the approved categories: `platform_admin`, `it_support`, and `collaborator`.
 - Model department managers as collaborators with explicitly assigned capabilities to read their own department, manage its membership, and create/administer its linked groups. Enforce department and group scope; deny access to other departments, organization administration, and global permission management.
-- Define who may approve exceptional access and which specific identities (if any) may receive it through controlled authorization data; the product owner has approved the principle that access is exceptional only, not routine.
+- Define the formally designated business owner and controlled workflow/data model for approving and revoking exceptional access. The approver must be independent of operational IT; operational IT cannot self-approve or self-grant this capability.
 - Define remaining capability grants and operational safeguards for `it_support`; its approved device/session scope is limited to users in the organization associated with the support request being handled, with server-side validation and no cross-organization access.
 - Preserve the approved audit-reader boundary (`platform_admin` only) and define the audit scope, sensitive-field visibility, and retention period.
 
@@ -101,7 +102,7 @@ No capability is granted by this catalog alone. The product owner approved depar
 
 ## 7. Remaining decisions and prerequisites
 
-1. Define who is eligible for exceptional conversation-content access and who can approve/revoke it. The product owner has approved that no administrator, including `platform_admin`, has routine access; DEV currently has one `platform_admin` row, but that does not confer exceptional-read eligibility.
+1. Identify the named business owner (or formal business function) responsible for approving/revoking exceptional access, and define the controlled approval/revocation workflow and records. The approved governance rule is that this authority belongs to a formally designated business owner independent of operational IT.
 2. Define operational safeguards and audit requirements for `it_support` device/session operations. The approved scope is users belonging to the organization associated with the support request being handled; every target organization and user must be validated server-side, and cross-organization access is denied. The role cannot change roles, administer organizations, access conversation content, or read the complete administrative audit history.
 3. Define audit scope, sensitive-field visibility, and retention period. The approved reader boundary is `platform_admin` only; `it_support` cannot consult the complete administrative audit history.
 4. Implement the conversation data model before conversation-level RLS and exceptional-read workflow can be tested end-to-end.

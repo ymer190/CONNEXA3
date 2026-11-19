@@ -84,7 +84,7 @@ No capability is granted by this catalog alone. In particular, `conversations.ex
 - Implement the exceptional conversation-access workflow only after the conversation schema exists.
 - Require justification and persist the audit event before returning content.
 - Protect audit records from client-side mutation.
-- Test missing justification, operational-IT denial, non-designated-admin denial, invalid scope, and audit-write failure.
+- Test missing justification, operational-IT denial, denial when no explicit exceptional-read grant exists, invalid scope, and audit-write failure.
 
 ## 7. Remaining decisions and prerequisites
 

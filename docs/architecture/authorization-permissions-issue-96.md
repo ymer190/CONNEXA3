@@ -25,7 +25,7 @@ This document records the agreed privacy boundary and the remaining business dec
 The product owner approved the following high-level structure for Issue #96:
 
 - `platform_admin`: platform-level IT administration and governance. This role does not grant routine or automatic access to conversation content.
-- `it_support`: operational IT support, with only explicitly defined support capabilities such as device/session administration. It has no routine conversation-content access.
+- `it_support`: operational IT support, limited to consulting registered devices and sessions and revoking devices/sessions when needed for security or support. It has no routine conversation-content access, cannot change platform or organization roles, cannot administer organizations, and cannot consult the complete administrative audit history. Its target-user and tenant scope must be explicitly authorized; this role does not imply unrestricted access across all organizations.
 - `collaborator`: the standard organization user category. A collaborator who manages a department receives additional capabilities scoped only to the department(s) assigned to them; department management does not turn that person into a global/platform administrator.
 
 A department manager is therefore not a separate global platform role. Department-manager authority is represented by department-scoped capabilities assigned to a collaborator. This is a high-level role/category decision, not yet a grant of specific permissions. Exact capability assignments, organization boundaries, and approval workflows remain to be defined in the permission matrix.
@@ -70,11 +70,11 @@ These identifiers are proposals, not grants. Their assignment remains pending th
 | `groups.manage` | Create, update, or deactivate corporate groups |
 | `groups.members.manage` | Add or remove group participants |
 | `devices.read` | Consult registered devices and sessions |
-| `devices.manage` | Approve, revoke, or otherwise manage devices/sessions |
+| `devices.manage` | Revoke devices/sessions when needed for security or support; does not include role, organization, or conversation administration |
 | `audit.read` | Consult administrative audit records |
 | `conversations.exceptional_read` | Perform an exceptional administrative conversation consultation |
 
-No capability is granted by this catalog alone. `audit.read` is restricted to `platform_admin`; it is not available to `it_support`. In particular, `conversations.exceptional_read` is not implied by `platform_admin`. Business approval, eligible identities, approval authority, and grant/revocation process must be defined before any exceptional access is implemented.
+No capability is granted by this catalog alone. The product owner approved `devices.read` and the narrowly defined revocation operation represented by `devices.manage` for `it_support`, subject to explicit target-user/tenant scope. `it_support` cannot change roles, administer organizations, access conversation content, or read the complete administrative audit history. `audit.read` is restricted to `platform_admin`. In particular, `conversations.exceptional_read` is not implied by `platform_admin`. Business approval, eligible identities, approval authority, and grant/revocation process must be defined before any exceptional access is implemented.
 
 ## 6. Implementation design and safety gates
 
@@ -82,7 +82,7 @@ No capability is granted by this catalog alone. `audit.read` is restricted to `p
 - Apply the approved categories: `platform_admin`, `it_support`, and `collaborator`.
 - Model department managers as collaborators with department-scoped capabilities, not as global platform administrators.
 - Define who may approve exceptional access and which specific identities (if any) may receive it through controlled authorization data; the product owner has approved the principle that access is exceptional only, not routine.
-- Define the remaining capability grants and scope boundaries.
+- Define remaining capability grants and scope boundaries, including the authorized target-user/tenant scope for `it_support` device/session operations.
 - Preserve the approved audit-reader boundary (`platform_admin` only) and define the audit scope, sensitive-field visibility, and retention period.
 
 ### Stage 2 — Server authorization and RLS (3 SP)
@@ -102,7 +102,7 @@ No capability is granted by this catalog alone. `audit.read` is restricted to `p
 ## 7. Remaining decisions and prerequisites
 
 1. Define who is eligible for exceptional conversation-content access and who can approve/revoke it. The product owner has approved that no administrator, including `platform_admin`, has routine access; DEV currently has one `platform_admin` row, but that does not confer exceptional-read eligibility.
-2. Define the exact operational capabilities for `it_support`, excluding conversation-content access.
+2. Define the authorized target-user/tenant scope, operational safeguards, and audit requirements for the approved `it_support` device/session read and revocation operations. The role cannot change roles, administer organizations, access conversation content, or read the complete administrative audit history.
 3. Define the exact department-scoped capabilities for collaborators who are department managers, including whether they can manage membership and groups within their department.
 4. Define audit scope, sensitive-field visibility, and retention period. The approved reader boundary is `platform_admin` only; `it_support` cannot consult the complete administrative audit history.
 5. Implement the conversation data model before conversation-level RLS and exceptional-read workflow can be tested end-to-end.

@@ -40,6 +40,7 @@ Não faz parte da estratégia do projeto implantar infraestrutura on-premises ou
 
 ## Documentação
 
+- `docs/contracts/integration-contracts.md`: contratos de integração versionados para Back-end e Front-end, com o que já existe em DEV separado das propostas pendentes de revisão.
 - `docs/requirements/calls-audio-video.md`: requisitos aprovados para chamadas individuais e em grupo, regras de negócio, critérios de aceitação, diagramas e pendências técnicas.
 - `docs/architecture/`: documentação de arquitetura; documentos anteriores devem ser revisados contra a direção oficial atual antes de orientar implementação.
 - `docs/ux/`: artefatos de UX e protótipos existentes; conteúdos que descrevem o protótipo de atendimento anterior não devem ser tratados automaticamente como especificação funcional vigente.

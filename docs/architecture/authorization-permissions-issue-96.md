@@ -54,6 +54,7 @@ The product owner approved the following rule for Issue #96:
 - Audit persistence must succeed before content is disclosed; if the audit write fails, access must fail closed.
 - No individual notification is sent to the collaborator at the moment of consultation, as previously directed by the product owner; this behavior should be reconfirmed with the broader privacy policy before implementation.
 - Ordinary authenticated clients must not be able to insert, update, or delete audit records.
+- Audit-read access is restricted to `platform_admin`. The `it_support` role may perform its explicitly authorized operational support actions but cannot consult the complete administrative audit history. This is a role-level boundary; the exact audit scope, sensitive-field visibility, and retention policy remain to be specified.
 
 Any future eligible person must be designated through controlled, server/database-managed authorization data after explicit business approval. Do not hardcode user IDs in policies, infer eligibility from the number of rows, or trust client-editable metadata.
 
@@ -73,7 +74,7 @@ These identifiers are proposals, not grants. Their assignment remains pending th
 | `audit.read` | Consult administrative audit records |
 | `conversations.exceptional_read` | Perform an exceptional administrative conversation consultation |
 
-No capability is granted by this catalog alone. In particular, `conversations.exceptional_read` is not implied by `platform_admin`. Business approval, eligible identities, approval authority, and grant/revocation process must be defined before any exceptional access is implemented.
+No capability is granted by this catalog alone. `audit.read` is restricted to `platform_admin`; it is not available to `it_support`. In particular, `conversations.exceptional_read` is not implied by `platform_admin`. Business approval, eligible identities, approval authority, and grant/revocation process must be defined before any exceptional access is implemented.
 
 ## 6. Implementation design and safety gates
 
@@ -82,7 +83,7 @@ No capability is granted by this catalog alone. In particular, `conversations.ex
 - Model department managers as collaborators with department-scoped capabilities, not as global platform administrators.
 - Define who may approve exceptional access and which specific identities (if any) may receive it through controlled authorization data; the product owner has approved the principle that access is exceptional only, not routine.
 - Define the remaining capability grants and scope boundaries.
-- Decide which roles may read audit records and the retention period.
+- Preserve the approved audit-reader boundary (`platform_admin` only) and define the audit scope, sensitive-field visibility, and retention period.
 
 ### Stage 2 — Server authorization and RLS (3 SP)
 - Implement a centralized server-side authorization API.
@@ -103,7 +104,7 @@ No capability is granted by this catalog alone. In particular, `conversations.ex
 1. Define who is eligible for exceptional conversation-content access and who can approve/revoke it. The product owner has approved that no administrator, including `platform_admin`, has routine access; DEV currently has one `platform_admin` row, but that does not confer exceptional-read eligibility.
 2. Define the exact operational capabilities for `it_support`, excluding conversation-content access.
 3. Define the exact department-scoped capabilities for collaborators who are department managers, including whether they can manage membership and groups within their department.
-4. Define audit readers and retention period.
+4. Define audit scope, sensitive-field visibility, and retention period. The approved reader boundary is `platform_admin` only; `it_support` cannot consult the complete administrative audit history.
 5. Implement the conversation data model before conversation-level RLS and exceptional-read workflow can be tested end-to-end.
 
 Until these prerequisites are resolved, do not create a broad conversation-reading path or infer privileges from the existing `platform_admin` role.

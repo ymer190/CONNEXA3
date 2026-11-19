@@ -63,6 +63,21 @@ begin
     raise exception 'Platform administrator role required' using errcode = '42501';
   end if;
 
+  -- Lock the department first. A concurrent transfer's membership trigger
+  -- takes FOR SHARE on this row, so it either commits before this transaction
+  -- (and is then closed below) or observes the inactive status after we commit.
+  perform 1
+    from public.departments d
+   where d.id = p_department_id
+     and d.organization_id = p_organization_id
+     and d.status = 'active'
+   for update;
+
+  if not found then
+    raise exception 'Active department not found in organization'
+      using errcode = 'P0002';
+  end if;
+
   -- Preserve association history and close all current links atomically.
   update public.department_members dm
      set ended_at = now(), ended_by = auth.uid()
@@ -77,11 +92,6 @@ begin
      and d.organization_id = p_organization_id
      and d.status = 'active'
   returning d.*;
-
-  if not found then
-    raise exception 'Active department not found in organization'
-      using errcode = 'P0002';
-  end if;
 end;
 $$;
 

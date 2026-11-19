@@ -86,6 +86,8 @@ The approved conversation types are:
 
 **Message editing and deletion (approved):** a message author may edit their own messages. Edited messages must be visibly identified as edited. A message author may delete their own messages; deletion is represented to conversation participants by a “Message deleted” placeholder rather than silently removing the message from the conversation timeline. Administrative roles, including `platform_admin`, do not by themselves authorize editing or deleting another user's messages. These permissions must be enforced server-side and by RLS, not only by the client UI.
 
+**Message types and system events (approved):** the shared `messages` table stores both user-authored messages and system-generated timeline events. The initial `message_type` allowlist is `text`, `image`, `video`, `audio`, `document`, and `system`. System events include participant joins/leaves/removals and group-name changes. They are generated only by trusted server-side operations; ordinary clients cannot create or alter them. System events are not editable or deletable by ordinary users. The event should be represented with a stable event key and structured, minimized metadata so the client renders a controlled presentation rather than trusting arbitrary client-supplied system text. Attachment types continue to use the approved private-storage and validation rules.
+
 
 
 **User blocking (approved):** a user may block another user. While the block is active, new direct messages and direct calls between the two users must be prevented. Blocking does not automatically delete the pre-existing direct-conversation history. This rule applies to direct communication; it does not, by itself, remove either person from shared groups or channels, nor does it define access to shared spaces.
@@ -169,15 +171,16 @@ Constraints/indexes:
 Proposed columns:
 - `id uuid primary key`
 - `organization_id uuid not null`, `conversation_id uuid not null`
-- `sender_id uuid not null`
-- `content text null` — null after deletion; do not copy message bodies to audit records.
-- `message_type text not null` — initial allowlist to be finalized by message feature scope (for example text/system).
+- `sender_id uuid null` — required for user-authored messages; null for system-generated events.
+- `content text null` — null after deletion; do not copy message bodies to audit records. System-event presentation should be rendered from a controlled event key and structured metadata, not arbitrary client text.
+- `message_type text not null` — allow only `text`, `image`, `video`, `audio`, `document`, `system`.
+- `system_event_key text null` and `system_event_metadata jsonb null` — populated only for `system` events; metadata is minimized and validated by the trusted operation.
 - `created_at timestamptz not null`, `updated_at timestamptz not null`, `edited_at timestamptz null`
 - `deleted_at timestamptz null`, `deleted_by uuid null`.
 
 Constraints/indexes:
 - Composite FK `(conversation_id, organization_id)` references the parent conversation.
-- Sender must be an active participant at send time and an active member of the same organization; enforce through the trusted send operation and RLS.
+- For user-authored types (`text`, `image`, `video`, `audio`, `document`), sender must be an active participant at send time and an active member of the same organization; enforce through the trusted send operation and RLS. For `system`, `sender_id` is null, a valid `system_event_key` is required, and creation is restricted to trusted server-side operations. CHECK constraints must enforce the type-specific nullability/required fields.
 - Index `(conversation_id, created_at, id)` for stable chronological pagination; index `(sender_id, created_at)` for author-scoped operations.
 - Message edit is an UPDATE restricted to its author and approved editable fields. Message deletion is a controlled soft-delete; content is cleared and the UI renders the approved “Message deleted” placeholder. Ordinary clients cannot physically DELETE rows or alter sender/tenant/parent identifiers.
 
@@ -241,7 +244,6 @@ Proposed columns:
 
 #### I. Decisions still required before executable migrations
 
-1. Confirm the exact allowed message types and whether system messages share the `messages` table or a separate event stream.
 2. Confirm the exact group/channel title, rename, archive, and deletion lifecycle; this proposal uses active/archived conversations and does not physically delete conversation history.
 3. Reconcile the department FK with the final Issue #95 schema and account-active checks with Issue #94.
 4. Define the ownership boundary between `conversation_audit_logs` and the general audit model in Issue #97.
@@ -269,7 +271,8 @@ The following rules define the mandatory authorization contract for the future c
 
 **Mutation rules**
 - Conversation creation and initial membership enrollment are one atomic server-authorized operation. Private-channel creator enrollment is mandatory; if enrollment fails, the channel creation transaction fails. Public channel join and private invitation/addition are explicit, validated operations.
-- Message INSERT requires the authenticated actor to be the sender, a currently active participant, and authorized for the parent conversation. Direct-message creation additionally checks that neither direction of the user pair is blocked. Inactive accounts cannot send.
+- Message INSERT for user-authored types requires the authenticated actor to be the sender, a currently active participant, and authorized for the parent conversation. Direct-message creation additionally checks that neither direction of the user pair is blocked. Inactive accounts cannot send.
+- `system` message INSERT is denied to ordinary authenticated clients and is available only through narrowly scoped trusted server-side operations that validate the event and its resource scope. System messages cannot be edited or deleted through ordinary client operations.
 - Message UPDATE is limited to the author of that message, while the message is not deleted. The update must preserve message ID, author, organization, and parent conversation; only approved editable content fields may change. Edited state/time is set by trusted server logic.
 - Message deletion is a controlled soft-delete operation by the author. It replaces visible content with the approved deleted-message placeholder, revokes attachment access immediately, and schedules physical object deletion after the approved 30-day period (subject to a documented hold). Ordinary clients must not physically DELETE message or attachment rows.
 - Group/channel membership changes are performed only through authorized server operations. Removal deactivates/revokes membership immediately; a later re-entry requires a new explicit authorization and must not revive the prior membership automatically.

@@ -47,6 +47,7 @@ insert into issue95_test_output select throws_ok(
   $$insert into public.departments (organization_id, name)
     values ('95000000-0000-4000-8000-000000000101', ' engineering ')$$,
   '23505',
+  'duplicate key value violates unique constraint "departments_active_name_per_organization_uidx"',
   'active department names are unique after trimming and case folding'
 );
 
@@ -56,6 +57,7 @@ insert into issue95_test_output select throws_ok(
             '95000000-0000-4000-8000-000000000201',
             '95000000-0000-4000-8000-000000000001')$$,
   '23503',
+  'Department does not belong to the organization',
   'cross-organization department assignment is rejected'
 );
 
@@ -65,6 +67,7 @@ insert into issue95_test_output select throws_ok(
             '95000000-0000-4000-8000-000000000201',
             '95000000-0000-4000-8000-000000000002')$$,
   '23514',
+  'Employee must be an active organization member',
   'suspended employee cannot receive an active department assignment'
 );
 
@@ -74,6 +77,7 @@ insert into issue95_test_output select throws_ok(
             '95000000-0000-4000-8000-000000000203',
             '95000000-0000-4000-8000-000000000001')$$,
   '23514',
+  'Department must be active to create an active association',
   'inactive department cannot receive an active assignment'
 );
 
@@ -83,6 +87,7 @@ insert into issue95_test_output select throws_ok(
             '95000000-0000-4000-8000-000000000202',
             '95000000-0000-4000-8000-000000000001')$$,
   '23505',
+  'duplicate key value violates unique constraint "department_members_one_active_department_per_user_uidx"',
   'employee cannot have two active department assignments'
 );
 

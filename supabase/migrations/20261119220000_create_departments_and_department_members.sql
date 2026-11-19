@@ -83,7 +83,12 @@ begin
      and d.organization_id = new.organization_id
    for share;
 
-  if department_status is distinct from 'active' then
+  if not found then
+    raise exception 'Department does not belong to the organization'
+      using errcode = '23503';
+  end if;
+
+  if department_status <> 'active' then
     raise exception 'Department must be active to create an active association'
       using errcode = '23514';
   end if;
@@ -95,7 +100,12 @@ begin
      and om.organization_id = new.organization_id
    for share;
 
-  if member_status is distinct from 'active' then
+  if not found then
+    raise exception 'Employee does not belong to the organization'
+      using errcode = '23503';
+  end if;
+
+  if member_status <> 'active' then
     raise exception 'Employee must be an active organization member'
       using errcode = '23514';
   end if;

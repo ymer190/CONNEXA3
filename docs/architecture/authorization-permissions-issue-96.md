@@ -244,10 +244,10 @@ Proposed columns:
 
 #### I. Decisions still required before executable migrations
 
-2. Confirm the exact group/channel title, rename, archive, and deletion lifecycle; this proposal uses active/archived conversations and does not physically delete conversation history.
-3. Reconcile the department FK with the final Issue #95 schema and account-active checks with Issue #94.
-4. Define the ownership boundary between `conversation_audit_logs` and the general audit model in Issue #97.
-5. Define the exact Storage bucket/object naming and scanning service integration before implementing attachment upload.
+1. Confirm the exact group/channel title, rename, archive, and deletion lifecycle; this proposal uses active/archived conversations and does not physically delete conversation history.
+2. Reconcile the department FK with the final Issue #95 schema and account-active checks with Issue #94.
+3. Define the ownership boundary between `conversation_audit_logs` and the general audit model in Issue #97.
+4. Define the exact Storage bucket/object naming and scanning service integration before implementing attachment upload.
 
 ### 4.1.2 RLS authorization contract (approved technical baseline)
 

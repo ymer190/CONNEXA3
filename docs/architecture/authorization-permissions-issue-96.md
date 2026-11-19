@@ -86,6 +86,8 @@ The approved conversation types are:
 
 **Message editing and deletion (approved):** a message author may edit their own messages. Edited messages must be visibly identified as edited. A message author may delete their own messages; deletion is represented to conversation participants by a “Message deleted” placeholder rather than silently removing the message from the conversation timeline. Administrative roles, including `platform_admin`, do not by themselves authorize editing or deleting another user's messages. These permissions must be enforced server-side and by RLS, not only by the client UI.
 
+**Group/channel lifecycle (approved):** authorized actors may rename a group or channel only when they have the relevant management permission for that specific conversation. Authorized actors may archive a group or channel; archiving prevents new messages while preserving the conversation history for consultation by participants who remain authorized. Conversations must not be physically deleted as a normal user/admin operation; archival is the supported lifecycle action, preserving history and auditability. Authorization is enforced server-side and by RLS, not only in the client UI.
+
 **Message types and system events (approved):** the shared `messages` table stores both user-authored messages and system-generated timeline events. The initial `message_type` allowlist is `text`, `image`, `video`, `audio`, `document`, and `system`. System events include participant joins/leaves/removals and group-name changes. They are generated only by trusted server-side operations; ordinary clients cannot create or alter them. System events are not editable or deletable by ordinary users. The event should be represented with a stable event key and structured, minimized metadata so the client renders a controlled presentation rather than trusting arbitrary client-supplied system text. Attachment types continue to use the approved private-storage and validation rules.
 
 
@@ -244,10 +246,9 @@ Proposed columns:
 
 #### I. Decisions still required before executable migrations
 
-1. Confirm the exact group/channel title, rename, archive, and deletion lifecycle; this proposal uses active/archived conversations and does not physically delete conversation history.
-2. Reconcile the department FK with the final Issue #95 schema and account-active checks with Issue #94.
-3. Define the ownership boundary between `conversation_audit_logs` and the general audit model in Issue #97.
-4. Define the exact Storage bucket/object naming and scanning service integration before implementing attachment upload.
+1. Reconcile the department FK with the final Issue #95 schema and account-active checks with Issue #94.
+2. Define the ownership boundary between `conversation_audit_logs` and the general audit model in Issue #97.
+3. Define the exact Storage bucket/object naming and scanning service integration before implementing attachment upload.
 
 ### 4.1.2 RLS authorization contract (approved technical baseline)
 

@@ -6,7 +6,7 @@ Status: privacy boundary for exceptional conversation access agreed in principle
 
 Define a least-privilege authorization model for CONNEXA3. Every protected operation must be authorized on the server and, where data access is involved, enforced again by PostgreSQL Row Level Security (RLS). UI visibility is never a security boundary.
 
-This document records the approved business decision for exceptional conversation access. It does not authorize production changes or grant permissions by itself.
+This document records the agreed privacy boundary and the remaining business decisions for exceptional conversation access. It does not authorize production changes or grant permissions by itself.
 
 ## 2. Verified DEV baseline
 
@@ -30,9 +30,9 @@ This document records the approved business decision for exceptional conversatio
 6. Keep privileged credentials server-side only. Do not expose service-role credentials to the browser.
 7. Do not deploy schema or authorization changes to PROD as part of this proposal.
 
-## 4. Approved decision — exceptional conversation access
+## 4. Agreed privacy boundary — exceptional conversation access
 
-The business decision for Issue #96 is:
+The agreed direction for Issue #96 is:
 
 - The operational IT team must not receive direct access to conversation content as part of ordinary support duties.
 - Exceptional conversation-content access, if approved for a specific person or role, must be granted through a separate, explicit capability. The currently existing `platform_admin` account is not automatically eligible; its eligibility has not yet been approved.
@@ -41,7 +41,7 @@ The business decision for Issue #96 is:
 - Authorization and scope must be validated server-side before any conversation content is returned.
 - Each consultation must be audited with at least administrator identity, justification, conversation/resource scope, and timestamp.
 - Audit persistence must succeed before content is disclosed; if the audit write fails, access must fail closed.
-- No individual notification is sent to the collaborator at the moment of consultation, as directed by the client.
+- No individual notification is sent to the collaborator at the moment of consultation, as previously directed by the product owner; this behavior should be reconfirmed with the broader privacy policy before implementation.
 - Ordinary authenticated clients must not be able to insert, update, or delete audit records.
 
 Any future eligible person must be designated through controlled, server/database-managed authorization data after explicit business approval. Do not hardcode user IDs in policies, infer eligibility from the number of rows, or trust client-editable metadata.

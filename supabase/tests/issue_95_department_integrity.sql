@@ -127,13 +127,13 @@ insert into issue95_test_output select ok(
 select set_config('request.jwt.claim.sub', '95000000-0000-4000-8000-000000000001', true);
 
 insert into issue95_test_output select lives_ok(
-  $select * from public.admin_list_departments('95000000-0000-4000-8000-000000000101')$,
+  $$ * from public.admin_list_departments('95000000-0000-4000-8000-000000000101')$$,
   'platform administrator can list departments in an organization'
 );
 
 insert into issue95_test_output select lives_ok(
-  $select * from public.admin_create_department(
-      '95000000-0000-4000-8000-000000000101', 'Customer Success')$,
+  $$ * from public.admin_create_department(
+      '95000000-0000-4000-8000-000000000101', 'Customer Success')$$,
   'platform administrator can create a department through guarded RPC'
 );
 
@@ -148,8 +148,8 @@ insert into issue95_test_output select is(
 select set_config('request.jwt.claim.sub', '95000000-0000-4000-8000-000000000002', true);
 
 insert into issue95_test_output select throws_ok(
-  $select * from public.admin_create_department(
-      '95000000-0000-4000-8000-000000000101', 'Forbidden')$,
+  $$ * from public.admin_create_department(
+      '95000000-0000-4000-8000-000000000101', 'Forbidden')$$,
   '42501',
   'Platform administrator role required',
   'ordinary collaborator cannot create departments through RPC'
@@ -158,7 +158,7 @@ insert into issue95_test_output select throws_ok(
 select set_config('request.jwt.claim.sub', '', true);
 
 insert into issue95_test_output select throws_ok(
-  $select * from public.admin_list_departments('95000000-0000-4000-8000-000000000101')$,
+  $$ * from public.admin_list_departments('95000000-0000-4000-8000-000000000101')$$,
   '28000',
   'Authentication required',
   'unauthenticated caller cannot list departments through RPC'

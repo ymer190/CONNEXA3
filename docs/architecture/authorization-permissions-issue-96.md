@@ -1,6 +1,6 @@
 # Issue #96 — Authorization and permissions design
 
-Status: approved privacy rule — no administrator has routine conversation-content access; exceptional access is possible only through explicit business approval and a separate audited capability. Eligibility, approval authority, broader role matrix, and resource model remain pending.
+Status: approved role structure and privacy boundary — platform administration, operational IT support, and collaborators are distinct authorization categories; department managers remain collaborators with department-scoped capabilities, not global administrators. Exceptional conversation access requires explicit business approval and a separate audited capability. Detailed grants, scope rules, approval authority, and resource model remain pending.
 
 ## 1. Purpose
 
@@ -19,6 +19,16 @@ This document records the agreed privacy boundary and the remaining business dec
 - The current middleware and admin page check membership in `platform_users` for the `/admin` route.
 - The current DEV database has no application tables for conversations, departments, or groups. Policies for those resources cannot yet be safely implemented against the current schema.
 - The legacy `owner/admin/member` organization roles are not the approved role model for platform authorization.
+
+## 2.1 Product-owner-approved authorization categories
+
+The product owner approved the following high-level structure for Issue #96:
+
+- `platform_admin`: platform-level IT administration and governance. This role does not grant routine or automatic access to conversation content.
+- `it_support`: operational IT support, with only explicitly defined support capabilities such as device/session administration. It has no routine conversation-content access.
+- `collaborator`: the standard organization user category. A collaborator who manages a department receives additional capabilities scoped only to the department(s) assigned to them; department management does not turn that person into a global/platform administrator.
+
+A department manager is therefore not a separate global platform role. Department-manager authority is represented by department-scoped capabilities assigned to a collaborator. This is a high-level role/category decision, not yet a grant of specific permissions. Exact capability assignments, organization boundaries, and approval workflows remain to be defined in the permission matrix.
 
 ## 3. Authorization principles
 
@@ -68,7 +78,8 @@ No capability is granted by this catalog alone. In particular, `conversations.ex
 ## 6. Implementation design and safety gates
 
 ### Stage 1 — Role and permission matrix (3 SP)
-- Confirm role names and role hierarchy for principal IT administrators, operational IT, department managers, and collaborators.
+- Apply the approved categories: `platform_admin`, `it_support`, and `collaborator`.
+- Model department managers as collaborators with department-scoped capabilities, not as global platform administrators.
 - Define who may approve exceptional access and which specific identities (if any) may receive it through controlled authorization data; the product owner has approved the principle that access is exceptional only, not routine.
 - Define the remaining capability grants and scope boundaries.
 - Decide which roles may read audit records and the retention period.
@@ -90,8 +101,8 @@ No capability is granted by this catalog alone. In particular, `conversations.ex
 ## 7. Remaining decisions and prerequisites
 
 1. Define who is eligible for exceptional conversation-content access and who can approve/revoke it. The product owner has approved that no administrator, including `platform_admin`, has routine access; DEV currently has one `platform_admin` row, but that does not confer exceptional-read eligibility.
-2. Define the exact operational capabilities for the IT support team, excluding conversation-content access.
-3. Decide whether department managers are a distinct platform role or collaborators with department-scoped capabilities.
+2. Define the exact operational capabilities for `it_support`, excluding conversation-content access.
+3. Define the exact department-scoped capabilities for collaborators who are department managers, including whether they can manage membership and groups within their department.
 4. Define audit readers and retention period.
 5. Implement the conversation data model before conversation-level RLS and exceptional-read workflow can be tested end-to-end.
 

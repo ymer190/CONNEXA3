@@ -1,6 +1,6 @@
 # Issue #96 — Authorization and permissions design
 
-Status: exceptional conversation-access policy approved; broader role matrix and resource model remain pending.
+Status: privacy boundary for exceptional conversation access agreed in principle; eligibility, broader role matrix, and resource model remain pending.
 
 ## 1. Purpose
 
@@ -13,7 +13,7 @@ This document records the approved business decision for exceptional conversatio
 - Supabase Auth is integrated through `@supabase/ssr`.
 - The server-side client uses the public/publishable key and the authenticated session.
 - `public.platform_users` currently contains only the `platform_admin` role.
-- At the time of inspection, `connexa-dev` contained one `platform_admin` row; this does not establish the identities or membership of the three principal IT administrators.
+- At the time of inspection, `connexa-dev` contained one `platform_admin` row. The current baseline and product-owner clarification establish that one platform administrator has been created; they do not establish that this account is approved for exceptional conversation-content access.
 - RLS is enabled on the four existing public tables: `organizations`, `profiles`, `organization_members`, and `platform_users`.
 - Authenticated users can read only their own `platform_users` row.
 - The current middleware and admin page check membership in `platform_users` for the `/admin` route.
@@ -34,8 +34,8 @@ This document records the approved business decision for exceptional conversatio
 
 The business decision for Issue #96 is:
 
-- Only the three designated principal IT administrators may be eligible for exceptional conversation-content access.
-- The operational IT team must not receive direct access to conversation content, even as a normal support capability.
+- The operational IT team must not receive direct access to conversation content as part of ordinary support duties.
+- Exceptional conversation-content access, if approved for a specific person or role, must be granted through a separate, explicit capability. The currently existing `platform_admin` account is not automatically eligible; its eligibility has not yet been approved.
 - General platform administration does not implicitly grant conversation-content access. The exceptional permission must be distinct and checked independently.
 - Every exceptional consultation requires a non-empty justification.
 - Authorization and scope must be validated server-side before any conversation content is returned.
@@ -44,7 +44,7 @@ The business decision for Issue #96 is:
 - No individual notification is sent to the collaborator at the moment of consultation, as directed by the client.
 - Ordinary authenticated clients must not be able to insert, update, or delete audit records.
 
-The three administrators must be designated through controlled, server/database-managed authorization data. Do not hardcode user IDs in policies, infer eligibility from the number of rows, or trust client-editable metadata.
+Any future eligible person must be designated through controlled, server/database-managed authorization data after explicit business approval. Do not hardcode user IDs in policies, infer eligibility from the number of rows, or trust client-editable metadata.
 
 ## 5. Provisional capability catalog
 
@@ -62,13 +62,13 @@ These identifiers are proposals, not grants. Their assignment remains pending th
 | `audit.read` | Consult administrative audit records |
 | `conversations.exceptional_read` | Perform an exceptional administrative conversation consultation |
 
-No capability is granted by this catalog alone. In particular, `conversations.exceptional_read` is reserved for the three designated principal IT administrators and is not implied by `platform_admin`.
+No capability is granted by this catalog alone. In particular, `conversations.exceptional_read` is not implied by `platform_admin`; eligible identities, approval authority, and grant/revocation process remain to be defined.
 
 ## 6. Implementation design and safety gates
 
 ### Stage 1 — Role and permission matrix (3 SP)
 - Confirm role names and role hierarchy for principal IT administrators, operational IT, department managers, and collaborators.
-- Designate the three principal IT administrators using controlled identities.
+- Decide whether exceptional access should exist, who may approve it, and which specific identities (if any) may receive it through controlled authorization data.
 - Define the remaining capability grants and scope boundaries.
 - Decide which roles may read audit records and the retention period.
 
@@ -88,7 +88,7 @@ No capability is granted by this catalog alone. In particular, `conversations.ex
 
 ## 7. Remaining decisions and prerequisites
 
-1. Identify the three principal IT administrator accounts to be designated in DEV. The current database has only one `platform_admin` row, so the three identities cannot be inferred.
+1. Decide whether exceptional conversation-content access will be enabled at all, who is eligible to receive it, and who can approve/revoke it. DEV currently has one `platform_admin` row, but that does not confer exceptional-read eligibility.
 2. Define the exact operational capabilities for the IT support team, excluding conversation-content access.
 3. Decide whether department managers are a distinct platform role or collaborators with department-scoped capabilities.
 4. Define audit readers and retention period.

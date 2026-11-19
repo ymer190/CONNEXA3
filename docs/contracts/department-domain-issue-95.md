@@ -1,6 +1,6 @@
 # Contrato do domínio de departamentos — Issue #95
 
-**Estado:** Etapas 1 e 2 aplicadas no Supabase DEV; operações de gestão validadas funcionalmente em transação. A suíte pgTAP da Etapa 2 ainda precisa de relatório integral reproduzível.  
+**Estado:** Etapas 1 e 2 do domínio departamental aplicadas e validadas no Supabase DEV. pgTAP Etapa 1: 16/16; Etapa 2: 9/9 assertions aprovadas em execução transacional com relatório integral capturado. Fixtures revertidas; zero resíduos confirmados. 
 **Escopo:** departamentos e vínculos de colaboradores. Grupos/conversas continuam sob responsabilidade da Issue #96.
 
 ## 1. Entidades disponíveis
@@ -68,7 +68,7 @@ As operações abaixo foram adicionadas pela migration `20261119214000_add_depar
 
 Por enquanto, essas operações continuam restritas a `platform_admin`. Não liberamos capacidades de `collaborator` por falta de contrato/tabela de concessão explícita estabilizada na #92/#96. Não há promoção automática de gestor nem confiança em papel informado pelo cliente.
 
-Teste de regressão versionado: `supabase/tests/issue_95_department_management.sql`, com 9 assertions pgTAP previstas. A ferramenta SQL utilizada não apresentou o relatório completo do pgTAP; foi executada validação transacional complementar das operações de edição, listagem, transferência, preservação do histórico, desativação e negação para colaborador comum. Os fixtures foram revertidos e a consulta posterior confirmou zero usuários, departamentos e vínculos de teste residuais. Não declarar 9/9 pgTAP até obter relatório integral.
+Teste de regressão versionado: `supabase/tests/issue_95_department_management.sql`. Execução integral no Supabase DEV com captura agregada: **9/9 assertions aprovadas** (edição, persistência, listagem, transferência, preservação de histórico, unicidade do vínculo ativo, desativação, encerramento do vínculo e negação a colaborador comum). A execução foi revertida; consulta posterior confirmou zero fixtures residuais em `auth.users`, `profiles`, `organizations`, `departments` e `department_members`.
 
 ## 3. Segurança e privilégios
 
@@ -111,12 +111,12 @@ Suíte `supabase/tests/issue_95_department_integrity.sql`: 16/16 verificações 
 
 ## 6. Próximas entregas
 
-- Obter relatório completo e reproduzível dos 9 testes pgTAP da Etapa 2.
+- Integração de eventos de auditoria pelo contrato da #97 antes de promover as operações administrativas a produção.
 - Integrar eventos de auditoria pelo contrato da #97 antes de considerar edição/desativação/transferência prontas para produção.
 - Implementar capacidades explícitas de colaboradores e escopo por departamento após estabilização do modelo de autorização/capacidades na #96 e das transições de status de conta na #94. A #92 trata do cadastro de contas.
 - Integrar metadados de grupos ao modelo canônico de conversas quando a #96 disponibilizar o schema/serviços.
 - Migration `20261119215400_add_department_member_fk_indexes` aplicada no DEV; os quatro índices de FKs foram verificados. O advisor deixou de reportar FKs sem índice e passou a sinalizar os novos índices como ainda não utilizados, esperado no ambiente DEV sem carga representativa.
 - Advisor de segurança: RLS sem policies é intencional porque `anon`/`authenticated` não têm acesso direto às tabelas; RPCs `SECURITY DEFINER` no schema público são endpoints privilegiados intencionais, limitados por `auth.uid()`, checagem server-side de `platform_admin`, `search_path` vazio e grants explícitos. Manter como item de revisão/hardening, não ignorar o alerta.
-- Workflow GitHub Actions de aplicação DEV e validação da aplicação concluídos com sucesso para o commit anterior; Vercel Preview Ready. A nova migration de índices deve passar pelo mesmo fluxo.
-- PR #132 permanece Draft e não foi mergeada.
+- Workflow GitHub Actions de aplicação DEV, CI e Vercel Preview foram reportados como concluídos com sucesso no commit validado da PR #132.
+- PR #132 está aberta, pronta para revisão (`draft: false`) e não foi mergeada.
 - PROD não foi alterado; qualquer promoção exige validação e aprovação explícita.

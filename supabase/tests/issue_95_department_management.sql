@@ -28,20 +28,20 @@ select set_config('request.jwt.claim.sub','95100000-0000-4000-8000-000000000001'
 insert into public.department_members (organization_id,department_id,user_id,created_by)
 values ('95100000-0000-4000-8000-000000000101','95100000-0000-4000-8000-000000000201','95100000-0000-4000-8000-000000000002','95100000-0000-4000-8000-000000000001');
 
-insert into issue95_stage2_test_output select lives_ok(
+select lives_ok(
  $$select * from public.admin_update_department(
    '95100000-0000-4000-8000-000000000201',
    '95100000-0000-4000-8000-000000000101','Engineering & Product')$$,
  'platform admin can rename an active department'
 );
 
-insert into issue95_stage2_test_output select is(
+select is(
  (select name from public.departments where id='95100000-0000-4000-8000-000000000201'),
  'Engineering & Product',
  'department rename is persisted'
 );
 
-insert into issue95_stage2_test_output select is(
+select is(
  (select count(*)::integer from public.admin_list_department_members(
    '95100000-0000-4000-8000-000000000201',
    '95100000-0000-4000-8000-000000000101')),
@@ -49,7 +49,7 @@ insert into issue95_stage2_test_output select is(
  'platform admin can list department membership'
 );
 
-insert into issue95_stage2_test_output select lives_ok(
+select lives_ok(
  $$select * from public.admin_transfer_department_member(
    '95100000-0000-4000-8000-000000000101',
    '95100000-0000-4000-8000-000000000002',
@@ -57,14 +57,14 @@ insert into issue95_stage2_test_output select lives_ok(
  'platform admin can transfer employee atomically'
 );
 
-insert into issue95_stage2_test_output select is(
+select is(
  (select count(*)::integer from public.department_members
   where user_id='95100000-0000-4000-8000-000000000002'),
  2,
  'transfer retains old membership history'
 );
 
-insert into issue95_stage2_test_output select is(
+select is(
  (select count(*)::integer from public.department_members
   where user_id='95100000-0000-4000-8000-000000000002' and ended_at is null
     and department_id='95100000-0000-4000-8000-000000000202'),
@@ -72,14 +72,14 @@ insert into issue95_stage2_test_output select is(
  'transfer leaves exactly one active membership in destination department'
 );
 
-insert into issue95_stage2_test_output select lives_ok(
+select lives_ok(
  $$select * from public.admin_deactivate_department(
    '95100000-0000-4000-8000-000000000202',
    '95100000-0000-4000-8000-000000000101')$$,
  'platform admin can deactivate a department'
 );
 
-insert into issue95_stage2_test_output select is(
+select is(
  (select count(*)::integer from public.department_members
   where user_id='95100000-0000-4000-8000-000000000002'
     and ended_at is not null),
@@ -88,7 +88,7 @@ insert into issue95_stage2_test_output select is(
 );
 
 select set_config('request.jwt.claim.sub','95100000-0000-4000-8000-000000000002',true);
-insert into issue95_stage2_test_output select throws_ok(
+select throws_ok(
  $$select * from public.admin_update_department(
    '95100000-0000-4000-8000-000000000201',
    '95100000-0000-4000-8000-000000000101','Unauthorized')$$,
@@ -97,7 +97,5 @@ insert into issue95_stage2_test_output select throws_ok(
  'ordinary collaborator cannot edit department'
 );
 
-create temporary table issue95_stage2_test_output(result text);
--- The assertions above are collected in pgTAP's session output.
 select * from finish();
 rollback;

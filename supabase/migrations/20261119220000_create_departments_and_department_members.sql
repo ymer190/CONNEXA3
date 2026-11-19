@@ -47,8 +47,10 @@ create table public.department_members (
     check ((ended_at is null) = (ended_by is null))
 );
 
-create unique index department_members_one_active_link_uidx
-  on public.department_members (department_id, user_id)
+-- A collaborator may have only one active department in their organization.
+-- A department transfer ends the previous association before creating the new one.
+create unique index department_members_one_active_department_per_user_uidx
+  on public.department_members (user_id)
   where ended_at is null;
 
 create index department_members_organization_department_idx
@@ -126,7 +128,7 @@ grant all privileges on table public.departments, public.department_members
 comment on table public.departments is
   'Issue #95: organizational departments; distinct from communication conversations/groups.';
 comment on table public.department_members is
-  'Issue #95: explicit, historically retained employee-to-department associations.';
+  'Issue #95: one active department per employee; explicit associations with preserved transfer history.';
 comment on column public.department_members.ended_at is
   'Null means current association; non-null preserves the end of the association.';
 comment on column public.department_members.created_by is

@@ -1,6 +1,6 @@
 # Issue #96 — Authorization and permissions design
 
-Status: approved role structure and privacy boundary — platform administration, operational IT support, and collaborators are distinct authorization categories; department managers remain collaborators with department-scoped capabilities, not global administrators. Exceptional conversation access requires explicit approval by a formally designated Responsible for Privacy and Data Governance (RPGD), independent of operational IT, and a separate audited capability. The RPGD is a formally designated business function, not a new global platform role. Detailed grants, scope rules, and resource model remain pending.
+Status: business decisions for role boundaries, department-scoped manager capabilities, conversation types and privacy boundaries are approved. Executable capability assignments, the final physical schema, RLS policies, encryption envelope, and operational workflows remain implementation work and must respect the dependency gates documented below.
 
 ## 1. Purpose
 
@@ -174,7 +174,7 @@ Proposed columns:
 - `id uuid primary key`
 - `organization_id uuid not null`, `conversation_id uuid not null`
 - `sender_id uuid null` — required for user-authored messages; null for system-generated events.
-- `content text null` — null after deletion; do not copy message bodies to audit records. System-event presentation should be rendered from a controlled event key and structured metadata, not arbitrary client text.
+- `encrypted_payload jsonb null` — conceptual placeholder for the versioned authenticated-encryption envelope defined by the final ADR-001. It must never contain plaintext; its exact fields and nullability remain subject to ADR-001 approval. On soft deletion, revoke attachment access and apply the approved deletion behavior without copying message bodies to audit records. System-event presentation is rendered from a controlled event key and minimized structured metadata, not arbitrary client text.
 - `message_type text not null` — allow only `text`, `image`, `video`, `audio`, `document`, `system`.
 - `system_event_key text null` and `system_event_metadata jsonb null` — populated only for `system` events; metadata is minimized and validated by the trusted operation.
 - `created_at timestamptz not null`, `updated_at timestamptz not null`, `edited_at timestamptz null`
@@ -293,9 +293,38 @@ The following rules define the mandatory authorization contract for the future c
 
 **Implementation boundary:** these rules are approved as the technical contract. They do not authorize a migration or schema change now. The current DEV database has no conversation tables; final SQL policy definitions depend on the reviewed schema and must be implemented and tested in DEV before any production proposal.
 
-## 5. Provisional capability catalog
+## 4.2 Reconciliation with SQA and ADR-001 v1.1
 
-These identifiers are proposals, not grants. Their assignment remains pending the complete role matrix and resource model.
+This section records the cross-issue resolution required by the SQA review of 19/11/2026. It does not approve ADR-001 v1.1, authorize a database migration, or authorize production changes.
+
+### Message-content persistence
+
+- The SQA correctly identified that the earlier draft field `messages.content text` could be interpreted as plaintext storage.
+- The physical model now uses only the conceptual placeholder `encrypted_payload jsonb`; it represents an opaque, versioned authenticated-encryption envelope and must never store plaintext.
+- The exact envelope fields, algorithm parameters, key custody/rotation/recovery, associated-data rules, and handling of edits/deletions/system events remain gated by the final PO/Tech Lead-approved ADR-001.
+- Until that ADR is approved and reconciled, this remains a non-executable schema proposal. Do not create a plaintext fallback, migration, or message-persistence implementation based on the draft.
+
+### Audit retention
+
+- The PO-approved Issue #96 audit policy remains the current authority: **12 months standard retention** for the administrative audit categories defined in this document; longer preservation requires a documented legal obligation, investigation, or formal preservation hold.
+- The SQA-reviewed ADR-001 v1.1 is explicitly a proposal submitted for validation, not an approved ADR. Its proposed five-year period must not silently replace or override the approved Issue #96 policy.
+- If ADR-001 is revised to require a different period for a distinct cryptographic/security-log category, the final ADR must identify that category, its data owner, start event, legal basis, backup/expiry behavior, and deletion/anonymization process. The PO/Tech Lead must approve the category-specific reconciliation before implementation. Do not apply one generic five-year retention period to all audit domains.
+- `conversation_audit_logs` remains authoritative for conversation lifecycle and membership events. Issue #97 remains authoritative for general platform/organization administration and security operations. Do not duplicate writes or create a competing audit source.
+
+### Real-time calls
+
+- Audio/video calls and screen sharing are real-time communication flows, not stored message attachments. The approved call requirements remain the source for call behavior.
+- This Issue #96 document defines authorization boundaries and does not claim to define the complete cryptographic transport/signaling architecture for calls. ADR-001 or a linked call-security ADR must explicitly reference the real-time call architecture, transport protection, authorization checks, and revocation/termination behavior before call-security implementation is considered complete.
+
+### Decision authority and implementation gate
+
+- Exceptional conversation access continues to require RPGD approval, a separate time-bounded `conversations.exceptional_read` grant, server-side scope validation, justification, and durable audit persistence before disclosure. RPGD approval does not itself grant content access; operational IT cannot self-approve or grant access.
+- The SQA comment is an alignment finding, not an approval of PR #130 or implementation evidence.
+- No executable message schema, conversation RLS, encryption function, or production change may be based on unresolved ADR-001 details.
+
+## 5. Capability catalog and approval status
+
+The capability identifiers below define the controlled vocabulary. Approval status is explicit: department-manager capabilities and the narrow `it_support` device/session operations are approved business rules; exceptional-access capabilities are approved as a governance model but are not yet granted to any identity. No capability is granted merely because it appears in this catalog.
 
 | Capability | Intended protected operation |
 |---|---|

@@ -137,15 +137,14 @@ Até a entrega da #94:
 
 O Security Advisor aponta seis funções `SECURITY DEFINER` executáveis por `authenticated`. Essa exposição é intencional para chamadas RPC via PostgREST, mas o grant não substitui autorização: cada função valida `auth.uid()` e o papel `platform_admin` no servidor.
 
-A aprovação final exige evidência HTTP com JWTs reais cobrindo, no mínimo:
-- chamada sem sessão/JWT;
-- usuário autenticado comum;
-- `it_support`;
-- conta/vínculo organizacional inativo;
-- IDs de organização/departamento fora do escopo;
-- `platform_admin` autorizado no escopo válido.
+**Evidência HTTP já capturada:** CI #44795918693 executou o script `scripts/department-rpc-security-smoke.cjs` contra o Supabase DEV usando JWTs reais obtidos por Supabase Auth. Resultado: as seis RPCs retornaram HTTP 401 sem JWT; as seis retornaram HTTP 403 para usuário autenticado comum; `platform_admin` recebeu HTTP 200 ao consultar via `admin_list_departments`.
 
-Até a captura e revisão dessa evidência, os seis avisos WARN permanecem registrados como risco conhecido; não considerar a revisão de código ou testes SQL simulados como substitutos do teste PostgREST.
+**Limites ainda não cobertos por identidade dedicada:**
+- `it_support`: o schema atual de `public.platform_users` possui `CHECK (role = 'platform_admin')`; não é possível registrar `it_support` nessa tabela. Uma identidade sem registro `platform_admin` é negada pela mesma guarda testada com usuário comum.
+- Conta/vínculo organizacional inativo após associação: depende do ciclo de vida e invalidação de sessões da #94; não foi simulado com JWT real nesta suíte.
+- IDs arbitrários de organização/departamento foram enviados nas chamadas negativas dos usuários não-admin; essas chamadas foram negadas pela guarda de papel antes de qualquer acesso ao escopo. O `platform_admin` é global por definição atual.
+
+Os seis avisos WARN permanecem registrados porque o papel `authenticated` precisa executar as RPCs PostgREST; a autorização efetiva é feita dentro de cada função. A revisão SQA deve avaliar a evidência HTTP e os limites acima; testes SQL simulados não substituem JWT real.
 
 ### Auditoria administrativa (#97)
 

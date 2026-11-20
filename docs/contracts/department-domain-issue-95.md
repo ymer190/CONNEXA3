@@ -154,3 +154,5 @@ As RPCs atuais não gravam a trilha central de auditoria. A integração deve us
 ### Advisor e acesso direto às tabelas
 
 Os avisos INFO de RLS habilitado sem policies em `departments` e `department_members` são intencionais: o acesso direto de `anon` e `authenticated` às tabelas está revogado. A consulta/mutação ocorre apenas pelas RPCs protegidas. O aviso geral de proteção contra senhas vazadas pertence à configuração de Auth do projeto, não ao escopo da #95.
+
+**Nota sobre `it_support`:** o schema atual de `public.platform_users` possui `CHECK (role = 'platform_admin')`; portanto, `it_support` não pode ser cadastrado nessa tabela nem satisfazer a guarda das RPCs departamentais. O teste PostgREST com JWT de usuário autenticado comum valida a negação para identidades sem registro `platform_admin`. Isso não substitui a validação específica de sessão/conta desativada, que depende da #94.

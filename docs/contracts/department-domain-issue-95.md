@@ -120,3 +120,37 @@ Suíte `supabase/tests/issue_95_department_integrity.sql`: 16/16 verificações 
 - Workflow GitHub Actions de aplicação DEV, CI e Vercel Preview foram reportados como concluídos com sucesso no commit validado da PR #132.
 - PR #132 está aberta, pronta para revisão (`draft: false`) e não foi mergeada.
 - PROD não foi alterado; qualquer promoção exige validação e aprovação explícita.
+
+## 7. Dependências de ciclo de vida, autorização HTTP e auditoria — gate de produção
+
+### Ciclo de vida de conta/vínculo (#94)
+
+O trigger de `department_members` valida que o vínculo em `organization_members` está ativo no momento da criação/atualização da associação. **Ele não encerra automaticamente uma associação departamental que já esteja ativa quando o status do colaborador ou de seu vínculo organizacional mudar posteriormente.**
+
+Até a entrega da #94:
+- Não usar a existência de `department_members` como prova suficiente de autorização.
+- Não habilitar capabilities departamentais de `collaborator` nem usar a associação como base isolada de RLS.
+- As seis RPCs desta entrega permanecem restritas a `platform_admin` e fazem sua checagem server-side.
+- A #94 deve coordenar a transição de status com o encerramento/neutralização do vínculo departamental e a invalidação de sessões, conforme o estado final aprovado.
+
+### Testes de autorização por PostgREST/JWT
+
+O Security Advisor aponta seis funções `SECURITY DEFINER` executáveis por `authenticated`. Essa exposição é intencional para chamadas RPC via PostgREST, mas o grant não substitui autorização: cada função valida `auth.uid()` e o papel `platform_admin` no servidor.
+
+A aprovação final exige evidência HTTP com JWTs reais cobrindo, no mínimo:
+- chamada sem sessão/JWT;
+- usuário autenticado comum;
+- `it_support`;
+- conta/vínculo organizacional inativo;
+- IDs de organização/departamento fora do escopo;
+- `platform_admin` autorizado no escopo válido.
+
+Até a captura e revisão dessa evidência, os seis avisos WARN permanecem registrados como risco conhecido; não considerar a revisão de código ou testes SQL simulados como substitutos do teste PostgREST.
+
+### Auditoria administrativa (#97)
+
+As RPCs atuais não gravam a trilha central de auditoria. A integração deve usar o contrato e o mecanismo únicos da #97, sem tabela ou log paralelo. Criação, edição, desativação e transferência departamental não estão liberadas para produção antes dessa integração e validação de autorização/auditoria.
+
+### Advisor e acesso direto às tabelas
+
+Os avisos INFO de RLS habilitado sem policies em `departments` e `department_members` são intencionais: o acesso direto de `anon` e `authenticated` às tabelas está revogado. A consulta/mutação ocorre apenas pelas RPCs protegidas. O aviso geral de proteção contra senhas vazadas pertence à configuração de Auth do projeto, não ao escopo da #95.

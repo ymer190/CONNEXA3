@@ -125,6 +125,19 @@ jobs:
       - name: Build Next.js application with Supabase configuration
         run: npm run build
 
+      - name: Test department RPC authorization through PostgREST with real JWTs
+        if: env.HAS_DEPARTMENT_RPC_TEST_SECRETS == 'true'
+        env:
+          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
+          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
+          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
+          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
+        run: node scripts/department-rpc-security-smoke.cjs
+
+      - name: Explain skipped department RPC PostgREST test
+        if: env.HAS_DEPARTMENT_RPC_TEST_SECRETS != 'true'
+        run: echo "Department RPC PostgREST test skipped because regular-user and platform-admin GitHub Actions secrets are required."
+
       - name: Install browser test dependencies
         if: env.HAS_AUTH_TEST_SECRETS == 'true'
         run: npx playwright install --with-deps chromium
@@ -168,19 +181,6 @@ jobs:
           done
 
           node scripts/auth-admin-smoke.cjs
-
-      - name: Test department RPC authorization through PostgREST with real JWTs
-        if: env.HAS_DEPARTMENT_RPC_TEST_SECRETS == 'true'
-        env:
-          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
-          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
-          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
-          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
-        run: node scripts/department-rpc-security-smoke.cjs
-
-      - name: Explain skipped department RPC PostgREST test
-        if: env.HAS_DEPARTMENT_RPC_TEST_SECRETS != 'true'
-        run: echo "Department RPC PostgREST test skipped because regular-user and platform-admin GitHub Actions secrets are required."
 
       - name: Explain skipped administrator browser test
         if: env.HAS_AUTH_ADMIN_TEST_SECRETS != 'true'

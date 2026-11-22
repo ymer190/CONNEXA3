@@ -1,43 +1,53 @@
 # CONNEXA3
 
-Plataforma web de **comunicação corporativa interna**, com experiência mobile-first inspirada na praticidade conversacional do WhatsApp. O produto é destinado à comunicação entre colaboradores de uma organização, com conversas individuais, grupos e espaços de comunicação corporativos.
+Plataforma web de comunicação corporativa interna, concebida para conectar colaboradores, departamentos e equipes em conversas individuais e grupos, com troca de mensagens, arquivos, comunicados e chamadas em tempo real.
 
-## Direção do produto
+O CONNEXA3 é inspirado em padrões de usabilidade de plataformas como WhatsApp, Discord e Teams, mas terá identidade, regras de negócio e experiência próprias.
 
-O CONNEXA3 não é uma plataforma de atendimento a clientes nem uma inbox compartilhada de suporte. Seu foco é a comunicação interna segura entre colaboradores.
+## Direção oficial do produto
+
+O produto é destinado à comunicação interna de uma organização com aproximadamente 900 colaboradores. A experiência será **100% mobile-first**, acessível pelo navegador e sem instalação obrigatória de aplicativo.
 
 Princípios:
-- **Comunicação individual e em grupos:** conversas entre colaboradores e espaços coletivos.
-- **Organização corporativa:** colaboradores, departamentos, grupos e permissões administradas conforme regras do negócio.
-- **Privacidade:** isolamento dos dados por organização e autorização aplicada no Supabase.
-- **Tempo real:** atualização de mensagens e histórico persistente.
-- **Mobile-first:** experiência prioritariamente projetada para celulares, com suporte a desktop.
-- **Segurança:** autenticação pelo Supabase Auth, políticas RLS e nenhuma credencial privilegiada exposta ao navegador.
+- **Comunicação direta:** conversas individuais e grupos de departamentos, projetos e equipes.
+- **Organização corporativa:** estrutura de departamentos, grupos e comunicados administrados pela TI.
+- **Segurança e governança:** autenticação, autorização, gestão de dispositivos e auditoria de ações administrativas.
+- **Colaboração em tempo real:** mensagens, compartilhamento de conteúdo e chamadas de áudio/vídeo.
+- **Privacidade:** acesso conforme permissões, transparência sobre políticas corporativas e tratamento adequado de dados pessoais.
+- **Acessibilidade e mobilidade:** interface responsiva, priorizando smartphones.
 
-## Stack e infraestrutura
+## Escopo funcional em definição
 
-- **GitHub:** código-fonte, documentação, revisão e automações CI.
-- **Vercel:** hospedagem e deploy da aplicação web.
-- **Supabase:** Auth, PostgreSQL, Row Level Security e Realtime.
-- **Next.js, React e TypeScript:** aplicação web.
+A elicitação de requisitos já aprovou, entre outros pontos:
+- Conversas individuais e grupos corporativos.
+- Mensagens de texto, imagens, documentos, áudios gravados e vídeos.
+- Chamadas individuais e em grupo de áudio e vídeo em tempo real.
+- Chamadas em grupo com até 50 participantes, sujeitas à validação técnica.
+- Compartilhamento de tela durante chamadas.
+- Comunicados corporativos e gestão de colaboradores, departamentos e dispositivos pela TI.
+- Histórico, notificações, busca e controles de privacidade conforme permissões.
 
-Os ambientes de execução e serviços do projeto são online: GitHub, Vercel e Supabase. Não versionar chaves, tokens, senhas ou credenciais.
+As especificações completas e os pontos ainda pendentes devem ser consultados em `docs/requirements/`. A aprovação funcional não significa que todas as funcionalidades já estejam implementadas.
 
-## Arquitetura de dados
+## Stack e ambientes oficiais
 
-A base inicial já contempla organizações, perfis, vínculos de membros e administradores da plataforma. A estrutura de canais, grupos, conversas individuais, participantes e mensagens está em evolução e deve seguir o documento [Reconciliação arquitetural](docs/architecture/database-reconciliation.md) e o [Modelo de dados](docs/architecture/database-model.md).
+O projeto utilizará exclusivamente serviços online:
+- **GitHub Online:** repositório, versionamento, issues, revisão e documentação.
+- **Vercel Online:** hospedagem, preview e deploy da aplicação web.
+- **Supabase Online:** autenticação, banco de dados, armazenamento e serviços gerenciados conforme arquitetura aprovada.
 
-Nenhuma nova migration deve ser aplicada em produção sem revisão, validação no ambiente DEV e aprovação explícita.
-
-## Ambientes
-
-- **Desenvolvimento:** branch principal de trabalho e projeto Supabase DEV, com deploys de validação pela Vercel.
-- **Produção:** projeto Supabase PROD e deploy de produção pela Vercel, protegidos por revisão e aprovação.
-
-A integração GitHub–Vercel realiza os deploys vinculados ao repositório. As automações do GitHub Actions devem validar o código e, em fluxo separado e controlado, aplicar migrations aprovadas no Supabase.
+Não faz parte da estratégia do projeto implantar infraestrutura on-premises ou exigir ambiente local como ambiente oficial de desenvolvimento/operação. Segredos e credenciais privilegiadas nunca devem ser versionados nem expostos no navegador.
 
 ## Documentação
 
-- `docs/architecture/database-model.md`: modelo lógico inicial e regras de isolamento.
-- `docs/architecture/database-reconciliation.md`: comparação entre documentação, backlog e schema atual do Supabase DEV.
+- `docs/requirements/calls-audio-video.md`: requisitos aprovados para chamadas individuais e em grupo, regras de negócio, critérios de aceitação, diagramas e pendências técnicas.
+- `docs/architecture/`: documentação de arquitetura; documentos anteriores devem ser revisados contra a direção oficial atual antes de orientar implementação.
+- `docs/ux/`: artefatos de UX e protótipos existentes; conteúdos que descrevem o protótipo de atendimento anterior não devem ser tratados automaticamente como especificação funcional vigente.
 
+## Governança de requisitos
+
+- Decisões aprovadas pela PO são a referência funcional oficial.
+- Recomendações técnicas não se tornam decisões de produto sem validação.
+- Pendências devem permanecer identificadas como pendências.
+- Alterações de escopo devem manter rastreabilidade entre requisito, issue, implementação e testes.
+- Não considerar um requisito documentado como funcionalidade implementada sem evidência no repositório e validação correspondente.

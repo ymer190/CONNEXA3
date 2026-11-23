@@ -1,7 +1,7 @@
 # Reconciliação arquitetural — comunicação interna
 
-**Status:** diagnóstico concluído; decisões de modelagem pendentes antes de novas migrations  
-**Ambiente inspecionado:** Supabase DEV (`dzsacdtolxrqgwlekzdg`)  
+**Status:** diagnóstico atualizado em 23/11/2026; contrato lógico de conversas documentado e sujeito à revisão/aprovação antes de novas migrations  
+**Ambiente de referência:** Supabase DEV; inventário SQA datado de 22/11/2026  
 **Produção:** não alterada
 
 ## 1. Direção de produto confirmada

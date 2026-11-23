@@ -10,113 +10,111 @@ O CONNEXA3 é uma plataforma corporativa interna de comunicação, com experiên
 
 A documentação e o backlog devem usar essa direção como fonte de verdade.
 
-## 2. Estado observado no Supabase DEV
+## 2. Estado do Supabase DEV — baseline com data e fonte
 
-O schema `public` contém quatro tabelas próprias:
+**Último inventário SQA rastreável nesta revisão: 22/11/2026.** O inventário reportado pela SQA identificou seis tabelas próprias no schema \`public\`, todas com RLS habilitado:
 
-| Tabela | Situação | Observação |
+| Tabela | Situação no inventário SQA | Observação |
 |---|---|---|
-| `organizations` | Implementada | Organização/empresa |
-| `profiles` | Implementada | Perfil associado a `auth.users` |
-| `organization_members` | Implementada | Um vínculo por usuário; papéis owner/admin/member; status active/suspended |
-| `platform_users` | Implementada | Papel administrativo da plataforma, separado dos papéis da organização |
+| \`organizations\` | Existente | Organização |
+| \`profiles\` | Existente | Perfil associado à identidade Supabase Auth |
+| \`organization_members\` | Existente | Vínculo organizacional |
+| \`platform_users\` | Existente | Papel administrativo da plataforma |
+| \`departments\` | Existente | Estrutura organizacional departamental |
+| \`department_members\` | Existente | Histórico/vínculo de colaboradores a departamentos |
 
-As quatro tabelas estão com RLS habilitado. Foram observadas seis policies, a função `public.set_updated_at()` e três triggers de atualização. O DEV possui uma linha em `platform_users`; essa linha é dado operacional e não deve ser transportada por migration.
+O mesmo inventário registrou **oito migrations** no ledger remoto DEV. As cinco migrations de departamentos foram integradas à \`main\` por meio das PRs #134 e #132; a #132 foi integrada em 23/11/2026 no commit \`7786813617c1908c2193751c390dbbaf90cb31b7\`. O workflow de DEV associado à integração anterior da #134 foi reportado como SUCCESS pela SQA.
 
-### Migrations registradas no DEV
+**Limite de evidência:** os números acima são um snapshot identificado por data, baseado na revisão SQA e no histórico de integração do repositório; não representam uma nova consulta direta ao banco executada nesta atualização. Antes de qualquer migration futura, confirmar novamente o ledger e o schema do projeto Supabase DEV. Nenhuma migration deve ser reaplicada apenas por estar mencionada neste relatório.
 
-| Versão | Nome | Conteúdo |
+O ambiente PROD não foi consultado nem alterado nesta atividade.
+
+## 3. Comparação entre o baseline DEV e o contrato de arquitetura
+
+| Domínio | Estado documental/DEV | Diagnóstico |
 |---|---|---|
-| `20261102003616` | `create_organizations_profiles_and_members` | Cria organizations, profiles, organization_members, índices, função/trigger de updated_at, RLS, grants e policies |
-| `20261107201938` | `create_platform_users` | Cria platform_users, RLS, grants e policy de leitura do próprio papel |
+| Organizações, perfis e vínculos | Tabelas presentes no inventário SQA | Base estrutural existente |
+| Administradores da plataforma | \`platform_users\` presente | Separado dos papéis organizacionais |
+| Departamentos | \`departments\` e \`department_members\` presentes | Domínio da Issue #95 entregue em etapas e integrado à \`main\`; não equivale a grupos de conversa |
+| Conversas | Não constavam no inventário DEV de 22/11 | Contrato lógico documentado; implementação física ainda não comprovada |
+| Participantes de conversas | Não constavam no inventário DEV de 22/11 | \`conversation_members\` é parte do contrato documental |
+| Mensagens e anexos | Não constavam no inventário DEV de 22/11 | \`messages\` e \`message_attachments\` ainda não comprovadas como tabelas implantadas |
+| Auditoria de conversas | Não constava no inventário DEV de 22/11 | Contrato prevê \`conversation_audit_logs\`; integração com #97 deve manter responsabilidades distintas |
 
-Os SQLs originais foram recuperados do ledger de migrations do Supabase DEV e versionados, sem alteração intencional de conteúdo, em `supabase/migrations/` com os mesmos timestamps e nomes. Não reaplicar essas migrations no DEV: elas já constam no ledger. O PROD não foi alterado nesta atividade.
+### 3.1 Contrato lógico de conversas — PR #130 / Issue #96
 
-## 3. Comparação com o modelo documentado
+A proposta documental consolidada na PR #130 estabelece um modelo unificado com \`conversations\`, \`conversation_members\`, \`messages\`, \`message_attachments\` e \`conversation_audit_logs\`. Os tipos previstos são \`channel\`, \`direct\` e \`group\`.
 
-O documento `docs/architecture/database-model.md` descreve seis tabelas de aplicação:
+Esse modelo deve ser tratado como **contrato documental em revisão**, pois a PR #130 permanece Draft e não representa, por si só, aprovação final nem implementação no Supabase DEV. A decisão de modelagem não deve mais ser descrita como se ainda não existisse qualquer proposta; o ponto pendente é concluir a revisão/aprovação do contrato e, depois, projetar migrations e políticas.
 
-- `organizations`
-- `profiles`
-- `organization_members`
-- `channels`
-- `channel_members`
-- `messages`
+### 3.2 Departamentos, grupos e canais
 
-Comparação:
+- **Departamento:** estrutura organizacional para classificar colaboradores e atribuir responsabilidades.
+- **Grupo de conversa:** espaço de comunicação com participantes e regras de acesso próprias.
+- **Canal:** tipo de conversa previsto no contrato lógico, sujeito às regras específicas de visibilidade e participação.
+- **Conversa direta:** conversa individual entre participantes autorizados.
 
-| Elemento | Documentação | Supabase DEV | Diagnóstico |
-|---|---|---|---|
-| Organizações | Previsto | Existe | Alinhado em estrutura inicial |
-| Perfis | Previsto | Existe | Alinhado em estrutura inicial |
-| Vínculo de membros | Previsto | Existe | Alinhado em estrutura inicial |
-| Administradores da plataforma | Issue #91 | Existe como `platform_users` | Implementado separadamente |
-| Canais | Previsto | Ausente | Gap |
-| Participantes de canais | Previsto | Ausente | Gap |
-| Mensagens | Previsto | Ausente | Gap |
-| Conversas individuais | Backlog #99 e #108 | Não há estrutura dedicada | Gap e divergência documental |
-| Grupos de conversa | Backlog #95, #100 e #108 | Não há estrutura dedicada | Gap; distinguir de departamentos e canais |
+Um departamento não é automaticamente um grupo de conversa, e pertencer a um departamento não deve conceder acesso implícito a todo grupo/canal. O vínculo entre domínio departamental e grupos deve ser explícito, auditável e validado pelas regras da #96.
 
-## 4. Divergências e decisões necessárias
+### 3.3 Papéis e autorização
 
-### 4.1 README fora da direção aprovada
+O inventário atual distingue \`platform_users\` dos papéis organizacionais. A PR #130 documenta limites adicionais para \`platform_admin\`, \`it_support\` e \`collaborator\`, além da supervisão independente do RPGD. Essas definições pertencem ao contrato documental da #96 e precisam ser implementadas/testadas em etapas próprias; não presumir que a existência de \`platform_users\` prove a implementação de todas essas capacidades.
 
-O README da branch main descreve atendimento empresarial, caixa de entrada compartilhada, contatos, etiquetas, responsáveis e respostas rápidas. Também descreve dados fictícios de atendimento. Essa descrição não representa a direção de comunicação interna confirmada. O README foi alinhado nesta branch.
+A leitura excepcional de conversas exige duas aprovações registradas e separadas — Direção e TI autorizado — sem autoaprovação e sem que o aprovador seja o leitor excepcional. O RPGD exerce supervisão de privacidade independente, sem ser aprovador nem receber acesso ao conteúdo por seu papel.
 
-### 4.2 Conversas individuais versus canais
+### 3.4 Isolamento e autorização
 
-O modelo atual documenta mensagens vinculadas obrigatoriamente a um canal e declara mensagens diretas fora do escopo. Entretanto, as issues #99 e #108 exigem conversas individuais e em grupos.
+O desenho futuro deve aplicar isolamento por organização/tenant, participação explícita em conversas privadas, autorização server-side em cada leitura e RLS coerente com o modelo de domínio. Metadados e conteúdo devem ter regras de autorização próprias quando necessário. Nenhuma permissão deve depender apenas de ocultação na interface ou de identificadores fornecidos pelo cliente.
 
-**Conclusão:** o modelo atual não cobre todo o backlog. Antes de criar tabelas ou migrations, a equipe deve decidir se conversas individuais e grupos serão representados por uma entidade genérica de conversa ou por estruturas distintas. Não criar uma migration presumindo essa decisão.
+## 4. Direção de produto e documentação vigente
 
-### 4.3 Departamentos, grupos e canais
+O README da \`main\` já foi atualizado e descreve o CONNEXA3 como plataforma de comunicação corporativa interna, mobile-first, com conversas individuais, grupos, mensagens, arquivos, comunicados e chamadas. Portanto, a antiga afirmação de que o README principal ainda descreve atendimento a clientes está **obsoleta e foi removida deste diagnóstico**.
 
-A issue #95 diferencia departamentos (estrutura organizacional) de grupos (espaços de conversa). O documento de arquitetura também prevê canais públicos e privados. É necessário formalizar a relação entre esses conceitos e as permissões de TI antes do modelo físico.
+O documento \`docs/architecture/database-model.md\` identifica a si próprio como modelo técnico preliminar legado, sujeito a reconciliação. Não deve ser usado isoladamente como especificação física vigente.
 
-### 4.4 Papéis administrativos
+## 5. Pontos positivos, lacunas e riscos
 
-O schema diferencia papéis organizacionais (`owner`, `admin`, `member`) de administradores da plataforma (`platform_users`). O backlog também menciona administradores de TI. A autorização deve esclarecer quais operações pertencem ao administrador da plataforma e quais pertencem aos administradores da organização. Não presumir que os papéis são equivalentes.
+- O inventário SQA de 22/11 reportou RLS habilitado nas seis tabelas listadas.
+- \`platform_users\` mantém separação entre administração da plataforma e vínculo organizacional.
+- O domínio de departamentos foi integrado à \`main\` pelas PRs #134 e #132; consultar \`docs/contracts/department-domain-issue-95.md\` como contrato do domínio.
+- A integração da #95 não encerra os gates de release relacionados a #94, #96 e #97.
+- A proposta de conversas da #130 ainda não comprova existência de tabelas, RLS, Realtime, Storage ou criptografia no DEV.
+- O inventário SQA anterior apontou **Leaked Password Protection Disabled** no Supabase Auth. Revalidar no painel/Advisor do DEV antes de tratar como alerta atual e habilitar conforme decisão técnica.
+- Um índice reportado como não utilizado em ambiente com poucos registros não deve ser removido sem análise de carga e plano de execução.
 
-### 4.5 Regras de isolamento
+## 6. Backlog e estado de entrega relacionado
 
-O modelo documentado exige isolamento por organização, participação explícita em canais privados e autorização independente para metadados e conteúdo. Essas regras precisam ser traduzidas em constraints, policies RLS e testes específicos para cada novo tipo de conversa.
+| Referência | Relação com este diagnóstico | Estado considerado nesta revisão |
+|---|---|---|
+| #37 | Arquitetura inicial/modelo de dados | Documento legado em reconciliação |
+| #59 | Cliente Supabase e configuração segura | Não é objeto de mudança desta PR |
+| #91 | Administração e autorização | Base \`platform_users\` existente; capacidades completas dependem do contrato vigente |
+| #95 | Departamentos e grupos | Etapas de domínio de departamentos integradas à \`main\`; gates #94/#96/#97 permanecem |
+| #96 | Autorização e conversas | Contrato documental relacionado à PR #130; implementação e validação permanecem separadas |
+| #97 | Auditoria | Modelo geral de auditoria é dependência; não declarar concluído por este relatório |
+| #99 | Interface de conversas individuais | Requisito de produto; não comprova backend/tabelas |
+| #100 | Interface de grupos | Requisito de produto; não comprova backend/tabelas |
+| #108 | Comunicação individual e em grupos em tempo real | Requisito de produto; implementação deve seguir contrato aprovado |
+| #112 | Validação de segurança/autorização | Evidências devem ser vinculadas às entregas correspondentes |
+| #130 | Contrato documental da #96 | PR Draft; não confundir com implementação física |
 
-## 5. Pontos positivos e riscos observados
+Referências antigas à Issue #67 foram removidas por não representarem o backlog vigente após o reset do projeto.
 
-- RLS está habilitado nas quatro tabelas atuais.
-- O vínculo único em `organization_members.user_id` implementa a regra documentada de um usuário pertencer a no máximo uma organização.
-- O índice único parcial limita a um owner ativo por organização, mas não garante por si só a existência permanente de pelo menos um owner ativo.
-- `platform_users` separa o papel administrativo global dos papéis organizacionais.
-- O Supabase Security Advisor reportou **Leaked Password Protection Disabled**. Recomenda-se habilitar a proteção contra senhas comprometidas em Auth: https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection
-- O Performance Advisor reportou um índice ainda não utilizado em `organization_members`. Como o DEV tem poucos registros, não remover o índice com base apenas nesse aviso.
+## 7. Sequência recomendada
 
-## 6. Backlog relacionado
+1. Concluir revisão SQA/TL/PO do contrato documental da #96/#130, incluindo permissões, participantes, auditoria, retenção e semântica de remoção.
+2. Confirmar o inventário real do Supabase DEV imediatamente antes de desenhar novas migrations.
+3. Traduzir o contrato aprovado em modelo físico, constraints, índices, RLS e testes negativos por tenant/conversa.
+4. Definir a integração explícita entre departamentos e grupos, sem conceder acesso implícito por departamento.
+5. Implementar migrations incrementais exclusivamente no Supabase DEV, após revisão e aprovação; validar ledger, políticas e testes.
+6. Manter PROD fora do escopo até homologação SQA e autorização explícita de mudança.
 
-- #37 — arquitetura inicial e modelo de dados.
-- #59 — cliente Supabase e configuração segura na aplicação.
-- #91 — autenticação e autorização administrativa.
-- #95 — departamentos e grupos.
-- #99 — interface de conversas individuais.
-- #100 — interface de grupos.
-- #108 — comunicação individual e em grupos em tempo real.
-- #67 e #112 — validação SQA de isolamento e autorização.
+## 8. Limites desta PR
 
-A issue #37 documenta a base conceitual; #95, #99 e #108 tornam explícitas necessidades que ainda não estão representadas no schema DEV.
-
-## 7. Plano recomendado
-
-1. Aprovar a distinção funcional entre departamentos, grupos de conversa, canais e conversas individuais.
-2. Definir o modelo lógico de conversas, participantes e mensagens, incluindo autoria, ordenação, edição/exclusão, estados de entrega e regras de retenção.
-3. Definir a matriz de autorização para owner/admin/member e administrador da plataforma, incluindo leitura de canais privados.
-4. Projetar constraints e policies RLS para impedir referências cruzadas entre organizações e acesso indevido a mensagens.
-5. Criar migrations incrementais somente após revisão do modelo e dos testes de segurança.
-6. **Concluído nesta branch:** versionar as duas migrations históricas recuperadas com os timestamps originais; conferir os arquivos com o SQL recuperado e manter o DEV sem reaplicação.
-7. Aplicar e validar novas migrations somente no DEV. Produção permanece bloqueada até revisão e aprovação explícita.
-
-## 8. Limites desta atividade
-
-- Nenhuma tabela, policy, trigger, função ou migration foi alterada no Supabase.
+- Escopo exclusivamente documental: este arquivo de reconciliação arquitetural.
+- Nenhuma tabela, policy, trigger, função, segredo ou migration foi alterada no Supabase por esta atualização.
 - Nenhuma migration foi aplicada em DEV ou PROD.
-- Nenhum dado operacional foi copiado.
-- O schema de produção não foi alterado.
-- Este relatório é diagnóstico e proposta de sequência; não substitui a aprovação do modelo lógico detalhado.
+- Nenhum dado operacional foi copiado ou transportado.
+- A PR não declara conversas/mensagens implementadas nem libera produção.
+- As migrations históricas já integradas à \`main\` não são apresentadas como entrega nova desta PR.
+- O baseline do DEV está identificado com data e fonte; deve ser revalidado antes de novas mudanças.

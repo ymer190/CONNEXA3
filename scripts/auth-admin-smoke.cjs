@@ -18,7 +18,13 @@ async function main() {
     await page.locator("#password").fill(password);
     await page.getByRole("button", { name: "Entrar" }).click();
 
-    await page.waitForURL("**/admin", { timeout: 20000 });
+    try {
+      await page.waitForURL("**/admin", { timeout: 20000 });
+    } catch {
+      const currentUrl = page.url();
+      const visibleText = await page.locator("body").innerText().catch(() => "");
+      throw new Error(`Admin login did not reach /admin. Current URL: ${currentUrl}. Visible page text: ${visibleText.slice(0, 500)}`);
+    }
     await page.getByRole("heading", { name: "Área administrativa" }).waitFor();
     await page.getByText("platform_admin", { exact: true }).waitFor();
     console.log("PASS: platform administrator can sign in and access /admin.");

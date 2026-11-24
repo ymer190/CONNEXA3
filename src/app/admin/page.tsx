@@ -20,7 +20,7 @@ export default async function AdminPage() {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (error || !platformUser) {
+  if (error || !platformUser || platformUser.role !== "platform_admin") {
     redirect("/acesso-negado");
   }
 

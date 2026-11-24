@@ -34,12 +34,17 @@ async function main() {
     await page.getByText("platform_admin", { exact: true }).waitFor();
     console.log("PASS: administrator session persists and access remains allowed after refresh.");
 
-    await page.getByRole("button", { name: "Sair" }).click();
-    await page.waitForURL("**/login", { timeout: 20000 });
+    // Register the navigation waiter before clicking to avoid a client-router race.
+    await Promise.all([
+      page.waitForURL((url) => url.pathname === "/login", { timeout: 20000 }),
+      page.getByRole("button", { name: "Sair" }).click(),
+    ]);
     console.log("PASS: administrator can sign out.");
 
+    // Verify the protected route redirects a signed-out session to login.
     await page.goto(`${baseUrl}/admin`);
-    await page.waitForURL("**/login**", { timeout: 20000 });
+    await page.waitForURL((url) => url.pathname === "/login", { timeout: 20000 });
+    await page.getByRole("heading", { name: "Bem-vindo de volta" }).waitFor();
     console.log("PASS: signed-out administrator is redirected away from /admin.");
   } finally {
     await browser.close();

@@ -60,11 +60,11 @@ export async function middleware(request: NextRequest) {
 
     const { data: platformUser, error } = await supabase
       .from("platform_users")
-      .select("user_id")
+      .select("user_id, role")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (error || !platformUser) {
+    if (error || !platformUser || platformUser.role !== "platform_admin") {
       const forbiddenUrl = request.nextUrl.clone();
       forbiddenUrl.pathname = "/acesso-negado";
       forbiddenUrl.search = "";

@@ -42,6 +42,7 @@ Não faz parte da estratégia do projeto implantar infraestrutura on-premises ou
 
 - `docs/requirements/calls-audio-video.md`: requisitos aprovados para chamadas individuais e em grupo, regras de negócio, critérios de aceitação, diagramas e pendências técnicas.
 - `docs/contracts/department-domain-issue-95.md`: contrato implementado do domínio de departamentos, RPCs, regras de segurança e integração com a Issue #96.
+- `docs/architecture/authorization-permissions-issue-96.md`: contrato de autorização aprovado e proposta física de conversas da Issue #96; consultar os gates e pendências antes de implementar.
 - `docs/architecture/`: documentação de arquitetura; documentos anteriores devem ser revisados contra a direção oficial atual antes de orientar implementação.
 - `docs/ux/`: artefatos de UX e protótipos existentes; conteúdos que descrevem o protótipo de atendimento anterior não devem ser tratados automaticamente como especificação funcional vigente.
 

@@ -1,6 +1,6 @@
 # Arquitetura inicial e modelo de dados — Connexa
 
-> **Status deste documento:** modelo técnico preliminar legado, em revisão de alinhamento com a direção oficial do CONNEXA3. As decisões de produto atuais estão registradas em `docs/requirements/`. Não utilizar isoladamente este modelo como especificação completa do produto nem presumir que todas as regras abaixo já foram revalidadas pela PO.
+> **Status deste documento:** referência técnica preliminar e legado, não normativa para decisões atuais de produto, autorização ou modelo de conversas. As decisões aprovadas para autorização e conversas da Issue #96 estão em [authorization-permissions-issue-96.md](./authorization-permissions-issue-96.md). Em caso de divergência, prevalecem os requisitos atuais aprovados e o documento específico da Issue #96; não reutilizar automaticamente entidades, papéis, cardinalidades ou políticas RLS deste modelo legado.
 
 ## 1. Objetivo
 

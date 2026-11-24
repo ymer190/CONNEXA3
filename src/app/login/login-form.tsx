@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 type LoginFormProps = {
@@ -9,7 +8,6 @@ type LoginFormProps = {
 };
 
 export function LoginForm({ redirectTo }: LoginFormProps) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -32,8 +30,9 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         return;
       }
 
-      router.replace(redirectTo);
-      router.refresh();
+      // A full navigation lets the server middleware read the persisted
+      // Supabase session cookies before rendering the protected destination.
+      window.location.assign(redirectTo);
     } catch {
       setErrorMessage(
         "Não foi possível conectar ao serviço de autenticação. Tente novamente.",

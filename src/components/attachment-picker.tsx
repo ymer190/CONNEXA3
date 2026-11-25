@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import type { ChangeEvent } from "react";
 import styles from "./attachment-picker.module.css";
 
 type AttachmentCategory = "image" | "audio" | "video" | "document";
@@ -67,7 +68,7 @@ export function AttachmentPicker({ files, onFilesChange }: AttachmentPickerProps
   const inputRef = useRef<HTMLInputElement>(null);
   const [feedback, setFeedback] = useState("");
 
-  function handleSelection(event: React.ChangeEvent<HTMLInputElement>) {
+  function handleSelection(event: ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(event.currentTarget.files ?? []);
     const accepted: File[] = [];
     const errors: string[] = [];

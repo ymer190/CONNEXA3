@@ -1,0 +1,2 @@
+import { WorkspaceModulePage } from "@/components/workspace-module-page";
+export default function GroupsPage() { return <WorkspaceModulePage active="Grupos" eyebrow="COMUNICAÇÃO INTERNA" title="Grupos" description="Espaços de conversa organizados para as equipes." detail="A consulta e a participação em grupos serão conectadas aos serviços autorizados. A criação e a administração de grupos são responsabilidades do setor de TI." />; }

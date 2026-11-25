@@ -13,14 +13,14 @@ type LoginPageProps = {
 
 function getSafeRedirectDestination(next?: string) {
   if (!next?.startsWith("/") || next.startsWith("//")) {
-    return "/admin";
+    return "/";
   }
 
   try {
     const destination = new URL(next, "https://connexa.invalid");
 
     if (destination.origin !== "https://connexa.invalid") {
-      return "/admin";
+      return "/";
     }
 
     return `${destination.pathname}${destination.search}${destination.hash}`;

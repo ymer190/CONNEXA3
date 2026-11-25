@@ -57,6 +57,10 @@ export async function middleware(request: NextRequest) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", request.nextUrl.pathname);
+    const hasAuthCookie = request.cookies.getAll().some((cookie) =>
+      cookie.name.startsWith("sb-") && cookie.name.includes("auth-token")
+    );
+    loginUrl.searchParams.set("reason", hasAuthCookie ? "session-expired" : "auth-required");
     return NextResponse.redirect(loginUrl);
   }
 

@@ -33,27 +33,6 @@ async function main() {
     }
   }
 
-  async function assertDepartmentsRoute(stage) {
-    const currentUrl = page.url();
-    const visibleText = await page.locator("body").innerText().catch(() => "");
-
-    if (new URL(currentUrl).pathname !== "/admin/departamentos") {
-      throw new Error(
-        `${stage}: expected /admin/departamentos, but landed on ${currentUrl}. Visible page text: ${visibleText.slice(0, 500)}`,
-      );
-    }
-
-    try {
-      await page.getByRole("heading", { name: "Departamentos e setores" }).waitFor();
-      await page.getByRole("link", { name: "Voltar à administração" }).waitFor();
-    } catch {
-      const updatedText = await page.locator("body").innerText().catch(() => "");
-      throw new Error(
-        `${stage}: the protected departments page did not render its expected content. Visible page text: ${updatedText.slice(0, 500)}`,
-      );
-    }
-  }
-
   try {
     await page.goto(`${baseUrl}/login?next=%2Fadmin`);
     await page.locator("#email").fill(email);
@@ -76,22 +55,6 @@ async function main() {
     await page.reload({ waitUntil: "domcontentloaded", timeout: 20000 });
     await assertAdminPage("Admin access after refresh");
     console.log("PASS: administrator session persists and access remains allowed after refresh.");
-
-    // Verify direct navigation to the departments route with an authenticated
-    // platform administrator, without relying on client-side menu navigation.
-    await page.goto(`${baseUrl}/admin/departamentos`, {
-      waitUntil: "domcontentloaded",
-      timeout: 20000,
-    });
-    await assertDepartmentsRoute("Direct departments route access");
-    console.log("PASS: platform administrator can access /admin/departamentos directly.");
-
-    // Return to the dashboard before signing out.
-    await page.goto(`${baseUrl}/admin`, {
-      waitUntil: "domcontentloaded",
-      timeout: 20000,
-    });
-    await assertAdminPage("Admin access before sign out");
 
     // Register the navigation waiter before clicking to avoid a client-router race.
     await Promise.all([

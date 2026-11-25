@@ -25,7 +25,7 @@ function getSafeRedirectDestination(next?: string) {
 
     return `${destination.pathname}${destination.search}${destination.hash}`;
   } catch {
-    return "/admin";
+    return "/";
   }
 }
 

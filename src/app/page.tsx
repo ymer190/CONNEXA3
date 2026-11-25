@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import { BrandMark } from "@/components/brand-mark";
+import { AttachmentPicker } from "@/components/attachment-picker";
 
 type Message = { id: number; from: "them" | "me"; text: string; time: string; status?: string };
 type Conversation = {
@@ -51,6 +52,7 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("Todas");
   const [message, setMessage] = useState("");
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [showContact, setShowContact] = useState(false);
   const [toast, setToast] = useState("");
   const [mobileView, setMobileView] = useState<"inbox" | "chat">("inbox");
@@ -168,7 +170,7 @@ export default function Home() {
           {active.messages.map((item) => <div key={item.id} className={item.from === "me" ? "message-row outgoing" : "message-row incoming"}><div className="bubble">{item.text}<div className="bubble-meta">{item.time} {item.from === "me" && <span className="local-message-status">· local</span>}</div></div></div>)}
         </div>
         <form className="composer" onSubmit={sendMessage}>
-          <button type="button" className="composer-tool" aria-label="Anexar arquivo" onClick={() => notify("O envio de arquivos será habilitado na integração de mensagens.")}>＋</button>
+          <AttachmentPicker files={attachments} onFilesChange={setAttachments} />
           <textarea rows={1} value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} placeholder="Escreva uma mensagem para sua equipe..." aria-label="Escreva uma mensagem para sua equipe" />
           <button className="send-button" type="submit" disabled={!message.trim()} aria-label="Enviar mensagem">➤</button>
         </form>

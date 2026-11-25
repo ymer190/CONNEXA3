@@ -54,7 +54,7 @@ export default function Home() {
   const [showContact, setShowContact] = useState(false);
   const [toast, setToast] = useState("");
   const [mobileView, setMobileView] = useState<"inbox" | "chat">("inbox");
-  const activeNav = "Conversas";
+  const activeNav: string = "Conversas";
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [newConversationName, setNewConversationName] = useState("");
 

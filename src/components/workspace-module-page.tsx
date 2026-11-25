@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 
 type WorkspaceModulePageProps = {
@@ -7,7 +8,8 @@ type WorkspaceModulePageProps = {
   eyebrow: string;
   title: string;
   description: string;
-  detail: string;
+  detail?: string;
+  children?: ReactNode;
 };
 
 const navigation = [
@@ -18,7 +20,7 @@ const navigation = [
   { href: "/arquivos", label: "Arquivos", icon: "▥" },
 ];
 
-export function WorkspaceModulePage({ active, eyebrow, title, description, detail }: WorkspaceModulePageProps) {
+export function WorkspaceModulePage({ active, eyebrow, title, description, detail, children }: WorkspaceModulePageProps) {
   return (
     <main className="module-shell">
       <aside className="module-sidebar" aria-label="Navegação principal">
@@ -37,15 +39,15 @@ export function WorkspaceModulePage({ active, eyebrow, title, description, detai
           <div><p className="module-eyebrow">{eyebrow}</p><h1>{title}</h1></div>
           <span className="module-user-mark" aria-label="Área autenticada">C</span>
         </header>
-        <section className="module-content" aria-labelledby="module-state-title">
-          <div className="module-state-card">
+        <section className="module-content" aria-labelledby={children ? undefined : "module-state-title"}>
+          {children ?? <div className="module-state-card">
             <span className="module-state-icon" aria-hidden="true">✳</span>
             <p className="module-eyebrow">ESTRUTURA DO CONNEXA</p>
             <h2 id="module-state-title">{description}</h2>
             <p>{detail}</p>
             <span className="module-state-tag">Integração em preparação</span>
             <Link href="/" className="module-back-link">Voltar para conversas</Link>
-          </div>
+          </div>}
         </section>
       </div>
       <nav className="module-mobile-nav" aria-label="Navegação mobile">

@@ -803,3 +803,19 @@ body:has(.module-shell) .theme-toggle { right: 68px; }
   body:has(.module-shell) .theme-toggle-label { display: none; }
   body:has(.module-shell) .module-user-mark { margin-right: 40px; }
 }
+
+/* Authentication and directory focus surfaces use the Sunset accent, not Sunshine purple. */
+html[data-theme="sunset"] .auth-page {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(217, 107, 50, .14), transparent 28rem),
+    radial-gradient(circle at 90% 90%, rgba(233, 160, 82, .08), transparent 25rem),
+    var(--canvas);
+}
+html[data-theme="sunset"] .auth-form input:focus {
+  border-color: #E9A052;
+  box-shadow: 0 0 0 3px rgba(233, 160, 82, .18);
+}
+html[data-theme="sunset"] .directory-search:focus-within,
+html[data-theme="sunset"] .directory-filter select:focus-visible {
+  outline-color: rgba(233, 160, 82, .7);
+}

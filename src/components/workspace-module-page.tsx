@@ -7,7 +7,7 @@ type WorkspaceModulePageProps = {
   active: "Grupos" | "Colaboradores" | "Departamentos" | "Arquivos";
   eyebrow: string;
   title: string;
-  description: string;
+  description?: string;
   detail?: string;
   children?: ReactNode;
 };
@@ -43,7 +43,7 @@ export function WorkspaceModulePage({ active, eyebrow, title, description, detai
           {children ?? <div className="module-state-card">
             <span className="module-state-icon" aria-hidden="true">✳</span>
             <p className="module-eyebrow">ESTRUTURA DO CONNEXA</p>
-            <h2 id="module-state-title">{description}</h2>
+            <h2 id="module-state-title">{description ?? title}</h2>
             <p>{detail}</p>
             <span className="module-state-tag">Integração em preparação</span>
             <Link href="/" className="module-back-link">Voltar para conversas</Link>

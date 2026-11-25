@@ -7,7 +7,10 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname === "/admin" ||
     request.nextUrl.pathname.startsWith("/admin/");
   const workspacePaths = ["/", "/conversas", "/grupos", "/colaboradores", "/departamentos", "/arquivos"];
-  const isWorkspaceRoute = workspacePaths.includes(request.nextUrl.pathname);
+  const isWorkspaceRoute = workspacePaths.some((path) =>
+    request.nextUrl.pathname === path ||
+    (path !== "/" && request.nextUrl.pathname.startsWith(`${path}/`))
+  );
   const isProtectedRoute = isAdminRoute || isWorkspaceRoute;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabasePublishableKey =

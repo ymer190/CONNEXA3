@@ -1,0 +1,8 @@
+.links { display: grid; gap: 10px; margin: 24px 0; }
+.linkCard { display: grid; grid-template-columns: 36px minmax(0,1fr) 20px; align-items: center; gap: 12px; min-height: 68px; padding: 12px; border: 1px solid #e8e0c9; border-radius: 12px; background: #fffefa; color: #29283a; text-decoration: none; }
+.linkCard:hover { border-color: #d6b34d; background: #fff8e5; }
+.linkCard > span:first-child { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: #fff1c2; color: #80500b; font-size: 19px; }
+.linkCard > span:nth-child(2) { display: grid; gap: 4px; min-width: 0; }
+.linkCard strong { font-size: 12px; }
+.linkCard small { color: #756f64; font-size: 10px; }
+.linkCard > span:last-child { color: #80500b; font-size: 17px; }

@@ -73,6 +73,7 @@ export default function Home() {
   }
 
   function chooseConversation(id: number) {
+    setAttachments([]);
     setActiveId(id);
     setConversations((items) => items.map((item) => item.id === id ? { ...item, unread: 0 } : item));
     setMobileView("chat");
@@ -113,6 +114,7 @@ export default function Home() {
       messages: [],
     };
     setConversations((items) => [created, ...items]);
+    setAttachments([]);
     setActiveId(id);
     setMobileView("chat");
     setShowNewConversation(false);

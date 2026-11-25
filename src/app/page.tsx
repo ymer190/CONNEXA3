@@ -45,6 +45,7 @@ const initialConversations: Conversation[] = [
 ];
 
 export default function Home() {
+  const router = useRouter();
   const [conversations, setConversations] = useState(initialConversations);
   const [activeId, setActiveId] = useState(1);
   const [search, setSearch] = useState("");
@@ -53,7 +54,7 @@ export default function Home() {
   const [showContact, setShowContact] = useState(false);
   const [toast, setToast] = useState("");
   const [mobileView, setMobileView] = useState<"inbox" | "chat">("inbox");
-  const [activeNav, setActiveNav] = useState("Conversas");
+  const activeNav = "Conversas";
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [newConversationName, setNewConversationName] = useState("");
 

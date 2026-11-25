@@ -53,3 +53,8 @@ Não faz parte da estratégia do projeto implantar infraestrutura on-premises ou
 - Pendências devem permanecer identificadas como pendências.
 - Alterações de escopo devem manter rastreabilidade entre requisito, issue, implementação e testes.
 - Não considerar um requisito documentado como funcionalidade implementada sem evidência no repositório e validação correspondente.
+
+
+## Identidade visual Sunshine
+
+A experiência usa uma identidade própria baseada em amarelo sunshine (\`#F4C542\`), creme, porcelana quente, grafite ameixa e acentos coral. A interface é voltada à comunicação interna entre colaboradores; não é um produto de atendimento comercial nem uma cópia de outro mensageiro.

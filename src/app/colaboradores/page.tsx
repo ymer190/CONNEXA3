@@ -1,2 +1,14 @@
 import { WorkspaceModulePage } from "@/components/workspace-module-page";
-export default function ColleaguesPage() { return <WorkspaceModulePage active="Colaboradores" eyebrow="DIRETÓRIO ORGANIZACIONAL" title="Colaboradores" description="Encontre pessoas e áreas da organização." detail="O diretório real será exibido após a integração com os contratos de usuários e departamentos. Nenhum colaborador fictício é apresentado como registro real." />; }
+import { CollaboratorsDirectory } from "@/components/collaborators-directory";
+
+export default function ColleaguesPage() {
+  return (
+    <WorkspaceModulePage
+      active="Colaboradores"
+      eyebrow="DIRETÓRIO ORGANIZACIONAL"
+      title="Colaboradores"
+    >
+      <CollaboratorsDirectory collaborators={[]} state="pending" />
+    </WorkspaceModulePage>
+  );
+}

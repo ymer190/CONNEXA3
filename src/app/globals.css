@@ -779,3 +779,27 @@ html[data-theme="sunset"] .theme-toggle:hover { background: #3B251D; border-colo
     transition: background-color .18s ease, color .18s ease, border-color .18s ease;
   }
 }
+
+/* Keep the global theme control clear of existing header actions. */
+body:has(.app-shell) .theme-toggle { right: 142px; }
+body:has(.module-shell) .theme-toggle { right: 68px; }
+@media (max-width: 720px) {
+  body:has(.app-shell) .theme-toggle {
+    top: 9px;
+    right: 9px;
+    width: 34px;
+    min-width: 34px;
+    padding: 0;
+  }
+  body:has(.app-shell) .theme-toggle-label { display: none; }
+  body:has(.app-shell) .workspace-line .icon-button { margin-right: 40px; }
+  body:has(.module-shell) .theme-toggle {
+    top: 9px;
+    right: 9px;
+    width: 34px;
+    min-width: 34px;
+    padding: 0;
+  }
+  body:has(.module-shell) .theme-toggle-label { display: none; }
+  body:has(.module-shell) .module-user-mark { margin-right: 40px; }
+}

@@ -49,7 +49,7 @@ export function WorkspaceModulePage({ active, eyebrow, title, description, detai
         </section>
       </div>
       <nav className="module-mobile-nav" aria-label="Navegação mobile">
-        {navigation.slice(0, 4).map((item) => (
+        {navigation.map((item) => (
           <Link key={item.href} href={item.href} className={active === item.label ? "selected" : ""} aria-current={active === item.label ? "page" : undefined}>
             <span aria-hidden="true">{item.icon}</span><small>{item.label}</small>
           </Link>

@@ -537,7 +537,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
  .module-header { min-height: 78px; padding: 16px 18px; }
  .module-content { min-height: calc(100dvh - 146px); padding: 22px 14px; }
  .module-state-card { border-radius: 16px; }
- .module-mobile-nav { position: fixed; z-index: 20; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-height: calc(66px + env(safe-area-inset-bottom)); padding: 6px 6px env(safe-area-inset-bottom); border-top: 1px solid var(--line); background: var(--surface); }
+ .module-mobile-nav { position: fixed; z-index: 20; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); min-height: calc(66px + env(safe-area-inset-bottom)); padding: 6px 6px env(safe-area-inset-bottom); border-top: 1px solid var(--line); background: var(--surface); }
  .module-mobile-nav a { display: flex; min-width: 0; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--muted); font-size: 18px; text-decoration: none; }
  .module-mobile-nav a small { overflow: hidden; max-width: 100%; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
  .module-mobile-nav a.selected { color: #80500b; font-weight: 800; }

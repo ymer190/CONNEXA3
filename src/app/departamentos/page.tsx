@@ -1,0 +1,2 @@
+import { WorkspaceModulePage } from "@/components/workspace-module-page";
+export default function DepartmentsPage() { return <WorkspaceModulePage active="Departamentos" eyebrow="ESTRUTURA ORGANIZACIONAL" title="Departamentos" description="Organização dos setores da empresa." detail="A visualização e o gerenciamento serão conectados ao domínio de departamentos. A criação e as alterações administrativas permanecem restritas ao TI." />; }

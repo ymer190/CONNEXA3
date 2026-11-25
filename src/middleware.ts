@@ -6,12 +6,18 @@ export async function middleware(request: NextRequest) {
   const isAdminRoute =
     request.nextUrl.pathname === "/admin" ||
     request.nextUrl.pathname.startsWith("/admin/");
+  const workspacePaths = ["/", "/conversas", "/grupos", "/colaboradores", "/departamentos", "/arquivos"];
+  const isWorkspaceRoute = workspacePaths.some((path) =>
+    request.nextUrl.pathname === path ||
+    (path !== "/" && request.nextUrl.pathname.startsWith(`${path}/`))
+  );
+  const isProtectedRoute = isAdminRoute || isWorkspaceRoute;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabasePublishableKey =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!supabaseUrl || !supabasePublishableKey) {
-    if (isAdminRoute) {
+    if (isProtectedRoute) {
       const forbiddenUrl = request.nextUrl.clone();
       forbiddenUrl.pathname = "/acesso-negado";
       forbiddenUrl.search = "";
@@ -49,6 +55,17 @@ export async function middleware(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (isWorkspaceRoute && !user) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("next", request.nextUrl.pathname);
+    const hasAuthCookie = request.cookies.getAll().some((cookie) =>
+      cookie.name.startsWith("sb-") && cookie.name.includes("auth-token")
+    );
+    loginUrl.searchParams.set("reason", hasAuthCookie ? "session-expired" : "auth-required");
+    return NextResponse.redirect(loginUrl);
+  }
 
   if (isAdminRoute) {
     if (!user) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import { BrandMark } from "@/components/brand-mark";
 
@@ -44,6 +45,7 @@ const initialConversations: Conversation[] = [
 ];
 
 export default function Home() {
+  const router = useRouter();
   const [conversations, setConversations] = useState(initialConversations);
   const [activeId, setActiveId] = useState(1);
   const [search, setSearch] = useState("");
@@ -52,7 +54,7 @@ export default function Home() {
   const [showContact, setShowContact] = useState(false);
   const [toast, setToast] = useState("");
   const [mobileView, setMobileView] = useState<"inbox" | "chat">("inbox");
-  const [activeNav, setActiveNav] = useState("Conversas");
+  const activeNav: string = "Conversas";
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [newConversationName, setNewConversationName] = useState("");
 
@@ -120,10 +122,11 @@ export default function Home() {
     <main className="app-shell">
       <aside className="nav-rail" aria-label="Navegação principal">
         <div className="rail-brand"><BrandMark compact /></div>
-        <button className={activeNav === "Conversas" ? "rail-button active" : "rail-button"} onClick={() => { setActiveNav("Conversas"); setMobileView("inbox"); }} aria-label="Conversas" title="Conversas">▤</button>
-        <button className={activeNav === "Colaboradores" ? "rail-button active" : "rail-button"} onClick={() => { setActiveNav("Colaboradores"); setMobileView("inbox"); notify("Diretório de colaboradores em preparação."); }} aria-label="Colaboradores" title="Colaboradores">♙</button>
-        <button className={activeNav === "Arquivos" ? "rail-button active" : "rail-button"} onClick={() => { setActiveNav("Arquivos"); setMobileView("inbox"); notify("Arquivos compartilhados estarão disponíveis em uma próxima etapa."); }} aria-label="Arquivos" title="Arquivos">▥</button>
-        <button className={activeNav === "Departamentos" ? "rail-button active" : "rail-button"} onClick={() => { setActiveNav("Departamentos"); setMobileView("inbox"); notify("Departamentos são organizados pelo setor de TI."); }} aria-label="Departamentos" title="Departamentos">♧</button>
+        <button className={activeNav === "Conversas" ? "rail-button active" : "rail-button"} onClick={() => router.push("/conversas")} aria-label="Conversas" title="Conversas">▤</button>
+        <button className="rail-button" onClick={() => router.push("/grupos")} aria-label="Grupos" title="Grupos">♧</button>
+        <button className={activeNav === "Colaboradores" ? "rail-button active" : "rail-button"} onClick={() => router.push("/colaboradores")} aria-label="Colaboradores" title="Colaboradores">♙</button>
+        <button className={activeNav === "Arquivos" ? "rail-button active" : "rail-button"} onClick={() => router.push("/arquivos")} aria-label="Arquivos" title="Arquivos">▥</button>
+        <button className={activeNav === "Departamentos" ? "rail-button active" : "rail-button"} onClick={() => router.push("/departamentos")} aria-label="Departamentos" title="Departamentos">♧</button>
         <div className="rail-spacer" />
         <button className="rail-button" onClick={() => notify("Configurações em breve.")} aria-label="Configurações" title="Configurações">⚙</button>
         <div className="profile-mini">AC</div>
@@ -146,7 +149,7 @@ export default function Home() {
           </button>)}
           {visible.length === 0 && <div className="empty-list"><span>⌕</span><strong>Nenhuma conversa encontrada</strong><p>Tente outro nome ou filtro.</p><button onClick={() => { setSearch(""); setFilter("Todas"); }}>Limpar busca</button></div>}
         </div>
-        <footer className="inbox-footer"><span className="workspace-status-dot" aria-hidden="true" /> Ambiente organizacional <button onClick={() => { setActiveNav("Colaboradores"); notify("Diretório de colaboradores em preparação."); }}>Ver equipe</button></footer>
+        <footer className="inbox-footer"><span className="workspace-status-dot" aria-hidden="true" /> Ambiente organizacional <button onClick={() => router.push("/colaboradores")}>Ver equipe</button></footer>
       </section>
 
       <section className={mobileView === "inbox" ? "chat-panel mobile-hidden" : "chat-panel"} aria-label="Conversa selecionada">
@@ -180,8 +183,9 @@ export default function Home() {
         <div className="detail-section"><span className="detail-label">INFORMAÇÕES</span><p className="detail-placeholder">Dados organizacionais e informações de acesso serão exibidos conforme as permissões do seu perfil.</p></div>
         <div className="detail-section"><span className="detail-label">HISTÓRICO</span><p className="detail-placeholder">As mensagens desta demonstração são locais e não representam registros permanentes.</p></div>
       </aside>}
-      {showNewConversation && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowNewConversation(false); }}><form className="new-conversation-modal" onSubmit={createConversation} role="dialog" aria-modal="true" aria-labelledby="new-conversation-title"><div className="modal-heading"><div><p className="eyebrow">COMUNICAÇÃO INTERNA</p><h2 id="new-conversation-title">Nova conversa</h2></div><button type="button" className="icon-button" onClick={() => setShowNewConversation(false)} aria-label="Fechar">×</button></div><label className="modal-field">Colaborador<input autoFocus required value={newConversationName} onChange={(event) => setNewConversationName(event.target.value)} placeholder="Digite o nome do colaborador" /></label><div className="modal-actions"><button type="button" className="outline-button" onClick={() => setShowNewConversation(false)}>Cancelar</button><button type="submit" className="modal-submit">Iniciar conversa</button></div><p className="modal-disclaimer">Demonstração visual. O diretório real e a gestão de grupos e departamentos serão administrados pelo TI.</p></form></div>}\n      {toast && <div className="toast" role="status">{toast}</div>}
-      <nav className="mobile-nav" aria-label="Navegação mobile"><button className={activeNav === "Conversas" ? "selected" : ""} aria-current={activeNav === "Conversas" ? "page" : undefined} onClick={() => { setActiveNav("Conversas"); setMobileView("inbox"); }}>▤<span>Conversas</span></button><button className={activeNav === "Colaboradores" ? "selected" : ""} aria-current={activeNav === "Colaboradores" ? "page" : undefined} onClick={() => { setActiveNav("Colaboradores"); setMobileView("inbox"); notify("Diretório de colaboradores em preparação."); }}>♙<span>Colaboradores</span></button><button className={activeNav === "Departamentos" ? "selected" : ""} aria-current={activeNav === "Departamentos" ? "page" : undefined} onClick={() => { setActiveNav("Departamentos"); setMobileView("inbox"); notify("Departamentos são organizados pelo setor de TI."); }}>♧<span>Departamentos</span></button><button className={activeNav === "Configurações" ? "selected" : ""} aria-current={activeNav === "Configurações" ? "page" : undefined} onClick={() => { setActiveNav("Configurações"); setMobileView("inbox"); notify("Configurações em preparação."); }}>⚙<span>Ajustes</span></button></nav>
+      {showNewConversation && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowNewConversation(false); }}><form className="new-conversation-modal" onSubmit={createConversation} role="dialog" aria-modal="true" aria-labelledby="new-conversation-title"><div className="modal-heading"><div><p className="eyebrow">COMUNICAÇÃO INTERNA</p><h2 id="new-conversation-title">Nova conversa</h2></div><button type="button" className="icon-button" onClick={() => setShowNewConversation(false)} aria-label="Fechar">×</button></div><label className="modal-field">Colaborador<input autoFocus required value={newConversationName} onChange={(event) => setNewConversationName(event.target.value)} placeholder="Digite o nome do colaborador" /></label><div className="modal-actions"><button type="button" className="outline-button" onClick={() => setShowNewConversation(false)}>Cancelar</button><button type="submit" className="modal-submit">Iniciar conversa</button></div><p className="modal-disclaimer">Demonstração visual. O diretório real e a gestão de grupos e departamentos serão administrados pelo TI.</p></form></div>}
+      {toast && <div className="toast" role="status">{toast}</div>}
+      <nav className="mobile-nav" aria-label="Navegação mobile"><button className={activeNav === "Conversas" ? "selected" : ""} aria-current={activeNav === "Conversas" ? "page" : undefined} onClick={() => router.push("/conversas")}>▤<span>Conversas</span></button><button onClick={() => router.push("/grupos")}>♧<span>Grupos</span></button><button className={activeNav === "Colaboradores" ? "selected" : ""} aria-current={activeNav === "Colaboradores" ? "page" : undefined} onClick={() => router.push("/colaboradores")}>♙<span>Pessoas</span></button><button className={activeNav === "Departamentos" ? "selected" : ""} aria-current={activeNav === "Departamentos" ? "page" : undefined} onClick={() => router.push("/departamentos")}>▦<span>Setores</span></button><button onClick={() => router.push("/arquivos")}>▥<span>Arquivos</span></button></nav>
     </main>
   );
 }

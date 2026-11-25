@@ -560,3 +560,39 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .workspace-error-card button { min-height: 44px; padding: 0 18px; border: 0; border-radius: 10px; background: #f4c542; color: #29283a; font-weight: 800; }
 @keyframes workspace-shimmer { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .workspace-skeleton { animation: none; } }
+
+
+/* Issue #102 — directory layout and accessible list states. */
+.directory-page { width: min(100%, 980px); align-self: start; display: grid; gap: 22px; }
+.directory-intro h2 { margin: 0; color: var(--text); font-size: clamp(21px, 3vw, 28px); letter-spacing: -.035em; }
+.directory-intro p:not(.module-eyebrow) { max-width: 680px; margin: 9px 0 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+.directory-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .45fr); gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
+.directory-search { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--canvas); color: var(--muted); }
+.directory-search > span:first-child { font-size: 21px; }
+.directory-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; }
+.directory-search:focus-within, .directory-filter select:focus-visible { outline: 3px solid rgba(244,197,66,.55); outline-offset: 2px; }
+.directory-filter { display: grid; gap: 5px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.directory-filter select { width: 100%; min-height: 46px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--canvas); color: var(--text); font: inherit; font-size: 12px; }
+.directory-filter select:disabled { opacity: .65; }
+.directory-feedback { display: grid; justify-items: center; padding: clamp(26px, 5vw, 48px) 22px; border: 1px dashed var(--line); border-radius: 16px; background: var(--surface); text-align: center; }
+.directory-feedback-icon { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 14px; border-radius: 15px; background: #fff1c2; color: #80500b; font-size: 24px; font-weight: 800; }
+.directory-feedback h3 { margin: 0; color: var(--text); font-size: 17px; }
+.directory-feedback p { max-width: 590px; margin: 9px 0 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.directory-clear { min-height: 40px; margin-top: 16px; padding: 0 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--text); font-weight: 700; }
+.directory-list { display: grid; gap: 10px; }
+.directory-result-count { margin: 0 0 2px; color: var(--muted); font-size: 12px; }
+.directory-person, .directory-skeleton { display: flex; align-items: center; gap: 14px; min-height: 78px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); }
+.directory-avatar { display: grid; flex: 0 0 44px; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: #fff1c2; color: #70500e; font-size: 12px; font-weight: 800; }
+.directory-person-copy { min-width: 0; }
+.directory-person-copy h3 { margin: 0; overflow-wrap: anywhere; color: var(--text); font-size: 14px; }
+.directory-person-copy p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+.directory-skeleton > span { width: 44px; height: 44px; border-radius: 50%; background: #eee8d8; }
+.directory-skeleton > div { display: grid; flex: 1; gap: 9px; }
+.directory-skeleton i { display: block; width: min(100%, 220px); height: 11px; border-radius: 6px; background: #eee8d8; }
+.directory-skeleton i + i { width: min(75%, 160px); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-width: 620px) {
+ .directory-page { gap: 16px; }
+ .directory-controls { grid-template-columns: 1fr; padding: 12px; }
+ .directory-filter { gap: 6px; }
+}

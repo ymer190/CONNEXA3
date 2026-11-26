@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createEmployeeProvisioningPostHandler } from "./employee-provisioning-handler.ts";
-import type { EmployeeProvisioningPayload } from "./employee-provisioning-orchestrator-core.ts";
+import type {
+  EmployeeProvisioningPayload,
+  EmployeeProvisioningResult,
+} from "./employee-provisioning-orchestrator-core.ts";
 
 const actorUserId = "650e8400-e29b-41d4-a716-446655440000";
 const body = {
@@ -26,7 +29,7 @@ function dependencies(overrides: {
     | { authorized: true; actorUserId: string }
     | { authorized: false; status: 401 | 403 | 503; code: "UNAUTHENTICATED" | "FORBIDDEN" | "AUTHORIZATION_CHECK_FAILED"; message: string }
   >;
-  provision?: (payload: EmployeeProvisioningPayload) => Promise<unknown>;
+  provision?: (payload: EmployeeProvisioningPayload) => Promise<EmployeeProvisioningResult>;
 } = {}) {
   const received: EmployeeProvisioningPayload[] = [];
   const handler = createEmployeeProvisioningPostHandler({
@@ -34,7 +37,7 @@ function dependencies(overrides: {
     provision: async (payload) => {
       received.push(payload);
       return overrides.provision
-        ? await overrides.provision(payload) as never
+        ? await overrides.provision(payload)
         : { kind: "created", authUserId: "auth-user-1" };
     },
   });

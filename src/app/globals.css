@@ -849,3 +849,16 @@ html[data-theme="sunset"] .detail-value { color: var(--text); }
   .app-shell.contact-closed .contact-panel { display: none; }
   .app-shell.contact-open .contact-panel { display: flex; }
 }
+
+@media (max-width: 1399px) {
+  .app-shell.contact-open .contact-panel {
+    position: fixed;
+    z-index: 22;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(340px, 88vw);
+    max-width: calc(100vw - 24px);
+    box-shadow: -12px 0 35px rgba(12, 7, 6, .38);
+  }
+}

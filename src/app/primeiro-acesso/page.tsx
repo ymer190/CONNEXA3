@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { FirstAccessForm } from "./first-access-form";
@@ -31,6 +32,9 @@ export default async function FirstAccessPage() {
           Para concluir seu primeiro acesso, escolha uma senha pessoal e segura.
         </p>
         <FirstAccessForm />
+        <p className="auth-footer">
+          <Link href="/auth/logout">Sair da conta</Link>
+        </p>
       </section>
     </main>
   );

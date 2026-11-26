@@ -62,6 +62,7 @@ export async function middleware(request: NextRequest) {
     "/primeiro-acesso",
     "/auth/callback",
     "/api/auth/first-access/password",
+    "/auth/logout",
   ].some((path) =>
     request.nextUrl.pathname === path ||
     request.nextUrl.pathname.startsWith(`${path}/`)

@@ -220,7 +220,7 @@ async function main() {
       const regularUser = await callRpc(name, payload, userToken);
       if (!isPermissionDenied(regularUser)) {
         const bodySummary = Array.isArray(regularUser.body)
-          ? `JSON array (\\${regularUser.body.length} rows)`
+          ? `JSON array (${regularUser.body.length} rows)`
           : regularUser.body && typeof regularUser.body === "object"
             ? `JSON object (code=${regularUser.body.code ?? "none"}, message=${regularUser.body.message ?? "none"})`
             : `response type=${typeof regularUser.body}`;

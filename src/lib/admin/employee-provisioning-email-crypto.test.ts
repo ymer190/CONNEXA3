@@ -9,6 +9,7 @@ import {
 
 const oldKey = randomBytes(32).toString("base64");
 const newKey = randomBytes(32).toString("base64");
+const unrelatedKey = randomBytes(32).toString("base64");
 
 test("encrypts and decrypts normalized email without storing plaintext", () => {
   const email = "employee@example.com";
@@ -33,7 +34,7 @@ test("supports key rotation while old ciphertext is being migrated", () => {
     keyring,
     "new_key",
   );
-  assert.match(newCiphertext, /^v1\.new_key\./);
+  assert.match(newCiphertext, /^v1\\.new_key\\./);
   assert.equal(decryptProvisioningEmailWithKeyring(newCiphertext, keyring), "employee@example.com");
 });
 
@@ -78,6 +79,30 @@ test("rejects tampered ciphertext", () => {
   assert.throws(
     () => decryptProvisioningEmailWithKeyring(parts.join("."), { key_1: oldKey }),
     /ciphertext authentication failed|ciphertext is invalid/,
+  );
+});
+
+test("rejects decryption with a different valid key", () => {
+  const encrypted = encryptProvisioningEmailWithKeyring(
+    "employee@example.com",
+    { key_1: oldKey },
+    "key_1",
+  );
+
+  assert.throws(
+    () => decryptProvisioningEmailWithKeyring(encrypted, { key_1: unrelatedKey }),
+    /ciphertext authentication failed/,
+  );
+});
+
+test("rejects malformed envelope versions and component lengths", () => {
+  assert.throws(
+    () => decryptProvisioningEmailWithKeyring("v2.key_1.iv.tag.ciphertext", { key_1: oldKey }),
+    /ciphertext is invalid/,
+  );
+  assert.throws(
+    () => decryptProvisioningEmailWithKeyring("v1.key_1.aA.aA.aA", { key_1: oldKey }),
+    /ciphertext is invalid/,
   );
 });
 

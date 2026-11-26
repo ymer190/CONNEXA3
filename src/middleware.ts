@@ -77,6 +77,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(firstAccessUrl);
   }
 
+  if (request.nextUrl.pathname === "/primeiro-acesso" && !user) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.search = "";
+    loginUrl.searchParams.set("reason", "auth-required");
+    return NextResponse.redirect(loginUrl);
+  }
+
   if (isWorkspaceRoute && !user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";

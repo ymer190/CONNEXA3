@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { AcceptInviteForm } from "./accept-invite-form";
 
 export const metadata: Metadata = {
@@ -9,17 +8,7 @@ export const metadata: Metadata = {
   referrer: "no-referrer",
 };
 
-type ConfirmationPageProps = {
-  searchParams: Promise<{ token_hash?: string; type?: string }>;
-};
-
-export default async function ConfirmInvitePage({ searchParams }: ConfirmationPageProps) {
-  const { token_hash: tokenHash, type } = await searchParams;
-
-  if (!tokenHash || tokenHash.length > 512 || type !== "invite") {
-    redirect("/convite-invalido");
-  }
-
+export default function ConfirmInvitePage() {
   return (
     <main className="auth-page">
       <section className="auth-card">
@@ -28,7 +17,7 @@ export default async function ConfirmInvitePage({ searchParams }: ConfirmationPa
         <p className="auth-description">
           Confirme o convite para validar seu acesso e definir sua senha pessoal.
         </p>
-        <AcceptInviteForm tokenHash={tokenHash} />
+        <AcceptInviteForm />
       </section>
     </main>
   );

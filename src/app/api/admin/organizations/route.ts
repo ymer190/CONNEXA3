@@ -1,37 +1,10 @@
-import { NextResponse } from "next/server";
-
+import { createOrganizationsGetHandler } from "@/lib/admin/organizations-handler";
 import { listOrganizationsForAdmin } from "@/lib/admin/list-organizations";
 
 export const runtime = "nodejs";
 
-export async function GET() {
-  const result = await listOrganizationsForAdmin();
+const handleGet = createOrganizationsGetHandler(listOrganizationsForAdmin);
 
-  if (!result.success) {
-    const statusByCode = {
-      UNAUTHENTICATED: 401,
-      FORBIDDEN: 403,
-      AUTHORIZATION_CHECK_FAILED: 503,
-      ORGANIZATION_QUERY_FAILED: 500,
-    } as const;
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: result.code,
-          message: result.message,
-        },
-      },
-      { status: statusByCode[result.code] },
-    );
-  }
-
-  return NextResponse.json(
-    {
-      success: true,
-      data: result.data,
-    },
-    { status: 200 },
-  );
+export async function GET(): Promise<Response> {
+  return handleGet();
 }

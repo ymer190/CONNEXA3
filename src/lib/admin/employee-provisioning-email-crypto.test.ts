@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   decryptProvisioningEmailWithKeyring,
   encryptProvisioningEmailWithKeyring,
+  validateProvisioningEmailKeyring,
 } from "./employee-provisioning-email-crypto-core.ts";
 
 const oldKey = randomBytes(32).toString("base64");
@@ -39,7 +40,7 @@ test("supports key rotation while old ciphertext is being migrated", () => {
 test("fails closed when the current key is missing", () => {
   assert.throws(
     () => encryptProvisioningEmailWithKeyring("employee@example.com", { old_key: oldKey }, "missing"),
-    /key version is unavailable/,
+    /key is unavailable/,
   );
 });
 
@@ -47,6 +48,21 @@ test("rejects invalid key material", () => {
   assert.throws(
     () => encryptProvisioningEmailWithKeyring("employee@example.com", { key_1: "invalid" }, "key_1"),
     /key is invalid/,
+  );
+});
+
+test("rejects a malformed inactive key in the keyring", () => {
+  assert.throws(
+    () => validateProvisioningEmailKeyring({ active: oldKey, inactive: "invalid" }, "active"),
+    /key is invalid/,
+  );
+});
+
+test("rejects malformed keyring structures and key identifiers", () => {
+  assert.throws(() => validateProvisioningEmailKeyring([], "key_1"), /keyring is invalid/);
+  assert.throws(
+    () => validateProvisioningEmailKeyring({ "invalid.key": oldKey }, "invalid.key"),
+    /keyring is invalid/,
   );
 });
 
@@ -62,6 +78,21 @@ test("rejects tampered ciphertext", () => {
   assert.throws(
     () => decryptProvisioningEmailWithKeyring(parts.join("."), { key_1: oldKey }),
     /ciphertext authentication failed|ciphertext is invalid/,
+  );
+});
+
+test("authenticates the key id as part of AES-GCM additional data", () => {
+  const encrypted = encryptProvisioningEmailWithKeyring(
+    "employee@example.com",
+    { key_1: oldKey, key_2: oldKey },
+    "key_1",
+  );
+  const parts = encrypted.split(".");
+  parts[1] = "key_2";
+
+  assert.throws(
+    () => decryptProvisioningEmailWithKeyring(parts.join("."), { key_1: oldKey, key_2: oldKey }),
+    /ciphertext authentication failed/,
   );
 });
 

@@ -62,6 +62,8 @@ test("fails closed when the selected row does not match the requested idempotenc
 test("rejects empty, oversized, and malformed idempotency inputs", () => {
   assert.throws(() => decideIdempotency(null, "", validHash), /valid idempotency key/);
   assert.throws(() => decideIdempotency(null, "x".repeat(129), validHash), /valid idempotency key/);
+  assert.throws(() => decideIdempotency(null, "request with spaces", validHash), /valid idempotency key/);
+  assert.throws(() => decideIdempotency(null, "request\\n123", validHash), /valid idempotency key/);
   assert.throws(() => decideIdempotency(null, "request-123", "not-a-hash"), /valid idempotency key/);
 });
 

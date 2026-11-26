@@ -56,6 +56,18 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (isProtectedRoute && user) {
+    const { data: authorizedDevice, error: deviceError } = await supabase.rpc(
+      "device_session_is_authorized",
+    );
+    if (deviceError || authorizedDevice !== true) {
+      const pendingUrl = request.nextUrl.clone();
+      pendingUrl.pathname = "/dispositivo-pendente";
+      pendingUrl.search = "";
+      return NextResponse.redirect(pendingUrl);
+    }
+  }
+
   if (isWorkspaceRoute && !user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
@@ -77,11 +89,11 @@ export async function middleware(request: NextRequest) {
 
     const { data: platformUser, error } = await supabase
       .from("platform_users")
-      .select("user_id")
+      .select("user_id, role")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (error || !platformUser) {
+    if (error || platformUser?.role !== "platform_admin") {
       const forbiddenUrl = request.nextUrl.clone();
       forbiddenUrl.pathname = "/acesso-negado";
       forbiddenUrl.search = "";

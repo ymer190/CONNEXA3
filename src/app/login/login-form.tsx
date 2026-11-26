@@ -30,6 +30,24 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         return;
       }
 
+      const enrollment = await fetch("/api/device-sessions/register", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const enrollmentResult = (await enrollment.json()) as {
+        status?: "approved" | "pending";
+      };
+      if (!enrollment.ok || !enrollmentResult.status) {
+        await supabase.auth.signOut();
+        setErrorMessage("Não foi possível validar este dispositivo. Tente novamente.");
+        return;
+      }
+
+      if (enrollmentResult.status === "pending") {
+        window.location.assign("/dispositivo-pendente");
+        return;
+      }
+
       // A full navigation lets the server middleware read the persisted
       // Supabase session cookies before rendering the protected destination.
       window.location.assign(redirectTo);

@@ -805,6 +805,18 @@ body:has(.module-shell) .theme-toggle { right: 68px; }
 }
 
 /* Authentication and directory focus surfaces use the Sunset accent, not Sunshine purple. */
+.device-session-list { display: grid; gap: 16px; margin-top: 20px; }
+.device-session-card { padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.device-session-card h2 { margin: 0 0 12px; font-size: 17px; }
+.device-session-card dl { display: grid; gap: 8px; overflow-wrap: anywhere; }
+.device-session-card dl div { display: grid; gap: 3px; }
+.device-session-card dt { color: var(--muted); font-size: 12px; }
+.device-session-card dd { margin: 0; font-size: 13px; }
+.device-session-actions { display: grid; gap: 12px; margin-top: 14px; }
+.device-session-action { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.device-session-action label { display: grid; flex: 1; gap: 5px; font-size: 12px; }
+.device-session-action input { min-width: 180px; min-height: 40px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--canvas); color: var(--text); }
+.device-session-action button { min-height: 40px; }
 html[data-theme="sunset"] .auth-page {
   background:
     radial-gradient(circle at 12% 8%, rgba(217, 107, 50, .14), transparent 28rem),

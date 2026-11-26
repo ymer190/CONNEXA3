@@ -188,3 +188,43 @@ test("rejects an invalid authenticated actor before invoking the provisioner", a
   assert.deepEqual((await response.json()).error.code, "INVALID_ACTOR");
   assert.equal(received.length, 0);
 });
+
+test("rejects a forbidden administrator before reading the request body", async () => {
+  let provisionCalls = 0;
+  const handler = createEmployeeProvisioningPostHandler({
+    authorize: async () => ({
+      authorized: false,
+      status: 403,
+      code: "FORBIDDEN",
+      message: "Apenas administradores da plataforma podem provisionar.",
+    }),
+    provision: async () => {
+      provisionCalls += 1;
+      return { kind: "created", authUserId: "auth-user-1" };
+    },
+  });
+  const malformed = new Request("https://connexa.test/api/admin/employees", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{",
+  });
+
+  const response = await handler(malformed);
+  assert.equal(response.status, 403);
+  assert.equal(provisionCalls, 0);
+  assert.equal((await response.json()).error.code, "FORBIDDEN");
+});
+
+test("does not expose provisioner exceptions to the client", async () => {
+  const { handler } = dependencies({
+    provision: async () => {
+      throw new Error("database connection string or internal details");
+    },
+  });
+  const response = await handler(request());
+
+  assert.equal(response.status, 503);
+  const responseText = await response.text();
+  assert.equal(responseText.includes("database connection string"), false);
+  assert.match(responseText, /PROVISIONING_UNAVAILABLE/);
+});

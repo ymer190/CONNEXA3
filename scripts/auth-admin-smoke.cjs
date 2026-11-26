@@ -134,7 +134,15 @@ async function main() {
     // Use Node's fetch for the upstream Auth request. Playwright's route.fetch()
     // shares the browser request context, which can be disposed during the
     // application's post-login navigation before its response body is read.
-    let authPayload;
+    let resolveAuthPayload;
+    let rejectAuthPayload;
+    const authPayloadPromise = new Promise((resolve, reject) => {
+      resolveAuthPayload = resolve;
+      rejectAuthPayload = reject;
+    });
+    const authPayloadTimeout = setTimeout(() => {
+      rejectAuthPayload(new Error("Timed out waiting for the Supabase Auth password response."));
+    }, 15000);
     await page.route(/\/auth\/v1\/token\?grant_type=password/, async (route) => {
       const request = route.request();
       const requestHeaders = { ...request.headers() };
@@ -154,10 +162,11 @@ async function main() {
       } catch {
         throw new Error(`Supabase Auth returned a non-JSON response (HTTP ${upstream.status}).`);
       }
-      authPayload = parsedPayload;
       if (!upstream.ok) {
         const reason = parsedPayload.error_description ?? parsedPayload.msg ?? parsedPayload.message ?? parsedPayload.error ?? "unknown_auth_error";
-        throw new Error(`Supabase admin sign-in failed (HTTP ${upstream.status}): ${String(reason).slice(0, 180)}`);
+        rejectAuthPayload(new Error(`Supabase admin sign-in failed (HTTP ${upstream.status}): ${String(reason).slice(0, 180)}`));
+      } else {
+        resolveAuthPayload(parsedPayload);
       }
       const headers = Object.fromEntries(
         Object.entries(Object.fromEntries(upstream.headers)).filter(
@@ -171,8 +180,14 @@ async function main() {
       });
     });
     await page.getByRole("button", { name: "Entrar" }).click();
+    let authPayload;
+    try {
+      authPayload = await authPayloadPromise;
+    } finally {
+      clearTimeout(authPayloadTimeout);
+    }
     if (!authPayload?.access_token) {
-      throw new Error("Admin sign-in response did not contain an access token.");
+      throw new Error("Supabase Auth password response did not contain an access token.");
     }
 
     // #97 intentionally denies a newly authenticated device until it is approved.

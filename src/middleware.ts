@@ -60,8 +60,10 @@ export async function middleware(request: NextRequest) {
     user?.app_metadata?.first_access_pending === true;
   const isFirstAccessAllowedPath = [
     "/primeiro-acesso",
+    "/confirmar-convite",
     "/auth/callback",
     "/api/auth/first-access/password",
+    "/api/auth/accept-invite",
     "/auth/logout",
   ].some((path) =>
     request.nextUrl.pathname === path ||

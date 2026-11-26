@@ -16,12 +16,14 @@ jobs:
   validate:
     name: Validate application
     runs-on: ubuntu-latest
+    environment: issue-97-sqa
     env:
-      HAS_ISOLATED_SUPABASE_TEST: ${{ secrets.AUTH_TEST_SUPABASE_URL != '' && secrets.AUTH_TEST_SUPABASE_DB_URL != '' && secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY != '' }}
-      HAS_AUTH_TEST_SECRETS: ${{ secrets.AUTH_TEST_SUPABASE_URL != '' && secrets.AUTH_TEST_SUPABASE_DB_URL != '' && secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY != '' && secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' }}
-      HAS_AUTH_ADMIN_TEST_SECRETS: ${{ secrets.AUTH_TEST_SUPABASE_URL != '' && secrets.AUTH_TEST_SUPABASE_DB_URL != '' && secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY != '' && secrets.AUTH_TEST_ADMIN_EMAIL != '' && secrets.AUTH_TEST_ADMIN_PASSWORD != '' }}
-      HAS_DEPARTMENT_RPC_TEST_SECRETS: ${{ secrets.AUTH_TEST_SUPABASE_URL != '' && secrets.AUTH_TEST_SUPABASE_DB_URL != '' && secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY != '' && secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' && secrets.AUTH_TEST_ADMIN_EMAIL != '' && secrets.AUTH_TEST_ADMIN_PASSWORD != '' }}
-      HAS_ISSUE_97_BOOTSTRAP_TEST: ${{ secrets.AUTH_TEST_SUPABASE_URL != '' && secrets.AUTH_TEST_SUPABASE_DB_URL != '' && secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY != '' }}
+      AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
+      HAS_ISOLATED_SUPABASE_TEST: ${{ vars.ISSUE97_SQA_PROJECT_REF != '' && secrets.AUTH_TEST_SUPABASE_URL != '' && secrets.AUTH_TEST_SUPABASE_DB_URL != '' && secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY != '' }}
+      HAS_AUTH_TEST_SECRETS: ${{ vars.ISSUE97_SQA_PROJECT_REF != '' && secrets.AUTH_TEST_SUPABASE_URL != '' && secrets.AUTH_TEST_SUPABASE_DB_URL != '' && secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY != '' && secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' }}
+      HAS_AUTH_ADMIN_TEST_SECRETS: ${{ vars.ISSUE97_SQA_PROJECT_REF != '' && secrets.AUTH_TEST_SUPABASE_URL != '' && secrets.AUTH_TEST_SUPABASE_DB_URL != '' && secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY != '' && secrets.AUTH_TEST_ADMIN_EMAIL != '' && secrets.AUTH_TEST_ADMIN_PASSWORD != '' }}
+      HAS_DEPARTMENT_RPC_TEST_SECRETS: ${{ vars.ISSUE97_SQA_PROJECT_REF != '' && secrets.AUTH_TEST_SUPABASE_URL != '' && secrets.AUTH_TEST_SUPABASE_DB_URL != '' && secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY != '' && secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' && secrets.AUTH_TEST_ADMIN_EMAIL != '' && secrets.AUTH_TEST_ADMIN_PASSWORD != '' }}
+      HAS_ISSUE_97_BOOTSTRAP_TEST: ${{ vars.ISSUE97_SQA_PROJECT_REF != '' && secrets.AUTH_TEST_SUPABASE_URL != '' && secrets.AUTH_TEST_SUPABASE_DB_URL != '' && secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,9 +36,35 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Test isolated Supabase allowlist guard
+        run: node scripts/assert-isolated-supabase-smoke.cjs
+
+      - name: Require dedicated Issue 97 SQA environment
+        env:
+          AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
+          AUTH_TEST_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
+          AUTH_TEST_SUPABASE_DB_URL: ${{ secrets.AUTH_TEST_SUPABASE_DB_URL }}
+          AUTH_TEST_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
+          AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY }}
+          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
+          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
+          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
+          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in AUTH_TEST_SUPABASE_PROJECT_REF AUTH_TEST_SUPABASE_URL AUTH_TEST_SUPABASE_DB_URL AUTH_TEST_SUPABASE_PUBLISHABLE_KEY AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY AUTH_TEST_USER_EMAIL AUTH_TEST_USER_PASSWORD AUTH_TEST_ADMIN_EMAIL AUTH_TEST_ADMIN_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required dedicated SQA configuration: $name"
+              exit 1
+            fi
+          done
+          node scripts/assert-isolated-supabase.cjs
+
       - name: Validate and apply Issue 97 migrations on isolated SQA Supabase
         if: env.HAS_ISOLATED_SUPABASE_TEST == 'true'
         env:
+          AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
           AUTH_TEST_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
           AUTH_TEST_SUPABASE_DB_URL: ${{ secrets.AUTH_TEST_SUPABASE_DB_URL }}
         shell: bash
@@ -51,7 +79,7 @@ jobs:
       - name: Explain skipped isolated Supabase migration validation
         if: env.HAS_ISOLATED_SUPABASE_TEST != 'true'
         run: >-
-          echo "Issue 97 migration and JWT validation skipped. Configure an isolated Supabase project cloned from connexa-dev using AUTH_TEST_SUPABASE_URL, AUTH_TEST_SUPABASE_DB_URL, and AUTH_TEST_SUPABASE_PUBLISHABLE_KEY. The shared connexa-dev project is never a CI target."
+          echo "Issue 97 migration/JWT validation skipped. Configure ISSUE97_SQA_PROJECT_REF as the independent allowlist and URL, DB, publishable-key and service-role secrets for a dedicated third Supabase project. CI rejects connexa-dev and connexa Production."
 
       - name: Report dependency advisories for review
         continue-on-error: true
@@ -134,7 +162,10 @@ jobs:
       - name: Build application against isolated SQA Supabase
         if: env.HAS_AUTH_TEST_SECRETS == 'true' || env.HAS_AUTH_ADMIN_TEST_SECRETS == 'true'
         env:
+          AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
           AUTH_TEST_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
+          AUTH_TEST_SUPABASE_DB_URL: ${{ secrets.AUTH_TEST_SUPABASE_DB_URL }}
+          AUTH_TEST_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
         run: |
@@ -144,7 +175,10 @@ jobs:
       - name: Test department RPC authorization through PostgREST with real JWTs
         if: env.HAS_DEPARTMENT_RPC_TEST_SECRETS == 'true'
         env:
+          AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
           AUTH_TEST_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
+          AUTH_TEST_SUPABASE_DB_URL: ${{ secrets.AUTH_TEST_SUPABASE_DB_URL }}
+          AUTH_TEST_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
           AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY }}
@@ -164,7 +198,10 @@ jobs:
       - name: Test break-glass rejects a missing operator reference
         if: env.HAS_ISSUE_97_BOOTSTRAP_TEST == 'true'
         env:
+          AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
           AUTH_TEST_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
+          AUTH_TEST_SUPABASE_DB_URL: ${{ secrets.AUTH_TEST_SUPABASE_DB_URL }}
+          AUTH_TEST_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
           AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY }}
@@ -184,7 +221,10 @@ jobs:
       - name: Test regular user login and admin denial
         if: env.HAS_AUTH_TEST_SECRETS == 'true'
         env:
+          AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
           AUTH_TEST_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
+          AUTH_TEST_SUPABASE_DB_URL: ${{ secrets.AUTH_TEST_SUPABASE_DB_URL }}
+          AUTH_TEST_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
           AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
@@ -209,7 +249,10 @@ jobs:
       - name: Test platform administrator login, access, and logout
         if: env.HAS_AUTH_ADMIN_TEST_SECRETS == 'true'
         env:
+          AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
           AUTH_TEST_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
+          AUTH_TEST_SUPABASE_DB_URL: ${{ secrets.AUTH_TEST_SUPABASE_DB_URL }}
+          AUTH_TEST_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
           AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}

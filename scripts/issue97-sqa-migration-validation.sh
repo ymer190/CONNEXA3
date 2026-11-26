@@ -14,17 +14,17 @@ has_sqa_gates=$(db_query "select count(*) from supabase_migrations.schema_migrat
 has_possession_fix=$(db_query "select count(*) from supabase_migrations.schema_migrations where version = '20261126034944'")
 if [[ "$has_revalidation" != "1" || "$has_sqa_gates" != "1" || "$has_possession_fix" != "1" ]]; then
     if [[ "$has_revalidation" == "0" ]]; then
-  preflight=$(db_query "select
+    preflight=$(db_query "select
     count(*) filter (where d.id = ds.session_id and d.status = 'approved' and ds.status = 'approved'),
     count(*) filter (where d.id = ds.session_id and d.status = 'approved' and ds.status = 'approved' and d.approved_at is not null and d.approved_at = d.requested_at and d.approved_by is null),
     (select count(*) from public.administrative_audit_logs)
     from public.authorized_devices d
     join public.device_sessions ds on ds.device_id = d.id and ds.user_id = d.user_id")
-  IFS='|' read -r legacy_pairs legacy_provenance audit_rows <<< "$preflight"
-  echo "Isolated SQA migration preflight: legacy_pairs=$legacy_pairs provenance_matches=$legacy_provenance audit_rows=$audit_rows"
-  if [[ "$legacy_pairs" != "272" || "$legacy_provenance" != "272" || "$audit_rows" != "0" ]]; then
-    echo "Refusing to run the gated revalidation migration: the isolated project does not match the reviewed 272-row snapshot."
-    exit 1
+    IFS='|' read -r legacy_pairs legacy_provenance audit_rows <<< "$preflight"
+    echo "Isolated SQA migration preflight: legacy_pairs=$legacy_pairs provenance_matches=$legacy_provenance audit_rows=$audit_rows"
+    if [[ "$legacy_pairs" != "272" || "$legacy_provenance" != "272" || "$audit_rows" != "0" ]]; then
+      echo "Refusing to run the gated revalidation migration: the isolated project does not match the reviewed 272-row snapshot."
+      exit 1
     fi
   fi
   npx supabase db push --db-url "$AUTH_TEST_SUPABASE_DB_URL" --yes

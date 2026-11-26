@@ -6,7 +6,7 @@ async function main() {
   const password = process.env.AUTH_TEST_ADMIN_PASSWORD;
   const baseUrl = process.env.AUTH_TEST_BASE_URL || "http://127.0.0.1:3000";
   const supabaseUrl = process.env.AUTH_TEST_SUPABASE_URL;
-  const apiKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const apiKey = process.env.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY;
   const serviceRoleKey = process.env.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY;
 
   if (!email || !password) {

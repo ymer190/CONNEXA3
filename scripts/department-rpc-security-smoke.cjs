@@ -1,7 +1,7 @@
 const { createApprovedDeviceFixture } = require("./issue97-isolated-device-fixture.cjs");
 
-const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
-const apiKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const baseUrl = process.env.AUTH_TEST_SUPABASE_URL?.replace(/\/$/, "");
+const apiKey = process.env.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY;
 const serviceRoleKey = process.env.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY;
 
 const rpcCases = [
@@ -58,6 +58,63 @@ async function callRpc(name, payload, token) {
   return { status: response.status, body };
 }
 
+async function readFixtureRows(table, filters, select) {
+  const query = new URLSearchParams({ ...filters, select });
+  const response = await fetch(`${baseUrl}/rest/v1/${table}?${query}`, {
+    headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` },
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Could not inspect isolated ${table} fixture (HTTP ${response.status}).`);
+  return response.json();
+}
+
+async function updateFixtureRow(table, filters, values) {
+  const query = new URLSearchParams(filters);
+  const response = await fetch(`${baseUrl}/rest/v1/${table}?${query}`, {
+    method: "PATCH",
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify(values),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Could not prepare isolated ${table} revocation fixture (HTTP ${response.status}).`);
+}
+
+async function readDeviceSessionSnapshot(deviceId, sessionId) {
+  const [devices, sessions] = await Promise.all([
+    readFixtureRows("authorized_devices", { id: `eq.${deviceId}` }, "id,user_id,status,secret_hash,last_seen_at,revoked_at"),
+    readFixtureRows("device_sessions", { session_id: `eq.${sessionId}` }, "session_id,user_id,device_id,status,last_seen_at,revoked_at"),
+  ]);
+  if (devices.length !== 1 || sessions.length !== 1) {
+    throw new Error(`Expected exactly one device and one session fixture; found ${devices.length} and ${sessions.length}.`);
+  }
+  return { device: devices[0], session: sessions[0] };
+}
+
+async function assertAuthorizationFalse(token, label) {
+  const result = await callRpc("device_session_is_authorized", {}, token);
+  if (result.status !== 200 || result.body !== false) {
+    throw new Error(`${label}: expected protected-device authorization false; received HTTP ${result.status}, body ${JSON.stringify(result.body)}.`);
+  }
+}
+
+async function assertRejectedWithoutWrites({ label, token, payload, fixture, sessionId }) {
+  const before = await readDeviceSessionSnapshot(fixture.id, sessionId);
+  const result = await callRpc("register_device_session", payload, token);
+  if (result.status !== 403 || result.body?.code !== "42501") {
+    throw new Error(`${label}: expected HTTP 403/SQLSTATE 42501; received HTTP ${result.status}, code ${result.body?.code ?? "none"}.`);
+  }
+  const after = await readDeviceSessionSnapshot(fixture.id, sessionId);
+  if (JSON.stringify(after) !== JSON.stringify(before)) {
+    throw new Error(`${label}: rejected call changed device/session fields, including last_seen_at.`);
+  }
+  console.log(`PASS: ${label} is rejected without modifying device/session records or last_seen_at.`);
+}
+
 function isPermissionDenied(result) {
   const detail = typeof result.body === "string" ? result.body : JSON.stringify(result.body ?? {});
   return (result.status === 401 || result.status === 403) &&
@@ -82,6 +139,12 @@ async function main() {
   const adminSession = await signIn(required("AUTH_TEST_ADMIN_EMAIL"), required("AUTH_TEST_ADMIN_PASSWORD"), "Platform-admin");
   const userToken = userSession.accessToken;
   const adminToken = adminSession.accessToken;
+  const jwtPayload = adminToken.split(".")[1];
+  const adminClaims = jwtPayload ? JSON.parse(Buffer.from(jwtPayload, "base64url").toString("utf8")) : {};
+  const sessionId = adminClaims.session_id;
+  if (!sessionId || adminClaims.sub !== adminSession.userId) {
+    throw new Error("The issued administrator JWT does not contain its matching user ID and session_id claims.");
+  }
   const adminDeviceFixture = await createApprovedDeviceFixture({
     baseUrl,
     apiKey,
@@ -101,16 +164,57 @@ async function main() {
     }
     console.log("PASS: isolated platform_admin session is bound to its approved device fixture.");
 
-    const wrongSecretRegistration = await callRpc("register_device_session", {
+    const correctSecretRegistration = await callRpc("register_device_session", {
+      p_device_id: adminDeviceFixture.id,
+      p_device_secret: adminDeviceFixture.secret,
+      p_label: "Issue 97 isolated SQA fixture",
+      p_user_agent: "GitHub Actions isolated SQA test",
+    }, adminToken);
+    if (correctSecretRegistration.status !== 200 || correctSecretRegistration.body !== "approved") {
+      throw new Error(`A linked session rejected its correct device secret (HTTP ${correctSecretRegistration.status}).`);
+    }
+    console.log("PASS: same user/session/device is accepted when the linked device secret is correct.");
+
+    const linkedDevicePayload = {
       p_device_id: adminDeviceFixture.id,
       p_device_secret: "invalid-device-secret-for-sqa-regression-test",
       p_label: "Issue 97 isolated SQA fixture",
       p_user_agent: "GitHub Actions isolated SQA test",
-    }, adminToken);
-    if (wrongSecretRegistration.status !== 403 || wrongSecretRegistration.body?.code !== "42501") {
-      throw new Error(`An existing session accepted the wrong device secret (HTTP ${wrongSecretRegistration.status}, code ${wrongSecretRegistration.body?.code ?? "none"}).`);
-    }
-    console.log("PASS: existing session rejects the correct device ID paired with an incorrect secret.");
+    };
+    await assertRejectedWithoutWrites({
+      label: "linked device ID with incorrect secret",
+      token: adminToken,
+      payload: linkedDevicePayload,
+      fixture: adminDeviceFixture,
+      sessionId,
+    });
+
+    await updateFixtureRow("authorized_devices", { id: `eq.${adminDeviceFixture.id}` }, {
+      status: "revoked", revoked_at: new Date().toISOString(), revoked_by: null,
+    });
+    await assertRejectedWithoutWrites({
+      label: "revoked device with correct secret",
+      token: adminToken,
+      payload: { ...linkedDevicePayload, p_device_secret: adminDeviceFixture.secret },
+      fixture: adminDeviceFixture,
+      sessionId,
+    });
+    await assertAuthorizationFalse(adminToken, "revoked device");
+
+    await updateFixtureRow("authorized_devices", { id: `eq.${adminDeviceFixture.id}` }, {
+      status: "approved", revoked_at: null, revoked_by: null,
+    });
+    await updateFixtureRow("device_sessions", { session_id: `eq.${sessionId}` }, {
+      status: "revoked", revoked_at: new Date().toISOString(), revoked_by: null,
+    });
+    await assertRejectedWithoutWrites({
+      label: "revoked session with correct device secret",
+      token: adminToken,
+      payload: { ...linkedDevicePayload, p_device_secret: adminDeviceFixture.secret },
+      fixture: adminDeviceFixture,
+      sessionId,
+    });
+    await assertAuthorizationFalse(adminToken, "revoked session");
 
   for (const [name, payload] of rpcCases) {
     const anonymous = await callRpc(name, payload, null);

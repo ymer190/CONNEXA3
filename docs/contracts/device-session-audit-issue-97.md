@@ -1,6 +1,7 @@
 # Dispositivos, sessões e auditoria — Issue #97
 
-**Ambiente:** Supabase `connexa-dev`
+**Ambiente de desenvolvimento:** Supabase `connexa-dev` (migrations 10200/10300 não aplicadas).
+**Ambiente para revalidação:** projeto Supabase SQA independente, ainda não provisionado.
 
 **Migrations already applied in DEV:** the four original #97 migrations plus the function-only migrations `20261126025656_issue_97_fix_device_enrollment_session_id.sql` and the current proof-of-possession fix.
 **Migrations prepared for isolated SQA review only:** `20261126010200_issue_97_sqa_gates.sql`, `20261126010300_issue_97_revalidate_legacy_devices.sql`.
@@ -46,7 +47,9 @@ O workflow `.github/workflows/device-session-break-glass.yml` só roda em `main`
 
 A migration `20261126010300_issue_97_revalidate_legacy_devices.sql` preserva IDs e linhas, altera pares aprovados para `pending`, compara exatamente pares selecionados, dispositivos/sessões atualizados e eventos auditados, e aborta a transação em divergência. O evento por dispositivo guarda os valores históricos de `approved_at`, `approved_by` e `requested_at` antes de limpar os campos de aprovação ativos; não trata o `approved_at` automático como aprovação humana.
 
-O CI não usa credenciais ou URL de `connexa-dev` para autenticação. Com `AUTH_TEST_SUPABASE_URL`, `AUTH_TEST_SUPABASE_DB_URL` e chave publicável configurados para o mesmo projeto isolado, valida a proveniência de 272 pares e zero eventos antes de aplicar as migrations em atraso, e confirma os eventos/timestamps de proveniência depois. Sem esse ambiente, os testes de banco e JWT aparecem como skipped. As migrations `10200`/`10300` permanecem não aplicadas no `connexa-dev`; executar o workflow isolado não as promove para o DEV.
+O CI não usa credenciais ou URL de `connexa-dev` ou Production para autenticação. O job de CI exige o GitHub Environment `issue-97-sqa`, a variável `ISSUE97_SQA_PROJECT_REF` e os secrets `AUTH_TEST_SUPABASE_URL`, `AUTH_TEST_SUPABASE_DB_URL`, `AUTH_TEST_SUPABASE_PUBLISHABLE_KEY`, `AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY` e credenciais isoladas de usuário/admin. O guard compara a referência allowlisted, URL e DB, rejeitando explicitamente DEV e Production antes de qualquer push. O CI falha claramente quando a configuração SQA está ausente; não sinaliza sucesso com testes de integração ignorados. Com SQA configurado, valida a proveniência de 272 pares e zero eventos antes das migrations em atraso, e confirma eventos/timestamps depois. A migration smoke usa somente o DB SQA. As migrations `10200`/`10300` permanecem fora do `connexa-dev`; o workflow isolado não as promove para DEV.
+
+O projeto SQA dedicado ainda não foi criado: a organização está no limite de dois projetos ativos gratuitos. A tentativa de criação retornou custo estimado de `$0/mês`, mas foi bloqueada pelo limite do plano; nenhum projeto existente foi pausado/excluído, e nenhum custo/plano foi contratado. Até provisionar o projeto e configurar o GitHub Environment/secrets, validação remota de migrations/JWT/browser está bloqueada.
 
 ## Exposição das RPCs `SECURITY DEFINER`
 

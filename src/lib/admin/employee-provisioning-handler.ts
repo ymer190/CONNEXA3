@@ -68,6 +68,19 @@ function responseForResult(result: EmployeeProvisioningResult): Response {
     );
   }
 
+  if (result.kind !== "failed") {
+    return Response.json(
+      {
+        success: false,
+        error: {
+          code: "PROVISIONING_RESULT_INVALID",
+          message: "Não foi possível interpretar o resultado do provisionamento.",
+        },
+      },
+      { status: 503 },
+    );
+  }
+
   const status = result.code === "INVITE_NOT_CREATED" ||
     result.code === "DOMAIN_TRANSACTION_FAILED"
     ? 502

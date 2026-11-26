@@ -12,7 +12,7 @@
 .panel { display: grid; gap: 18px; padding: clamp(16px, 3vw, 26px); border: 1px solid #e8e0c9; border-radius: 17px; background: #fffefa; box-shadow: 0 12px 36px rgba(41,40,58,.05); }
 .panelHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .panelHeading h2 { margin: 0; color: #29283a; font-size: 19px; letter-spacing: -.025em; }
-.primaryButton { min-height: 42px; padding: 0 15px; border: 0; border-radius: 10px; background: #f4c542; color: #342b18; font-size: 12px; font-weight: 800; }
+.primaryButton { min-height: 42px; padding: 0 15px; border: 0; border-radius: 10px; background: #f4c542; color: #342b18; font-size: 12px; font-weight: 800; cursor: pointer; }
 .primaryButton:disabled { cursor: not-allowed; opacity: .55; }
 .filters { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 12px; }
 .search { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border: 1px solid #e8e0c9; border-radius: 10px; background: #f8f5eb; color: #756f64; }
@@ -23,7 +23,7 @@
 .search:focus-within, .statusFilter select:focus-visible { outline: 3px solid rgba(244,197,66,.55); outline-offset: 2px; }
 .notice { display: flex; align-items: flex-start; gap: 13px; padding: 20px; border: 1px dashed #e3d5ad; border-radius: 13px; background: #fff8e5; }
 .noticeIcon { display: grid; flex: 0 0 36px; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: #ffedbd; color: #80500b; font-size: 19px; }
-.notice h3 { margin: 0; color: #29283a; font-size: 14px; }
+.notice h3, .form h3 { margin: 0; color: #29283a; font-size: 14px; }
 .notice p { margin: 7px 0 0; color: #756f64; font-size: 12px; line-height: 1.65; }
 .feedback { padding: 28px 18px; border: 1px dashed #e8e0c9; border-radius: 12px; color: #756f64; font-size: 12px; text-align: center; }
 .tableWrap { overflow-x: auto; border: 1px solid #e8e0c9; border-radius: 12px; }
@@ -33,6 +33,21 @@
 .tableWrap tr:last-child td { border-bottom: 0; }
 .status, .pendingAction { display: inline-flex; padding: 5px 8px; border-radius: 999px; background: #f4f0e4; color: #716b5d; font-size: 10px; font-weight: 750; }
 .pendingAction { background: #fff1c2; color: #80500b; }
+.detailButton { min-height: 34px; padding: 0 10px; border: 1px solid #e8e0c9; border-radius: 8px; background: #fffefa; color: #80500b; font-size: 11px; font-weight: 750; cursor: pointer; }
+.detailButton:hover { background: #fff8e5; border-color: #d6b34d; }
+.form { display: grid; gap: 16px; padding: 18px; border: 1px solid #e8e0c9; border-radius: 13px; background: #fffdf6; }
+.formDescription { margin: 7px 0 0; color: #756f64; font-size: 12px; line-height: 1.6; }
+.formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.formGrid label { display: grid; gap: 6px; color: #756f64; font-size: 11px; font-weight: 750; }
+.formGrid input, .formGrid select { width: 100%; min-height: 42px; padding: 0 11px; border: 1px solid #e8e0c9; border-radius: 9px; background: #fffefa; color: #29283a; font: inherit; font-size: 12px; }
+.formGrid input:focus-visible { outline: 3px solid rgba(244,197,66,.45); outline-offset: 1px; }
+.formGrid select:disabled { color: #8a8374; background: #f4f0e4; }
+.formFooter { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.formFooter span { color: #8a8374; font-size: 11px; line-height: 1.55; }
+.detailsGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.detailsGrid > div { padding: 13px; border: 1px solid #eee8d9; border-radius: 10px; background: #fffdf6; }
+.detailsGrid dt { color: #756f64; font-size: 10px; font-weight: 750; }
+.detailsGrid dd { margin: 6px 0 0; color: #29283a; font-size: 12px; }
 .note { margin: 0; color: #8a8374; font-size: 11px; line-height: 1.6; }
 .related { display: flex; justify-content: flex-end; }
 .srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
@@ -44,5 +59,6 @@
  .summary span { font-size: 10px; }
  .summary strong { font-size: 21px; }
  .panelHeading { align-items: flex-start; flex-direction: column; }
- .filters { grid-template-columns: 1fr; }
+ .filters, .formGrid, .detailsGrid { grid-template-columns: 1fr; }
+ .formFooter { align-items: flex-start; flex-direction: column; }
 }

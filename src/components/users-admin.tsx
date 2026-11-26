@@ -8,6 +8,7 @@ type AccountStatus = "active" | "blocked" | "deactivated";
 type ManagedUser = {
   id: string;
   name: string;
+  email?: string;
   departmentName: string;
   status: AccountStatus;
   permissionSummary?: string;
@@ -27,6 +28,11 @@ const statusLabels: Record<AccountStatus, string> = {
 export function UsersAdmin({ users = [], integrationState = "pending" }: UsersAdminProps) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | AccountStatus>("all");
+  const [selectedUser, setSelectedUser] = useState<ManagedUser | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newOrganization, setNewOrganization] = useState("");
 
   const filteredUsers = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
@@ -62,10 +68,37 @@ export function UsersAdmin({ users = [], integrationState = "pending" }: UsersAd
             <p className={styles.eyebrow}>GESTÃO DE COLABORADORES</p>
             <h2 id="users-list-title">Contas cadastradas</h2>
           </div>
-          <button className={styles.primaryButton} type="button" disabled aria-describedby="user-actions-note">
-            Cadastrar colaborador
+          <button className={styles.primaryButton} type="button" onClick={() => setShowCreateForm((value) => !value)}>
+            {showCreateForm ? "Fechar cadastro" : "Preparar cadastro"}
           </button>
         </div>
+
+        {showCreateForm && (
+          <form className={styles.form} onSubmit={(event) => event.preventDefault()}>
+            <div>
+              <p className={styles.eyebrow}>NOVO COLABORADOR</p>
+              <h3>Dados iniciais</h3>
+              <p className={styles.formDescription}>Campos preparados conforme o contrato em desenvolvimento da #92. O envio permanece desabilitado até a publicação do fluxo seguro de provisionamento.</p>
+            </div>
+            <div className={styles.formGrid}>
+              <label>Nome completo
+                <input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Nome do colaborador" autoComplete="name" />
+              </label>
+              <label>E-mail corporativo
+                <input type="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} placeholder="nome@empresa.com.br" autoComplete="email" />
+              </label>
+              <label>Organização
+                <select value={newOrganization} onChange={(event) => setNewOrganization(event.target.value)} disabled>
+                  <option value="">Aguardando serviço de organizações da #92</option>
+                </select>
+              </label>
+            </div>
+            <div className={styles.formFooter}>
+              <span>O convite por e-mail e a criação do vínculo só serão ativados após #92, #93 e #97.</span>
+              <button className={styles.primaryButton} type="button" disabled>Enviar convite</button>
+            </div>
+          </form>
+        )}
 
         <div className={styles.filters}>
           <label className={styles.search}>
@@ -89,7 +122,7 @@ export function UsersAdmin({ users = [], integrationState = "pending" }: UsersAd
             <span className={styles.noticeIcon} aria-hidden="true">↗</span>
             <div>
               <h3>Integração administrativa pendente</h3>
-              <p>A interface está preparada, mas listagem, cadastro, alteração de status e gestão de permissões dependem dos contratos e serviços validados nas Issues #92, #94, #96 e #106. Nenhum usuário fictício será exibido e nenhuma operação será simulada.</p>
+              <p>A listagem e a alteração do ciclo de vida dependem dos serviços validados nas Issues #92 e #94. As permissões continuam vinculadas ao modelo server-side da #96 e à auditoria da #97. Nenhum usuário fictício será exibido e nenhuma operação será simulada.</p>
             </div>
           </div>
         )}
@@ -107,7 +140,7 @@ export function UsersAdmin({ users = [], integrationState = "pending" }: UsersAd
         {integrationState === "ready" && filteredUsers.length > 0 && (
           <div className={styles.tableWrap}>
             <table>
-              <thead><tr><th>Colaborador</th><th>Departamento</th><th>Status</th><th>Permissões</th><th>Ações</th></tr></thead>
+              <thead><tr><th>Colaborador</th><th>Departamento</th><th>Status</th><th>Permissões</th><th>Detalhes</th></tr></thead>
               <tbody>
                 {filteredUsers.map((user) => (
                   <tr key={user.id}>
@@ -115,7 +148,7 @@ export function UsersAdmin({ users = [], integrationState = "pending" }: UsersAd
                     <td>{user.departmentName || "Não informado"}</td>
                     <td><span className={styles.status}>{statusLabels[user.status]}</span></td>
                     <td>{user.permissionSummary ?? "Conforme perfil"}</td>
-                    <td><span className={styles.pendingAction}>Integração pendente</span></td>
+                    <td><button className={styles.detailButton} type="button" onClick={() => setSelectedUser(user)}>Ver perfil</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -126,6 +159,28 @@ export function UsersAdmin({ users = [], integrationState = "pending" }: UsersAd
           A autorização será validada no servidor em cada operação. Ocultar controles na interface não substitui autorização nem políticas de segurança.
         </p>
       </section>
+
+      {selectedUser && (
+        <section className={styles.panel} aria-labelledby="user-details-title">
+          <div className={styles.panelHeading}>
+            <div>
+              <p className={styles.eyebrow}>PERFIL DO COLABORADOR</p>
+              <h2 id="user-details-title">{selectedUser.name}</h2>
+            </div>
+            <button className={styles.detailButton} type="button" onClick={() => setSelectedUser(null)}>Fechar detalhes</button>
+          </div>
+          <dl className={styles.detailsGrid}>
+            <div><dt>E-mail</dt><dd>{selectedUser.email || "Não informado"}</dd></div>
+            <div><dt>Departamento</dt><dd>{selectedUser.departmentName || "Não informado"}</dd></div>
+            <div><dt>Status da conta</dt><dd>{statusLabels[selectedUser.status]}</dd></div>
+            <div><dt>Permissões</dt><dd>{selectedUser.permissionSummary || "Conforme perfil atribuído"}</dd></div>
+          </dl>
+          <div className={styles.formFooter}>
+            <span>Editar dados, bloquear, desativar ou reativar conta aguardam os serviços da #92/#94 e a auditoria central da #97.</span>
+            <button className={styles.primaryButton} type="button" disabled>Editar colaborador</button>
+          </div>
+        </section>
+      )}
 
       <nav className={styles.related} aria-label="Outras áreas administrativas">
         <Link href="/admin/departamentos">Gerenciar departamentos <span aria-hidden="true">→</span></Link>

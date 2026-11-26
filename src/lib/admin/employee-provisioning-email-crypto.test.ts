@@ -57,7 +57,7 @@ test("rejects tampered ciphertext", () => {
     "key_1",
   );
   const parts = encrypted.split(".");
-  parts[4] = `${parts[4].slice(0, -1)}A`;
+  parts[4] = `${parts[4][0] === "A" ? "B" : "A"}${parts[4].slice(1)}`;
 
   assert.throws(
     () => decryptProvisioningEmailWithKeyring(parts.join("."), { key_1: oldKey }),

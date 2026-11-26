@@ -92,13 +92,26 @@ async function main() {
     console.log(`PASS: ${name} denies a regular authenticated user (HTTP ${regularUser.status}).`);
   }
 
-  for (const [name, payload] of rpcCases) {
-    const admin = await callRpc(name, payload, adminToken);
-    assertAdminReachedRpc(name, admin);
+  const deviceAuthorization = await callRpc("device_session_is_authorized", {}, adminToken);
+  if (deviceAuthorization.status !== 200 || typeof deviceAuthorization.body !== "boolean") {
+    throw new Error(`Unable to verify administrator device authorization (HTTP ${deviceAuthorization.status}).`);
   }
 
-  console.log("PASS: all six department RPC role guards were exercised through real Supabase Auth JWTs.");
-  console.log("NOTE: admin mutation RPCs were tested with nonexistent identifiers and expected domain errors to avoid persistent DEV changes; this is not a successful business-operation test.");
+  for (const [name, payload] of rpcCases) {
+    const admin = await callRpc(name, payload, adminToken);
+    if (deviceAuthorization.body !== true) {
+      const detail = typeof admin.body === "string" ? admin.body : JSON.stringify(admin.body ?? {});
+      if (admin.status !== 403 || !detail.includes("Authorized device required")) {
+        throw new Error(`${name}: unapproved admin device was not denied by the device gate (HTTP ${admin.status}).`);
+      }
+      console.log(`PASS: ${name} denies a platform_admin with an unapproved device (HTTP ${admin.status}).`);
+    } else {
+      assertAdminReachedRpc(name, admin);
+    }
+  }
+
+  console.log("PASS: all six department RPCs were exercised through real Supabase Auth JWTs and the current device-authorization state.");
+  console.log("NOTE: admin mutation RPCs use nonexistent identifiers and expected domain errors to avoid persistent DEV mutations; read RPCs may append their required audit events.");
 }
 
 main().catch((error) => {

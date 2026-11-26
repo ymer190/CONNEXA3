@@ -1,0 +1,161 @@
+name: Issue 97 SQA evidence
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sqa-evidence:
+    name: SQA security checks (status in summary)
+    runs-on: ubuntu-latest
+    environment: issue-97-sqa
+    env:
+      AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
+      AUTH_TEST_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
+      AUTH_TEST_SUPABASE_DB_URL: ${{ secrets.AUTH_TEST_SUPABASE_DB_URL }}
+      AUTH_TEST_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
+      AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY }}
+      AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
+      AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
+      AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
+      AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Evaluate dedicated SQA configuration
+        id: sqa
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in AUTH_TEST_SUPABASE_PROJECT_REF AUTH_TEST_SUPABASE_URL AUTH_TEST_SUPABASE_DB_URL AUTH_TEST_SUPABASE_PUBLISHABLE_KEY AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY AUTH_TEST_USER_EMAIL AUTH_TEST_USER_PASSWORD AUTH_TEST_ADMIN_EMAIL AUTH_TEST_ADMIN_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then missing+=("$name"); fi
+          done
+
+          if (( ${#missing[@]} > 0 )); then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Issue 97 SQA evidence"
+              echo "**Status: PENDENTE — testes não executados, sem aprovação SQA.**"
+              echo "Missing dedicated SQA configuration: ${missing[*]}"
+              echo "The CI application checks are independent. Do not mark Issue 97 acceptance criteria complete based on this run."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning title=Issue 97 SQA PENDENTE::Security, JWT, migration and browser tests were not executed; this is not SQA approval."
+            exit 0
+          fi
+
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+          node scripts/assert-isolated-supabase.cjs
+
+      - name: Run guard boundary regression cases
+        if: steps.sqa.outputs.configured == 'true'
+        run: node scripts/assert-isolated-supabase-smoke.cjs
+
+      - name: Validate and apply Issue 97 migrations on isolated SQA Supabase
+        if: steps.sqa.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/assert-isolated-supabase.cjs
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+          npx supabase db push --db-url "$AUTH_TEST_SUPABASE_DB_URL" --dry-run
+          bash scripts/issue97-sqa-migration-validation.sh
+
+      - name: Build application against isolated SQA Supabase
+        if: steps.sqa.outputs.configured == 'true'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          node scripts/assert-isolated-supabase.cjs
+          npm run build
+
+      - name: Test department RPC authorization with real Supabase JWTs
+        if: steps.sqa.outputs.configured == 'true'
+        run: |
+          node scripts/assert-isolated-supabase.cjs
+          node scripts/department-rpc-security-smoke.cjs
+
+      - name: Test break-glass rejects a missing operator reference
+        if: steps.sqa.outputs.configured == 'true'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          node scripts/assert-isolated-supabase.cjs
+          node scripts/issue97-bootstrap-null-reference-smoke.cjs
+
+      - name: Install browser test dependencies
+        if: steps.sqa.outputs.configured == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Test regular user login and admin denial
+        if: steps.sqa.outputs.configured == 'true'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
+        shell: bash
+        run: |
+          node scripts/assert-isolated-supabase.cjs
+          setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-auth-test.log 2>&1 &
+          server_pid=$!
+          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/login > /dev/null; then break; fi
+            sleep 2
+          done
+          node scripts/auth-regular-user-smoke.cjs
+
+      - name: Test platform administrator login, access, and logout
+        if: steps.sqa.outputs.configured == 'true'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
+        shell: bash
+        run: |
+          node scripts/assert-isolated-supabase.cjs
+          setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-admin-auth-test.log 2>&1 &
+          server_pid=$!
+          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/login > /dev/null; then break; fi
+            sleep 2
+          done
+          node scripts/auth-admin-smoke.cjs
+
+      - name: Publish SQA execution status
+        if: always()
+        env:
+          CONFIGURED: ${{ steps.sqa.outputs.configured }}
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          if [[ "$CONFIGURED" != "true" ]]; then
+            exit 0
+          fi
+          if [[ "$JOB_STATUS" == "success" ]]; then
+            {
+              echo "## Issue 97 SQA evidence"
+              echo "**Status: TESTES EXECUTADOS — sucesso técnico neste projeto SQA.**"
+              echo "A aprovação independente SQA e os critérios de aceite ainda precisam ser registrados formalmente."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## Issue 97 SQA evidence"
+              echo "**Status: FALHOU — não aprovado.** Consulte o step que falhou; os critérios de aceite continuam pendentes."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

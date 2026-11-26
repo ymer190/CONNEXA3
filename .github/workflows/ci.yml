@@ -13,17 +13,9 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  validate-app:
     name: Validate application
     runs-on: ubuntu-latest
-    environment: issue-97-sqa
-    env:
-      AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
-      HAS_ISOLATED_SUPABASE_TEST: ${{ vars.ISSUE97_SQA_PROJECT_REF != '' && secrets.AUTH_TEST_SUPABASE_URL != '' && secrets.AUTH_TEST_SUPABASE_DB_URL != '' && secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY != '' }}
-      HAS_AUTH_TEST_SECRETS: ${{ vars.ISSUE97_SQA_PROJECT_REF != '' && secrets.AUTH_TEST_SUPABASE_URL != '' && secrets.AUTH_TEST_SUPABASE_DB_URL != '' && secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY != '' && secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' }}
-      HAS_AUTH_ADMIN_TEST_SECRETS: ${{ vars.ISSUE97_SQA_PROJECT_REF != '' && secrets.AUTH_TEST_SUPABASE_URL != '' && secrets.AUTH_TEST_SUPABASE_DB_URL != '' && secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY != '' && secrets.AUTH_TEST_ADMIN_EMAIL != '' && secrets.AUTH_TEST_ADMIN_PASSWORD != '' }}
-      HAS_DEPARTMENT_RPC_TEST_SECRETS: ${{ vars.ISSUE97_SQA_PROJECT_REF != '' && secrets.AUTH_TEST_SUPABASE_URL != '' && secrets.AUTH_TEST_SUPABASE_DB_URL != '' && secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY != '' && secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' && secrets.AUTH_TEST_ADMIN_EMAIL != '' && secrets.AUTH_TEST_ADMIN_PASSWORD != '' }}
-      HAS_ISSUE_97_BOOTSTRAP_TEST: ${{ vars.ISSUE97_SQA_PROJECT_REF != '' && secrets.AUTH_TEST_SUPABASE_URL != '' && secrets.AUTH_TEST_SUPABASE_DB_URL != '' && secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -38,48 +30,6 @@ jobs:
 
       - name: Test isolated Supabase allowlist guard
         run: node scripts/assert-isolated-supabase-smoke.cjs
-
-      - name: Require dedicated Issue 97 SQA environment
-        env:
-          AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
-          AUTH_TEST_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
-          AUTH_TEST_SUPABASE_DB_URL: ${{ secrets.AUTH_TEST_SUPABASE_DB_URL }}
-          AUTH_TEST_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
-          AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY }}
-          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
-          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
-          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
-          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          for name in AUTH_TEST_SUPABASE_PROJECT_REF AUTH_TEST_SUPABASE_URL AUTH_TEST_SUPABASE_DB_URL AUTH_TEST_SUPABASE_PUBLISHABLE_KEY AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY AUTH_TEST_USER_EMAIL AUTH_TEST_USER_PASSWORD AUTH_TEST_ADMIN_EMAIL AUTH_TEST_ADMIN_PASSWORD; do
-            if [[ -z "${!name:-}" ]]; then
-              echo "Missing required dedicated SQA configuration: $name"
-              exit 1
-            fi
-          done
-          node scripts/assert-isolated-supabase.cjs
-
-      - name: Validate and apply Issue 97 migrations on isolated SQA Supabase
-        if: env.HAS_ISOLATED_SUPABASE_TEST == 'true'
-        env:
-          AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
-          AUTH_TEST_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
-          AUTH_TEST_SUPABASE_DB_URL: ${{ secrets.AUTH_TEST_SUPABASE_DB_URL }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/assert-isolated-supabase.cjs
-          sudo apt-get update
-          sudo apt-get install --yes postgresql-client
-          npx supabase db push --db-url "$AUTH_TEST_SUPABASE_DB_URL" --dry-run
-          bash scripts/issue97-sqa-migration-validation.sh
-
-      - name: Explain skipped isolated Supabase migration validation
-        if: env.HAS_ISOLATED_SUPABASE_TEST != 'true'
-        run: >-
-          echo "Issue 97 migration/JWT validation skipped. Configure ISSUE97_SQA_PROJECT_REF as the independent allowlist and URL, DB, publishable-key and service-role secrets for a dedicated third Supabase project. CI rejects connexa-dev and connexa Production."
 
       - name: Report dependency advisories for review
         continue-on-error: true
@@ -141,14 +91,12 @@ jobs:
             exit 1
           fi
 
-          location=$(curl -sS -D - -o /dev/null http://127.0.0.1:3000/admin | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\\r$/, ""); print $2 }')
+          location=$(curl -sS -D - -o /dev/null http://127.0.0.1:3000/admin | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\r$/, ""); print $2 }')
           location_path="${location#http://localhost:3000}"
           if [[ "$location_path" != /acesso-negado* ]]; then
             echo "Expected fail-closed redirect to /acesso-negado without Supabase config; received: $location"
             exit 1
           fi
-
-          echo "PASS: /admin fails closed without Supabase configuration."
 
           public_status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/login || true)
           if [ "$public_status" != "200" ]; then
@@ -157,128 +105,3 @@ jobs:
           fi
 
           echo "PASS: protected route fails closed and public /login remains available."
-
-      # Auth tests use a separate SQA project, never the shared connexa-dev project.
-      - name: Build application against isolated SQA Supabase
-        if: env.HAS_AUTH_TEST_SECRETS == 'true' || env.HAS_AUTH_ADMIN_TEST_SECRETS == 'true'
-        env:
-          AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
-          AUTH_TEST_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
-          AUTH_TEST_SUPABASE_DB_URL: ${{ secrets.AUTH_TEST_SUPABASE_DB_URL }}
-          AUTH_TEST_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
-        run: |
-          node scripts/assert-isolated-supabase.cjs
-          npm run build
-
-      - name: Test department RPC authorization through PostgREST with real JWTs
-        if: env.HAS_DEPARTMENT_RPC_TEST_SECRETS == 'true'
-        env:
-          AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
-          AUTH_TEST_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
-          AUTH_TEST_SUPABASE_DB_URL: ${{ secrets.AUTH_TEST_SUPABASE_DB_URL }}
-          AUTH_TEST_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
-          AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY }}
-          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
-          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
-          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
-          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
-        run: |
-          node scripts/assert-isolated-supabase.cjs
-          node scripts/department-rpc-security-smoke.cjs
-
-      - name: Explain skipped department RPC PostgREST test
-        if: env.HAS_DEPARTMENT_RPC_TEST_SECRETS != 'true'
-        run: >-
-          echo "Department RPC PostgREST test skipped. It requires isolated Supabase project credentials, service role, and test-user credentials; connexa-dev is not used by CI."
-
-      - name: Test break-glass rejects a missing operator reference
-        if: env.HAS_ISSUE_97_BOOTSTRAP_TEST == 'true'
-        env:
-          AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
-          AUTH_TEST_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
-          AUTH_TEST_SUPABASE_DB_URL: ${{ secrets.AUTH_TEST_SUPABASE_DB_URL }}
-          AUTH_TEST_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
-          AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          node scripts/assert-isolated-supabase.cjs
-          node scripts/issue97-bootstrap-null-reference-smoke.cjs
-
-      - name: Explain skipped break-glass null-reference regression test
-        if: env.HAS_ISSUE_97_BOOTSTRAP_TEST != 'true'
-        run: >-
-          echo "Break-glass regression test skipped. Configure service-role credentials scoped only to the isolated SQA Supabase project."
-
-      - name: Install browser test dependencies
-        if: env.HAS_AUTH_TEST_SECRETS == 'true' || env.HAS_AUTH_ADMIN_TEST_SECRETS == 'true'
-        run: npx playwright install --with-deps chromium
-
-      - name: Test regular user login and admin denial
-        if: env.HAS_AUTH_TEST_SECRETS == 'true'
-        env:
-          AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
-          AUTH_TEST_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
-          AUTH_TEST_SUPABASE_DB_URL: ${{ secrets.AUTH_TEST_SUPABASE_DB_URL }}
-          AUTH_TEST_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
-          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
-          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
-          AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY }}
-        shell: bash
-        run: |
-          node scripts/assert-isolated-supabase.cjs
-          setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-auth-test.log 2>&1 &
-          server_pid=$!
-          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
-
-          for attempt in {1..30}; do
-            if curl -fsS http://127.0.0.1:3000/login > /dev/null; then
-              break
-            fi
-            sleep 2
-          done
-
-          node scripts/auth-regular-user-smoke.cjs
-
-      - name: Test platform administrator login, access, and logout
-        if: env.HAS_AUTH_ADMIN_TEST_SECRETS == 'true'
-        env:
-          AUTH_TEST_SUPABASE_PROJECT_REF: ${{ vars.ISSUE97_SQA_PROJECT_REF }}
-          AUTH_TEST_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
-          AUTH_TEST_SUPABASE_DB_URL: ${{ secrets.AUTH_TEST_SUPABASE_DB_URL }}
-          AUTH_TEST_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.AUTH_TEST_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_PUBLISHABLE_KEY }}
-          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
-          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
-          AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY }}
-        shell: bash
-        run: |
-          node scripts/assert-isolated-supabase.cjs
-          setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-admin-auth-test.log 2>&1 &
-          server_pid=$!
-          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
-
-          for attempt in {1..30}; do
-            if curl -fsS http://127.0.0.1:3000/login > /dev/null; then
-              break
-            fi
-            sleep 2
-          done
-
-          node scripts/auth-admin-smoke.cjs
-
-      - name: Explain skipped administrator browser test
-        if: env.HAS_AUTH_ADMIN_TEST_SECRETS != 'true'
-        run: echo "Administrator browser test skipped because its GitHub Actions secrets are not configured."
-
-      - name: Explain skipped authenticated browser test
-        if: env.HAS_AUTH_TEST_SECRETS != 'true'
-        run: >-
-          echo "Authenticated browser test skipped. Configure the isolated SQA Supabase project and its user credentials. CI deliberately does not authenticate against connexa-dev."

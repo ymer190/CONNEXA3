@@ -211,6 +211,20 @@ Operações mutáveis de administração usam transação no banco e escrevem au
 6. Migrations são revisadas/versionadas e aplicadas primeiro em `connexa-dev`; evidência fica no PR. Este processo não autoriza alteração em Production.
 7. A validação conjunta de Back-end, Front-end, Tech Lead e SQA será realizada na etapa final da issue, antes do aceite.
 
+### Teste automatizado PostgREST com dispositivo autorizado
+
+O smoke de integração da #106 usa JWTs reais do Supabase Auth. Como as RPCs administrativas exigem também uma sessão vinculada a dispositivo aprovado, autenticar por senha no CI não é suficiente: cada novo login recebe um `session_id` diferente. Antes de chamar as RPCs, o teste executa `register_device_session` com credencial de dispositivo já aprovada, vinculando a sessão corrente ao dispositivo; o teste falha fechado se o retorno não for `approved`.
+
+Secrets necessários no GitHub Actions (DEV somente):
+- `AUTH_TEST_USER_EMAIL` / `AUTH_TEST_USER_PASSWORD`
+- `AUTH_TEST_USER_DEVICE_ID` / `AUTH_TEST_USER_DEVICE_SECRET`
+- `AUTH_TEST_ADMIN_EMAIL` / `AUTH_TEST_ADMIN_PASSWORD`
+- `AUTH_TEST_ADMIN_DEVICE_ID` / `AUTH_TEST_ADMIN_DEVICE_SECRET`
+
+Os dois dispositivos precisam ser previamente aprovados pelo fluxo administrativo normal. Não conceder papel administrativo ao usuário comum, não inserir sessão diretamente no banco e não remover a checagem de dispositivo para fazer o CI passar. O secret de dispositivo é credencial privada e deve existir somente nos secrets do GitHub Actions; nunca em arquivo, log, issue ou variável `NEXT_PUBLIC_*`.
+
+Para validar a auditoria com eventos reais, o CI executa duas consultas administrativas legítimas de sessões pelo JWT autorizado. A RPC registra os eventos na trilha central; em seguida, o teste consulta `admin_list_administrative_audit` via PostgREST e verifica a continuação pela chave composta `(occurred_at,id)`. Não são inseridas linhas artificiais nem executadas mutações de departamentos.
+
 ### Checklist da versão 1.2
 
 - [x] Atualizado baseline a partir do banco `connexa-dev` e da `main` em 26/11/2026.
@@ -222,6 +236,7 @@ Operações mutáveis de administração usam transação no banco e escrevem au
 - [ ] PO/privacidade validou a aplicação da regra de acesso excepcional/retenção aos consumidores.
 - [x] Documentar processo de comunicação, documentação, revisão e compatibilidade antes da integração.
 - [ ] Validar a chamada PostgREST paginada com sessão autorizada e eventos reais de auditoria (etapa final).
+- [ ] Configurar os secrets de credencial dos dois dispositivos aprovados no GitHub Actions e executar o smoke PostgREST/auditoria real.
 - [ ] Alinhar PR #153 e migrations da #97 com `main` antes de anunciar integração de dispositivos/auditoria.
 
 ## Referências

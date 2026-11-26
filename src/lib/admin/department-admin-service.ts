@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 
 type ServiceFailure = {
   success: false;
-  status: 401 | 403 | 500 | 503;
+  status: 400 | 401 | 403 | 500 | 503;
   code: string;
   message: string;
 };

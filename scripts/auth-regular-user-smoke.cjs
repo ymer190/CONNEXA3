@@ -12,18 +12,27 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
 
+  async function assertDenied(stage) {
+    await page.waitForURL((url) => ["/acesso-negado", "/dispositivo-pendente"].includes(url.pathname), { timeout: 20000 });
+    const path = new URL(page.url()).pathname;
+    if (path === "/dispositivo-pendente") {
+      await page.getByRole("heading", { name: "Aguardando liberação da TI" }).waitFor();
+    } else {
+      await page.getByRole("heading", { name: "Acesso não autorizado" }).waitFor();
+    }
+    console.log(`PASS: ${stage}; regular user remains outside /admin (${path}).`);
+  }
+
   try {
     await page.goto(`${baseUrl}/login?next=%2Fadmin`);
     await page.locator("#email").fill(email);
     await page.locator("#password").fill(password);
     await page.getByRole("button", { name: "Entrar" }).click();
 
-    await page.waitForURL("**/acesso-negado", { timeout: 20000 });
-    console.log("PASS: authenticated regular user is denied access to /admin.");
+    await assertDenied("Authenticated regular user is denied access to /admin");
 
     await page.reload();
-    await page.waitForURL("**/acesso-negado", { timeout: 20000 });
-    console.log("PASS: authenticated session persists and admin access remains denied after refresh.");
+    await assertDenied("Authenticated session remains denied after refresh");
   } finally {
     await browser.close();
   }

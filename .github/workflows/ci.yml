@@ -196,6 +196,8 @@ jobs:
         env:
           AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
           AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
+          AUTH_TEST_ADMIN_DEVICE_ID: ${{ secrets.AUTH_TEST_ADMIN_DEVICE_ID }}
+          AUTH_TEST_ADMIN_DEVICE_SECRET: ${{ secrets.AUTH_TEST_ADMIN_DEVICE_SECRET }}
         shell: bash
         run: |
           setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-admin-auth-test.log 2>&1 &

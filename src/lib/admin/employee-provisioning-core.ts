@@ -106,8 +106,11 @@ export function sanitizeProvisioningError(value: unknown): string {
   const raw = value instanceof Error ? value.message : String(value ?? "Unknown error");
   return raw
     .replace(/Bearer\s+\S+/gi, "Bearer [REDACTED]")
+    .replace(/\bsb_secret_[A-Za-z0-9_-]+/gi, "[REDACTED]")
+    .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, "[JWT]")
+    .replace(/([?&](?:access_token|refresh_token|token|apikey|api_key)=)[^&#\s]+/gi, "$1[REDACTED]")
+    .replace(/\b(password|passwd|token|secret|authorization|api[_-]?key|service[_-]?role[_-]?key|refresh[_-]?token|access[_-]?token)\s*[:=]\s*[^\s,;&]+/gi, "$1=[REDACTED]")
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[EMAIL]")
-    .replace(/(password|token|secret|authorization)\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")
     .replace(/[\r\n\t]+/g, " ")
     .slice(0, 240);
 }

@@ -10,9 +10,9 @@ const rpcCases = [
   ["admin_transfer_department_member", { p_organization_id: "00000000-0000-0000-0000-000000000000", p_user_id: "00000000-0000-0000-0000-000000000000", p_new_department_id: "00000000-0000-0000-0000-000000000000" }],
 ];
 
-// These deliberately nonexistent IDs make the admin calls non-mutating.
-// Expected domain errors prove the request passed the role guard without creating,
-// updating, transferring, or deactivating real DEV data.
+// These deliberately nonexistent IDs prevent department business-data changes.
+// Successful list RPCs still write administrative audit events, so this script
+// must run only against the dedicated disposable CI Supabase project.
 const adminDomainOutcomes = {
   admin_list_departments: { status: 200, predicate: (result) => Array.isArray(result.body) && result.body.length === 0 },
   admin_create_department: { code: "23503" }, // FK: organization does not exist
@@ -75,6 +75,9 @@ function assertAdminReachedRpc(name, result) {
 
 async function main() {
   if (!baseUrl || !apiKey) throw new Error("Supabase URL and publishable key are required.");
+if (/dzsacdtolxrqgwlekzdg|uwrzrwwzkurjdhxituwq/.test(baseUrl)) {
+  throw new Error("Refusing to run department RPC tests against shared DEV or PROD Supabase projects.");
+}
   const userToken = await signIn(required("AUTH_TEST_USER_EMAIL"), required("AUTH_TEST_USER_PASSWORD"), "Regular-user");
   const adminToken = await signIn(required("AUTH_TEST_ADMIN_EMAIL"), required("AUTH_TEST_ADMIN_PASSWORD"), "Platform-admin");
 
@@ -98,7 +101,7 @@ async function main() {
   }
 
   console.log("PASS: all six department RPC role guards were exercised through real Supabase Auth JWTs.");
-  console.log("NOTE: admin mutation RPCs were tested with nonexistent identifiers and expected domain errors to avoid persistent DEV changes; this is not a successful business-operation test.");
+  console.log("NOTE: nonexistent identifiers prevent department business-data changes; audit events are expected in the disposable CI project.");
 }
 
 main().catch((error) => {

@@ -89,8 +89,8 @@ jobs:
           fi
 
           invite_redirect=$(curl -sS -D - -o /dev/null 'http://127.0.0.1:3000/auth/callback?token_hash=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&type=invite' | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\\r$/, ""); print $2 }')
-          if [[ "$invite_redirect" != *"/confirmar-convite#token_hash="* ]]; then
-            echo "Expected valid-shaped invite to reach explicit confirmation page; received: $invite_redirect"
+          if [[ "$invite_redirect" != *"/convite-invalido"* || "$invite_redirect" == *"token_hash="* ]]; then
+            echo "Expected query-string invite tokens to be rejected without forwarding the token; received: $invite_redirect"
             cat /tmp/connexa-next.log
             exit 1
           fi

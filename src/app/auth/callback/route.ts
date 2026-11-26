@@ -50,5 +50,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(invalidUrl);
   }
 
+  // The invitation is not accepted unless the trusted server-side marker
+  // has already been provisioned by the invitation workflow (#92).
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user || user.app_metadata?.first_access_pending !== true) {
+    await supabase.auth.signOut();
+    return NextResponse.redirect(invalidUrl);
+  }
+
   return response;
 }

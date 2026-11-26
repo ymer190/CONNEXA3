@@ -78,6 +78,21 @@ async function main() {
   const userToken = await signIn(required("AUTH_TEST_USER_EMAIL"), required("AUTH_TEST_USER_PASSWORD"), "Regular-user");
   const adminToken = await signIn(required("AUTH_TEST_ADMIN_EMAIL"), required("AUTH_TEST_ADMIN_PASSWORD"), "Platform-admin");
 
+  // platform_users has an RLS policy that exposes only the caller's own role.
+  // Check this fixture before exercising RPCs so a valid Auth login is not
+  // mistaken for a provisioned platform administrator.
+  const adminRoleResponse = await fetch(`${baseUrl}/rest/v1/platform_users?select=role`, {
+    headers: { apikey: apiKey, Authorization: `Bearer ${adminToken}` },
+  });
+  const adminRoleRows = await adminRoleResponse.json().catch(() => []);
+  if (!adminRoleResponse.ok) {
+    throw new Error(`Admin fixture role lookup failed with HTTP ${adminRoleResponse.status}; verify authenticated SELECT access to the caller's own platform_users row.`);
+  }
+  if (!Array.isArray(adminRoleRows) || !adminRoleRows.some((row) => row.role === "platform_admin")) {
+    throw new Error("AUTH_TEST_ADMIN_EMAIL authenticated successfully, but its user has no platform_admin row in public.platform_users on Supabase DEV. Configure the CI admin test credentials to match the already-provisioned DEV platform administrator; do not grant the role from the client.");
+  }
+  console.log("PASS: CI administrator fixture has its own platform_admin row in public.platform_users.");
+
   for (const [name, payload] of rpcCases) {
     const anonymous = await callRpc(name, payload, null);
     if (anonymous.status !== 401) throw new Error(`${name}: expected anonymous HTTP 401, received HTTP ${anonymous.status}.`);

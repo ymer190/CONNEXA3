@@ -2,20 +2,26 @@
 
 import { useState, type FormEvent } from "react";
 
-type AcceptInviteFormProps = {
-  tokenHash: string;
-};
-
-export function AcceptInviteForm({ tokenHash }: AcceptInviteFormProps) {
+export function AcceptInviteForm() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage("");
-    setIsSubmitting(true);
 
-    // Remove the one-time token from the visible URL before sending it.
+    const fragment = new URLSearchParams(window.location.hash.slice(1));
+    const tokenHash = fragment.get("token_hash");
+    const type = fragment.get("type");
+
+    if (!tokenHash || tokenHash.length > 512 || type !== "invite") {
+      setErrorMessage("O link do convite é inválido ou está incompleto. Solicite um novo convite.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    // The URL fragment is not sent to the server in the initial page request.
+    // Remove it before making the one-time verification request.
     window.history.replaceState({}, document.title, "/confirmar-convite");
 
     try {

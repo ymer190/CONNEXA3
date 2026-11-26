@@ -13,7 +13,18 @@ async function main() {
   const page = await browser.newPage();
 
   async function assertDenied(stage) {
-    await page.waitForURL((url) => ["/acesso-negado", "/dispositivo-pendente"].includes(url.pathname), { timeout: 20000 });
+    try {
+      await page.waitForURL(
+        (url) => ["/acesso-negado", "/dispositivo-pendente"].includes(url.pathname),
+        { timeout: 20000, waitUntil: "domcontentloaded" },
+      );
+    } catch {
+      const currentUrl = page.url();
+      const visibleText = await page.locator("body").innerText().catch(() => "");
+      throw new Error(
+        `${stage}: expected a denied route, but remained at ${currentUrl}. Visible page text: ${visibleText.slice(0, 500)}`,
+      );
+    }
     const path = new URL(page.url()).pathname;
     if (path === "/dispositivo-pendente") {
       await page.getByRole("heading", { name: "Aguardando liberação da TI" }).waitFor();
@@ -42,3 +53,4 @@ main().catch((error) => {
   console.error("Authentication smoke test failed:", error.message);
   process.exit(1);
 });
+

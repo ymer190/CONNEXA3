@@ -119,9 +119,9 @@ As duas RPCs retornam todas as linhas correspondentes, em ordem de atividade mai
 
 Não existem `correlation_id`, `page_size`, `result_count` ou coluna de corpo de conversa nesta tabela. Credenciais/tokens são redigidos; não se registram corpos de mensagem ou conteúdo de anexo. Clientes `anon`/`authenticated` não têm acesso direto à tabela nem podem atualizá-la/apagá-la.
 
-RPC: `admin_list_administrative_audit({p_before: ISO8601|null, p_limit: integer})` retorna `AdministrativeAuditEvent[]`, exclusivamente para `platform_admin` com sessão/dispositivo autorizados. `p_limit` default 50 e aceita 1–100. Ordenação decrescente por `occurred_at`, depois `id`. `p_before` é exclusivo (`occurred_at < p_before`). Não há filtros de ator, ação, organização ou tipo de alvo.
+RPC no DEV: `admin_list_administrative_audit({p_before: ISO8601|null, p_before_id: bigint|null, p_limit: integer})` retorna `AdministrativeAuditEvent[]`, exclusivamente para `platform_admin` com sessão/dispositivo autorizados. `p_limit` default 50 e aceita 1–100. Primeira página: ambos os campos do cursor são `null`; páginas seguintes: enviar o par `(occurred_at, id)` do último registro recebido. Os dois campos do cursor devem ser enviados juntos. Ordenação e continuação são decrescentes pela chave composta `(occurred_at, id)`. Não há filtros de ator, ação, organização ou tipo de alvo.
 
-**Limite de paginação a corrigir antes de consumo paginado:** a RPC só recebe timestamp como cursor, embora ordene por timestamp e `id`. Se vários eventos têm o mesmo `occurred_at` e o cliente reutiliza o horário do último evento como `p_before`, os demais eventos desse mesmo instante são excluídos da página seguinte. A ordenação sozinha não resolve isso. Até uma interface com cursor composto/estável (`occurred_at`, `id`) estar implementada e validada no DEV, não integrar paginação por timestamp como completa nem deduplicar/descartar resultados por suposição.
+A correção de cursor composto foi aplicada no DEV pela migration `20261126195458_issue_97_audit_composite_cursor` e adicionada à branch da PR #153. A comparação lexicográfica foi verificada com timestamps repetidos: a página seguinte inclui os IDs menores do mesmo timestamp e continua aos timestamps anteriores. A assinatura e os grants foram conferidos; a validação PostgREST com uma sessão autenticada e evento real permanece pendente.
 
 A política aprovada pela PO é retenção de **cinco anos** para dados/eventos abrangidos, com holds documentados que podem estender a preservação. O mecanismo de retenção, início da contagem por categoria, expurgo de backups/réplicas e anonimização ainda são gates de implementação; esta RPC não aplica retenção.
 
@@ -206,7 +206,8 @@ Operações mutáveis de administração usam transação no banco e escrevem au
 - [ ] Back-end validou os contratos e a limitação/correção de paginação.
 - [ ] Front-end validou os mesmos exemplos, erros e limites.
 - [ ] PO/privacidade validou a aplicação da regra de acesso excepcional/retenção aos consumidores.
-- [ ] Resolver e validar no DEV o cursor composto/estável da auditoria antes de integrar paginação.
+- [x] Corrigir no DEV o cursor da auditoria para usar `(occurred_at, id)` e confirmar a comparação com timestamps iguais.
+- [ ] Validar a chamada PostgREST paginada com sessão autorizada e eventos reais de auditoria.
 - [ ] Alinhar PR #153 e migrations da #97 com `main` antes de anunciar integração de dispositivos/auditoria.
 
 ## Referências

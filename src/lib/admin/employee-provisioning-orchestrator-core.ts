@@ -26,6 +26,11 @@ export type DomainTransactionResult =
   | { kind: "rolled_back" }
   | { kind: "unknown" };
 
+export type AuthCompensationResult =
+  | { kind: "deleted" }
+  | { kind: "not_safe" }
+  | { kind: "unknown" };
+
 export type InviteCreationResult =
   | {
       kind: "created";
@@ -72,7 +77,10 @@ export type EmployeeProvisioningDependencies = {
   ) => Promise<DomainTransactionResult>;
   completeOperation: (claim: ProvisioningClaim) => Promise<boolean>;
   markCompensationPending: (claim: ProvisioningClaim) => Promise<boolean>;
-  deleteAuthIdentity: (authUserId: string) => Promise<boolean>;
+  /** Must verify the identity is still unaccepted and belongs to this operation before deletion. */
+  deleteUnacceptedAuthIdentityCreatedByOperation: (
+    authUserId: string,
+  ) => Promise<AuthCompensationResult>;
   markCompensated: (claim: ProvisioningClaim) => Promise<boolean>;
   markManualReconciliationRequired: (
     claim: ProvisioningClaim,
@@ -186,15 +194,24 @@ export async function runEmployeeProvisioning(
       return { kind: "manual_reconciliation_required" };
     }
 
-    let identityDeleted = false;
+    let compensationResult: AuthCompensationResult;
     try {
-      identityDeleted = await dependencies.deleteAuthIdentity(invite.authUserId);
+      compensationResult =
+        await dependencies.deleteUnacceptedAuthIdentityCreatedByOperation(
+          invite.authUserId,
+        );
     } catch {
-      identityDeleted = false;
+      compensationResult = { kind: "unknown" };
     }
 
-    if (!identityDeleted) {
-      await requireManualReconciliation(dependencies, claim, "auth_compensation_failed");
+    if (compensationResult.kind !== "deleted") {
+      await requireManualReconciliation(
+        dependencies,
+        claim,
+        compensationResult.kind === "not_safe"
+          ? "auth_identity_no_longer_safe_to_delete"
+          : "auth_compensation_outcome_unknown",
+      );
       return { kind: "manual_reconciliation_required" };
     }
 

@@ -192,7 +192,7 @@ test("requires manual reconciliation when Auth compensation fails", async () => 
   const { dependencies: deps, events } = dependencies({
     persistProfileMembershipAndAuditAtomically: async () => {
       events.push("persist-domain-and-audit");
-      return false;
+      return { kind: "rolled_back" as const };
     },
     deleteAuthIdentity: async () => {
       events.push("delete-auth-identity");

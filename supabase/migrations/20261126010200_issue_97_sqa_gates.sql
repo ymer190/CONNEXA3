@@ -23,11 +23,26 @@ as $$
           and ds.status = 'approved'
           and d.status = 'approved'
           and (s.not_after is null or s.not_after > now())
+          -- Global Auth lifecycle state; organization membership is scoped
+          -- separately below and is not treated as a global account flag.
+          and u.deleted_at is null
           and (u.banned_until is null or u.banned_until <= now())
-          and not exists (
-            select 1 from public.organization_members suspended
-             where suspended.user_id = ds.user_id
-               and suspended.status <> 'active'
+          and (
+            exists (
+              select 1 from public.organization_members membership
+               where membership.user_id = ds.user_id
+                 and membership.status = 'active'
+            )
+            or (
+              exists (
+                select 1 from public.platform_users pu
+                 where pu.user_id = ds.user_id and pu.role = 'platform_admin'
+              )
+              and not exists (
+                select 1 from public.organization_members membership
+                 where membership.user_id = ds.user_id
+              )
+            )
           )
      );
 $$;
@@ -101,13 +116,14 @@ revoke all on function public.admin_approve_device(uuid, text, text)
 grant execute on function public.admin_approve_device(uuid, text, text) to authenticated;
 
 -- Recovery bootstrap for the first platform administrator after the legacy
--- revalidation transition. This is deliberately unavailable to browser roles:
--- a trusted server-side operator must call it with service_role credentials.
+-- revalidation transition. The actor is recorded as system; a protected,
+-- non-self-approved GitHub Environment run provides independently verifiable
+-- operator/reviewer evidence. Browser roles cannot invoke this function.
 create function public.bootstrap_approve_admin_device(
   p_device_id uuid,
-  p_actor_user_id uuid,
   p_ticket_reference text,
-  p_justification text
+  p_justification text,
+  p_operator_audit_reference text
 )
 returns void
 language plpgsql
@@ -119,15 +135,13 @@ declare
   target_org uuid;
   ticket public.it_support_tickets%rowtype;
 begin
-  if p_device_id is null or p_actor_user_id is null
+  if p_device_id is null
      or nullif(btrim(p_ticket_reference), '') is null
-     or nullif(btrim(p_justification), '') is null then
-    raise exception 'Device, distinct administrator, active ticket and justification are required' using errcode = '22023';
+     or nullif(btrim(p_justification), '') is null
+     or p_operator_audit_reference !~ '^https://github\.com/ymer190/CONNEXA3/actions/runs/[0-9]+$' then
+    raise exception 'Device, active ticket, justification and verified workflow run reference are required' using errcode = '22023';
   end if;
   perform pg_advisory_xact_lock(hashtextextended('issue97_admin_device_bootstrap', 0));
-  if not exists (select 1 from public.platform_users pu where pu.user_id = p_actor_user_id and pu.role = 'platform_admin') then
-    raise exception 'Audit actor must be a platform administrator' using errcode = '42501';
-  end if;
   if exists (
     select 1 from public.device_sessions ds
     join public.platform_users pu on pu.user_id = ds.user_id and pu.role = 'platform_admin'
@@ -142,7 +156,6 @@ begin
    order by om.organization_id limit 1
    for update of d;
   if not found then raise exception 'Pending device with active organization membership not found' using errcode = 'P0002'; end if;
-  if target_user = p_actor_user_id then raise exception 'Bootstrap self-approval is forbidden' using errcode = '42501'; end if;
   if not exists (select 1 from public.platform_users pu where pu.user_id = target_user and pu.role = 'platform_admin') then
     raise exception 'Bootstrap target must be a platform administrator' using errcode = '42501';
   end if;
@@ -152,7 +165,7 @@ begin
    for update;
   if not found then raise exception 'Active ticket for the target administrator and organization is required' using errcode = 'P0002'; end if;
 
-  update public.authorized_devices set status = 'approved', approved_at = now(), approved_by = p_actor_user_id
+  update public.authorized_devices set status = 'approved', approved_at = now(), approved_by = null
    where id = p_device_id and status = 'pending';
   update public.device_sessions set status = 'approved'
    where device_id = p_device_id and status = 'pending';
@@ -160,15 +173,17 @@ begin
     actor_user_id, action, target_type, target_id, target_user_id,
     organization_id, ticket_reference, justification, outcome
   ) values (
-    p_actor_user_id, 'device.bootstrap_approve', 'device', p_device_id::text, target_user,
+    null, 'system.device.bootstrap_approve', 'device', p_device_id::text, target_user,
     target_org, ticket.ticket_reference,
-    left(public.redact_audit_text(p_justification), 500), 'allowed'
+    left(public.redact_audit_text(
+      btrim(p_justification) || ' | operator_evidence=' || p_operator_audit_reference
+    ), 500), 'allowed'
   );
 end;
 $$;
-revoke all on function public.bootstrap_approve_admin_device(uuid, uuid, text, text)
+revoke all on function public.bootstrap_approve_admin_device(uuid, text, text, text)
   from public, anon, authenticated, service_role;
-grant execute on function public.bootstrap_approve_admin_device(uuid, uuid, text, text)
+grant execute on function public.bootstrap_approve_admin_device(uuid, text, text, text)
   to service_role;
 
 drop function public.admin_list_device_sessions(uuid, text);

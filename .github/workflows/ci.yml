@@ -34,6 +34,35 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Report dependency advisories for review
+        continue-on-error: true
+        shell: bash
+        run: |
+          audit_status=0
+          npm audit --json > /tmp/npm-audit.json || audit_status=$?
+          AUDIT_STATUS="$audit_status" node <<'NODE'
+          const fs = require("node:fs");
+          const report = JSON.parse(fs.readFileSync("/tmp/npm-audit.json", "utf8"));
+          const advisories = Object.entries(report.vulnerabilities ?? {}).map(([name, item]) => ({
+            name,
+            severity: item.severity,
+            direct: item.isDirect,
+            range: item.range,
+            fixAvailable: item.fixAvailable,
+            via: (item.via ?? []).map((entry) => typeof entry === "string" ? entry : {
+              title: entry.title,
+              url: entry.url,
+              range: entry.range,
+              severity: entry.severity,
+            }),
+          }));
+          console.log(JSON.stringify({
+            exitCode: Number(process.env.AUDIT_STATUS ?? 0),
+            metadata: report.metadata?.vulnerabilities,
+            advisories,
+          }, null, 2));
+          NODE
+
       - name: Run ESLint
         run: npm run lint
 

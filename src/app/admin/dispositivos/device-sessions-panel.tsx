@@ -25,8 +25,13 @@ export function DeviceSessionsPanel() {
     const formData = new FormData(event.currentTarget);
     startTransition(async () => {
       const result = await listDeviceSessions(formData);
-      if ("error" in result) {
+      if ("error" in result && typeof result.error === "string") {
         setMessage(result.error);
+        setRows(null);
+        return;
+      }
+      if (!("rows" in result) || !Array.isArray(result.rows)) {
+        setMessage("Não foi possível consultar as sessões.");
         setRows(null);
         return;
       }

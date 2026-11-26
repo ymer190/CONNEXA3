@@ -21,6 +21,12 @@ async function main() {
     await page.waitForURL("**/acesso-negado", { timeout: 20000 });
     console.log("PASS: authenticated regular user is denied access to /admin.");
 
+    // The route is tested directly so a client-side navigation guard cannot mask a server authorization gap.
+    await page.goto(`${baseUrl}/admin/departamentos`, { waitUntil: "domcontentloaded", timeout: 20000 });
+    await page.waitForURL("**/acesso-negado", { timeout: 20000 });
+    await page.getByRole("heading", { name: "Acesso negado" }).waitFor();
+    console.log("PASS: authenticated regular user is denied access to /admin/departamentos directly.");
+
     await page.reload();
     await page.waitForURL("**/acesso-negado", { timeout: 20000 });
     console.log("PASS: authenticated session persists and admin access remains denied after refresh.");

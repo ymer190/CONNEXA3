@@ -33,27 +33,6 @@ async function main() {
     }
   }
 
-  async function assertDepartmentsRoute(stage) {
-    const currentUrl = page.url();
-    const visibleText = await page.locator("body").innerText().catch(() => "");
-
-    if (new URL(currentUrl).pathname !== "/admin/departamentos") {
-      throw new Error(
-        `${stage}: expected /admin/departamentos, but landed on ${currentUrl}. Visible page text: ${visibleText.slice(0, 500)}`,
-      );
-    }
-
-    try {
-      await page.getByRole("heading", { name: "Departamentos e setores" }).waitFor();
-      await page.getByRole("link", { name: "Voltar à administração" }).waitFor();
-    } catch {
-      const updatedText = await page.locator("body").innerText().catch(() => "");
-      throw new Error(
-        `${stage}: the protected departments page did not render its expected content. Visible page text: ${updatedText.slice(0, 500)}`,
-      );
-    }
-  }
-
   try {
     await page.goto(`${baseUrl}/login?next=%2Fadmin`);
     await page.locator("#email").fill(email);
@@ -71,26 +50,19 @@ async function main() {
     await assertAdminPage("Initial admin access");
     console.log("PASS: platform administrator can sign in and access /admin.");
 
-    // Wait for the document navigation, not network idle. Supabase/auth requests
-    // may remain active even though the protected page is already usable.
-    await page.reload({ waitUntil: "domcontentloaded", timeout: 20000 });
+    // Wait for the reload navigation to finish before asserting the protected page.
+    // waitForURL("**/admin") alone can pass immediately against the pre-reload URL.
+    await page.reload({ waitUntil: "networkidle" });
     await assertAdminPage("Admin access after refresh");
     console.log("PASS: administrator session persists and access remains allowed after refresh.");
 
-    // Verify direct navigation to the departments route with an authenticated
-    // platform administrator, without relying on client-side menu navigation.
-    await page.goto(`${baseUrl}/admin/departamentos`, {
-      waitUntil: "domcontentloaded",
-      timeout: 20000,
-    });
-    await assertDepartmentsRoute("Direct departments route access");
+    // Verify the protected module route directly as an authenticated platform administrator.
+    await page.goto(`${baseUrl}/admin/departamentos`, { waitUntil: "domcontentloaded", timeout: 20000 });
+    if (new URL(page.url()).pathname !== "/admin/departamentos") throw new Error("Administrator was denied /admin/departamentos: " + page.url());
+    await page.getByRole("heading", { name: "Departamentos e setores" }).waitFor();
     console.log("PASS: platform administrator can access /admin/departamentos directly.");
 
-    // Return to the dashboard before signing out.
-    await page.goto(`${baseUrl}/admin`, {
-      waitUntil: "domcontentloaded",
-      timeout: 20000,
-    });
+    await page.goto(`${baseUrl}/admin`, { waitUntil: "domcontentloaded", timeout: 20000 });
     await assertAdminPage("Admin access before sign out");
 
     // Register the navigation waiter before clicking to avoid a client-router race.

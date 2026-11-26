@@ -131,15 +131,49 @@ Não há no DEV tabelas ou operações de conversa. O contrato a seguir fixa a f
 
 ### Consulta excepcional de conteúdo
 
-A consulta é server-side, separada do acesso normal por participante e da administração de plataforma. Entrada mínima a ser implementada: identificador da conversa/recurso, justificativa não vazia e contexto de consulta/página. Identidade do ator, organização e grants são derivados/validados no servidor; não aceitar `actor_id`, papel ou permissão enviados pelo cliente.
+A consulta é server-side, separada do acesso normal por participante e da administração de plataforma. Este é o contrato semântico proposto para a futura operação; não existe RPC ou endpoint no DEV.
 
-A capability `conversations.exceptional_read` é nominativa, separada, com escopo definido, validade e expiração. Concedê-la exige duas decisões separadas e registradas: Direção/Chefia e TI autorizado; sem autoaprovação ou aprovação do leitor para si. RPGD faz supervisão de privacidade, não substitui aprovadores e não recebe conteúdo por esse papel. Cada leitura exige justificativa e auditoria persistida antes da divulgação; falha de autorização, escopo ou auditoria nega a consulta. `platform_admin` e `it_support` não têm acesso automático a conteúdo.
+**Entrada proposta:** `conversation_id` (UUID obrigatório), `justification` (texto obrigatório e não vazio após `trim`) e `page_size`/`cursor` na leitura de mensagens. `actor_id`, papel, organização e grant nunca vêm do cliente; o servidor deriva a identidade da sessão e valida escopo e autorização. Ainda não há tamanho máximo de justificativa aprovado para essa operação.
 
-Projeção mínima prevista: metadados da conversa; mensagens autorizadas com IDs, remetente, tipo, timestamps e estado; anexos somente com metadados necessários. Não devolver corpo/cifra fora do grant, bytes de anexo, chaves internas ou URLs públicas. A paginação deve usar cursor opaco/estável e limite de página aprovado antes da integração; nenhum tamanho 50/100 é ainda um contrato implementado. Ordenação determinística e escopo/grant devem ser revalidados em toda página.
+**Resposta semântica proposta:**
+
+```json
+{
+  "conversation": {
+    "id": "uuid",
+    "organization_id": "uuid",
+    "type": "channel | direct | group",
+    "department_id": "uuid | null"
+  },
+  "messages": [
+    {
+      "id": "uuid",
+      "sender_id": "uuid",
+      "message_type": "string",
+      "content": "conteúdo somente dentro do grant",
+      "created_at": "2026-01-01T00:00:00Z",
+      "edited_at": "2026-01-01T00:00:00Z | null",
+      "deleted_at": "2026-01-01T00:00:00Z | null",
+      "attachments": [
+        { "id": "uuid", "media_type": "string", "size_bytes": 0, "created_at": "2026-01-01T00:00:00Z" }
+      ]
+    }
+  ],
+  "page": { "page_size": 50, "next_cursor": "opaque | null", "has_more": false }
+}
+```
+
+Os campos são projeção semântica proposta, não colunas físicas aprovadas. `page_size` padrão 50/máximo 100 também é proposta explícita para revisão conjunta, não limite já implementado. Cursor opaco deve ser estável; ordenar por timestamp e ID; revalidar escopo/grant em cada página. Não devolver bytes de anexo, chaves internas, URL pública ou conteúdo fora do grant.
+
+A capability `conversations.exceptional_read` é nominativa, separada, com escopo definido, validade e expiração. Concedê-la exige duas decisões registradas: Direção/Chefia e TI autorizado; sem autoaprovação ou aprovação do leitor para si. RPGD faz supervisão de privacidade, não substitui aprovadores e não recebe conteúdo por esse papel. Cada leitura exige justificativa e auditoria persistida antes da divulgação; falha de autorização, escopo ou auditoria nega a consulta. `platform_admin` e `it_support` não têm acesso automático a conteúdo.
+
+Erros semânticos propostos: `AUTHENTICATION_REQUIRED` (sessão ausente), `FORBIDDEN` (sem aprovação/grant/escopo), `NOT_FOUND` (inexistente ou fora do escopo sem revelar existência), `VALIDATION_ERROR` (entrada/cursor inválido) e `SERVICE_UNAVAILABLE` (auditoria ou serviço indisponível; nenhum conteúdo parcial). O transporte/códigos HTTP devem ser fechados no contrato de implementação; ainda não existe envelope de erro para essa operação.
 
 ### Auditoria de conversas
 
-`conversation_audit_logs` é uma entidade proposta pela #96 para eventos do ciclo de vida de conversas/participantes. Não deve duplicar a trilha administrativa/security de `administrative_audit_logs` (#97); eventos correlatos devem compartilhar uma futura regra de correlação acordada. Não gravar corpo de mensagem, plaintext, conteúdo de anexo, tokens ou credenciais. Campos físicos, operações de leitura, papéis de consulta, paginação e retenção de cada categoria dependem da migration/contrato da #96 e não estão implementados no DEV.
+`conversation_audit_logs` é uma entidade proposta pela #96 para eventos do ciclo de vida de conversas/participantes. Projeção semântica mínima para validação conjunta: `id`, `actor_id`, `action`, `target_type`, `target_id`, `organization_id` quando aplicável, `justification` quando exigida, `occurred_at` UTC, `outcome` e `correlation_id`. Consulta também precisa definir filtro por período/ação/alvo, cursor estável, limite de página e projeção por papel. Não duplicar eventos da trilha administrativa/security de `administrative_audit_logs` (#97); correlacionar os domínios por identificador comum quando a implementação definir esse vínculo.
+
+O acesso ao histórico administrativo completo (`audit.read`) é exclusivo de `platform_admin`; `it_support` e colaboradores comuns não o consultam. RPGD pode supervisionar somente registros necessários ao ciclo de aprovação, concessão, renovação, revogação e consulta excepcional; essa permissão não dá acesso ao conteúdo das conversas. Não gravar corpo de mensagem, plaintext, conteúdo de anexo, tokens ou credenciais. Os campos acima, operações de leitura, papéis de consulta e paginação são contrato semântico proposto, não esquema implementado no DEV.
 
 Retenção de cinco anos vale às categorias abrangidas pela decisão da PO; marcos iniciais de contagem por categoria, holds, política de backup e expurgo seguro permanecem pendências, conforme ADR-001 v1.3. Não usar a antiga proposta de 12 meses.
 

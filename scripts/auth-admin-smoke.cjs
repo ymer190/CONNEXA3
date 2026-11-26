@@ -145,6 +145,13 @@ async function main() {
     }, 15000);
     await page.route(/\/auth\/v1\/token\?grant_type=password/, async (route) => {
       const request = route.request();
+      // Let the browser perform the CORS preflight normally. Only proxy the
+      // actual password-grant POST; an OPTIONS response may be HTTP 200 but
+      // does not contain an Auth access token.
+      if (request.method() !== "POST") {
+        await route.continue();
+        return;
+      }
       const requestHeaders = { ...request.headers() };
       // Node fetch must not receive browser-managed hop-by-hop headers.
       for (const header of ["host", "connection", "content-length", "accept-encoding"]) {

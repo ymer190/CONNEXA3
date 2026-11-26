@@ -139,6 +139,67 @@ O DEV contém as tabelas abaixo, aplicadas pelas migrations da PR #156. Todas es
 
 FKs compostas restringem referências à mesma organização. A trilha de conversas é distinta de `administrative_audit_logs`; não se deve inferir equivalência entre seus eventos.
 
+### Contrato inicial de mensagens diretas — Issue #108, Etapa 1 (proposta)
+
+**Estado:** proposta de integração, não implementada no DEV. Os nomes de rotas, payloads e limites abaixo precisam de validação conjunta Back-end/Front-end antes de serem tratados como contrato estável. Este incremento cobre conversa direta, envio e histórico; não libera leitura direta das tabelas.
+
+#### Regras de domínio obrigatórias
+
+- O servidor deriva o usuário remetente da sessão Supabase validada; nunca aceita `sender_id`, papel ou organização como autoridade do cliente.
+- Ambos os participantes precisam ter vínculo organizacional ativo na mesma organização. Conta desativada/suspensa ou sessão/dispositivo não autorizado resulta em negação.
+- A conversa direta é única por par não ordenado de usuários e organização. Criar A–B ou B–A deve reutilizar a mesma conversa direta ativa; a constraint/índice único no banco é a garantia concorrente.
+- A operação verifica bloqueio ativo em qualquer direção antes de criar/reutilizar a conversa e antes de enviar mensagem. A regra de bloqueio está aprovada em #96, mas o modelo/tabela e as operações de bloqueio ainda precisam ser entregues antes da liberação de mensagens diretas.
+- Criar conversa e seus dois membros ativos ocorre atomicamente. O usuário só consulta/envia se for membro ativo e a conversa estiver ativa.
+- Mensagens de usuário persistidas devem conter somente envelope cifrado no campo `encrypted_payload`; plaintext não pode ser gravado no banco, Storage, Realtime, auditoria ou logs. A criptografia/descriptografia ocorre no backend Node.js da Vercel conforme ADR-001 v1.3; não declarar E2EE tradicional.
+- A resposta de leitura pode apresentar texto descriptografado somente após a autorização server-side atual. O envelope, DEK, KEK, nonce allocator e detalhes internos não são expostos ao browser.
+
+#### Operações HTTP propostas
+
+| Operação | Entrada | Resposta |
+|---|---|---|
+| Criar/reutilizar conversa direta | `POST /api/conversations/direct`; body `{ recipient_user_id: UUID }` | `{ conversation: DirectConversation, reused: boolean }` |
+| Enviar mensagem de texto | `POST /api/conversations/{conversation_id}/messages`; body `{ client_message_id: UUID, message_type: "text", text: string }` | `Message` confirmada pelo servidor, com `id`, `client_message_id`, `conversation_id`, `sender_id`, `message_type`, `text`, `created_at`, `updated_at` |
+| Consultar histórico | `GET /api/conversations/{conversation_id}/messages?limit=50&before_created_at=...&before_id=...` | `{ messages: Message[], page: { limit, next_cursor, has_more } }` |
+
+`DirectConversation` é a projeção autorizada de `id`, `organization_id`, `type = direct`, `status`, `created_at` e participantes ativos. `Message` é uma projeção de conteúdo para a UI; não inclui `encrypted_payload`, DEK, KEK ou metadados criptográficos internos. Os campos de resposta e nomes de rota são proposta até a revisão conjunta.
+
+#### Paginação, idempotência e estados
+
+- Histórico ordenado de forma estável e decrescente por `(created_at,id)`. Primeira página sem cursor; páginas seguintes enviam o par `before_created_at` + `before_id` junto. Cursor parcial é erro. `limit` proposto: padrão 50, mínimo 1 e máximo 100.
+- Cada tentativa lógica de envio reutiliza o mesmo `client_message_id`. O servidor impõe unicidade por conversa/remetente para evitar duplicação em retry. Isso requer acrescentar o campo e índice único correspondente ao schema de `messages` antes da implementação; a tabela atual ainda não possui `client_message_id`.
+- `pending` é estado local otimista antes da confirmação do servidor; `confirmed` somente após resposta persistida; `failed` após rejeição definitiva ou falha sem confirmação. Timeout ambíguo deve reconciliar pelo mesmo `client_message_id`, não gerar um novo identificador.
+- Na reconexão, o cliente restabelece a assinatura Realtime e reconcilia o histórico pela paginação; mescla por `id`/ `client_message_id` sem duplicar mensagens já exibidas.
+
+#### Supabase Realtime proposto
+
+- Usar canal privado por conversa, com autorização de assinatura validada no servidor/Reatime para membro ativo e vínculo organizacional ativo. Canais públicos ou nomes de canal adivinháveis sem policy não são permitidos.
+- O backend publica somente após o commit da mensagem um evento minimizado `message.created` contendo `conversation_id`, `message_id`, `sender_id`, `message_type` e `created_at`; não publicar plaintext, token, chave ou URL permanente de anexo.
+- O evento funciona como sinal de atualização. O cliente consulta a mensagem/histórico pela operação autenticada, que revalida a autorização e descriptografa somente no backend.
+- Remoção de participante, bloqueio, suspensão ou encerramento de sessão deve impedir novas consultas e novas assinaturas/entregas. A propagação de revogação em assinaturas já abertas precisa ser validada por teste.
+
+#### Erros semânticos propostos
+
+- `AUTHENTICATION_REQUIRED`: sessão ausente/expirada.
+- `DEVICE_NOT_AUTHORIZED`: sessão sem dispositivo aprovado.
+- `FORBIDDEN`: sem vínculo ativo, participação ou escopo autorizado.
+- `NOT_FOUND`: conversa inexistente ou fora do escopo, sem revelar existência.
+- `CONVERSATION_BLOCKED`: bloqueio impede nova comunicação direta; a UI deve usar mensagem genérica conforme #96 e não revelar quem bloqueou quem.
+- `VALIDATION_ERROR`: tipo, texto, UUID ou cursor inválido.
+- `IDEMPOTENCY_CONFLICT`: mesmo `client_message_id` reutilizado com conteúdo/contexto divergente.
+- `SERVICE_UNAVAILABLE`: persistência, criptografia, auditoria necessária ou serviço Realtime indisponível; não apresentar confirmação sem commit.
+
+#### Gates técnicos antes de iniciar a implementação funcional da #108
+
+1. Corrigir em migration aditiva as constraints da #156: canal precisa de `visibility` não nula; mensagem não-system persistida precisa de `encrypted_payload` não nulo; manter as FKs compostas e validar participação do remetente por operação confiável. Não editar migrations já aplicadas.
+2. Adicionar `client_message_id` e índice de idempotência por conversa/remetente, com teste de retry concorrente.
+3. Implementar o modelo e operações de bloqueio aprovados em #96 antes de habilitar criação/envio de conversa direta.
+4. Implementar e testar a camada de criptografia da ADR-001 v1.3 (DEK por conversa, KEK segregada por ambiente, alocação atômica de nonce, envelope AES-256-GCM e recuperação fail-closed). A ADR aprovada é decisão documental, não implementação existente.
+5. Implementar operações server-side transacionais de criação/reuso, envio e consulta, com membership/tenant/conta/dispositivo revalidados e RLS coerente; não conceder grants diretos amplos às cinco tabelas.
+6. Fechar autorização dos canais privados Realtime e provar que usuário não participante não consegue assinar, receber eventos nem consultar histórico.
+7. Back-end e Front-end aprovam nominalmente exemplos, paginação, idempotência, reconexão e estados antes de integrar o contrato.
+
+**Limite de escopo:** anexos/áudios, edição/exclusão, grupos e canais ficam para incrementos próprios, respeitando as regras aprovadas em #96. A Etapa 3 da #108 só começa depois de validar o fluxo individual e o isolamento Realtime.
+
 ### Consulta excepcional de conteúdo
 
 A consulta é server-side, separada do acesso normal por participante e da administração de plataforma. Este é o contrato semântico proposto para a futura operação; não existe RPC ou endpoint no DEV.

@@ -34,7 +34,13 @@ export async function validateEmployeeRegistration(
   dependencies: Dependencies,
 ): Promise<EmployeeRegistrationValidationResult> {
   const parsed = validateCreateEmployeeInput(payload);
-  if (!parsed.success) return parsed;
+  if (!parsed.success) {
+    return {
+      success: false,
+      code: parsed.error.code,
+      message: parsed.error.message,
+    };
+  }
 
   let emailResult: Awaited<ReturnType<Dependencies["emailExists"]>>;
   try {

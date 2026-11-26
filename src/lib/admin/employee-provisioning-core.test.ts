@@ -143,7 +143,7 @@ test("sanitizes multiline errors and enforces the maximum stored length", () => 
 test("redacts private keyring and secret-key environment variables", () => {
   const message =
     "SUPABASE_SECRET_KEY=server-secret " +
-    "EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_KEYS={\\"key_1\\":\\"base64-secret-material\\"} " +
+    "EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_KEYS=base64-secret-material " +
     "PRIVATE_KEY=private-signing-material";
   const result = sanitizeProvisioningError(message);
 

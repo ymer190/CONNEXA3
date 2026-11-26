@@ -134,7 +134,7 @@ async function main() {
     // Capture the token response inside the route handler before the browser
     // processes the login redirect and disposes the response body.
     let authPayload;
-    await page.route(/\\/auth\\/v1\\/token\\?grant_type=password/, async (route) => {
+    await page.route(/\/auth\/v1\/token\?grant_type=password/, async (route) => {
       const response = await route.fetch();
       authPayload = await response.json();
       await route.fulfill({ response });

@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feature/97-device-session-audit]
   push:
     branches:
       - main
@@ -30,6 +30,9 @@ jobs:
 
       - name: Test isolated Supabase allowlist guard
         run: node scripts/assert-isolated-supabase-smoke.cjs
+
+      - name: Test Issue 97 device approval RPC contract
+        run: node --test scripts/device-approval-rpc-contract.test.cjs
 
       - name: Report dependency advisories for review
         continue-on-error: true

@@ -137,13 +137,28 @@ async function main() {
     let authPayload;
     await page.route(/\/auth\/v1\/token\?grant_type=password/, async (route) => {
       const request = route.request();
+      const requestHeaders = { ...request.headers() };
+      // Node fetch must not receive browser-managed hop-by-hop headers.
+      for (const header of ["host", "connection", "content-length", "accept-encoding"]) {
+        delete requestHeaders[header];
+      }
       const upstream = await fetch(request.url(), {
         method: request.method(),
-        headers: request.headers(),
+        headers: requestHeaders,
         body: request.postData() ?? undefined,
       });
       const responseBody = Buffer.from(await upstream.arrayBuffer());
-      authPayload = JSON.parse(responseBody.toString("utf8"));
+      let parsedPayload;
+      try {
+        parsedPayload = JSON.parse(responseBody.toString("utf8"));
+      } catch {
+        throw new Error(`Supabase Auth returned a non-JSON response (HTTP ${upstream.status}).`);
+      }
+      authPayload = parsedPayload;
+      if (!upstream.ok) {
+        const reason = parsedPayload.error_description ?? parsedPayload.msg ?? parsedPayload.message ?? parsedPayload.error ?? "unknown_auth_error";
+        throw new Error(`Supabase admin sign-in failed (HTTP ${upstream.status}): ${String(reason).slice(0, 180)}`);
+      }
       const headers = Object.fromEntries(
         Object.entries(Object.fromEntries(upstream.headers)).filter(
           ([name]) => !["content-encoding", "content-length", "transfer-encoding"].includes(name.toLowerCase()),

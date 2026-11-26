@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { validateCreateEmployeeInput } from "./employee-input";
+import { validateCreateEmployeeInput } from "./employee-input.ts";
 
 const validInput = {
   fullName: "Maria da Silva",

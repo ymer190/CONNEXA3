@@ -2,92 +2,72 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import test from "node:test";
 import {
-  decryptProvisioningEmail,
-  encryptProvisioningEmail,
-} from "./employee-provisioning-email-crypto.ts";
+  decryptProvisioningEmailWithKeyring,
+  encryptProvisioningEmailWithKeyring,
+} from "./employee-provisioning-email-crypto-core.ts";
 
-const originalKeys = process.env.EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_KEYS;
-const originalCurrentKey = process.env.EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_CURRENT_KEY_ID;
+const oldKey = randomBytes(32).toString("base64");
+const newKey = randomBytes(32).toString("base64");
 
-function configureKeyring(keys: Record<string, string>, currentKeyId: string) {
-  process.env.EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_KEYS = JSON.stringify(keys);
-  process.env.EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_CURRENT_KEY_ID = currentKeyId;
-}
-
-test("encrypts and decrypts a normalized email without storing plaintext", () => {
-  const key = randomBytes(32).toString("base64");
-  configureKeyring({ key_1: key }, "key_1");
-
+test("encrypts and decrypts normalized email without storing plaintext", () => {
   const email = "employee@example.com";
-  const encrypted = encryptProvisioningEmail(email);
+  const encrypted = encryptProvisioningEmailWithKeyring(email, { key_1: oldKey }, "key_1");
 
   assert.notEqual(encrypted, email);
   assert.equal(encrypted.includes(email), false);
-  assert.equal(decryptProvisioningEmail(encrypted), email);
+  assert.equal(decryptProvisioningEmailWithKeyring(encrypted, { key_1: oldKey }), email);
 });
 
-test("uses the key ID embedded in the ciphertext during key rotation", () => {
-  const oldKey = randomBytes(32).toString("base64");
-  const newKey = randomBytes(32).toString("base64");
+test("supports key rotation while old ciphertext is being migrated", () => {
+  const oldCiphertext = encryptProvisioningEmailWithKeyring(
+    "employee@example.com",
+    { old_key: oldKey },
+    "old_key",
+  );
+  const keyring = { old_key: oldKey, new_key: newKey };
 
-  configureKeyring({ old_key: oldKey }, "old_key");
-  const oldCiphertext = encryptProvisioningEmail("employee@example.com");
-
-  configureKeyring({ old_key: oldKey, new_key: newKey }, "new_key");
-  assert.equal(decryptProvisioningEmail(oldCiphertext), "employee@example.com");
-
-  const newCiphertext = encryptProvisioningEmail("employee@example.com");
-  assert.match(newCiphertext, /^v1\.new_key\./);
-  assert.equal(decryptProvisioningEmail(newCiphertext), "employee@example.com");
+  assert.equal(decryptProvisioningEmailWithKeyring(oldCiphertext, keyring), "employee@example.com");
+  const newCiphertext = encryptProvisioningEmailWithKeyring(
+    "employee@example.com",
+    keyring,
+    "new_key",
+  );
+  assert.match(newCiphertext, /^v1\\.new_key\\./);
+  assert.equal(decryptProvisioningEmailWithKeyring(newCiphertext, keyring), "employee@example.com");
 });
 
-test("fails closed when the keyring is missing", () => {
-  delete process.env.EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_KEYS;
-  delete process.env.EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_CURRENT_KEY_ID;
-
+test("fails closed when the current key is missing", () => {
   assert.throws(
-    () => encryptProvisioningEmail("employee@example.com"),
-    /not configured/,
+    () => encryptProvisioningEmailWithKeyring("employee@example.com", { old_key: oldKey }, "missing"),
+    /key version is unavailable/,
   );
 });
 
 test("rejects invalid key material", () => {
-  configureKeyring({ key_1: "not-a-valid-key" }, "key_1");
   assert.throws(
-    () => encryptProvisioningEmail("employee@example.com"),
+    () => encryptProvisioningEmailWithKeyring("employee@example.com", { key_1: "invalid" }, "key_1"),
     /key is invalid/,
   );
 });
 
 test("rejects tampered ciphertext", () => {
-  configureKeyring({ key_1: randomBytes(32).toString("base64") }, "key_1");
-  const encrypted = encryptProvisioningEmail("employee@example.com");
+  const encrypted = encryptProvisioningEmailWithKeyring(
+    "employee@example.com",
+    { key_1: oldKey },
+    "key_1",
+  );
   const parts = encrypted.split(".");
   parts[4] = `${parts[4].slice(0, -1)}A`;
 
   assert.throws(
-    () => decryptProvisioningEmail(parts.join(".")),
+    () => decryptProvisioningEmailWithKeyring(parts.join("."), { key_1: oldKey }),
     /ciphertext authentication failed|ciphertext is invalid/,
   );
 });
 
 test("rejects non-normalized email input", () => {
-  configureKeyring({ key_1: randomBytes(32).toString("base64") }, "key_1");
   assert.throws(
-    () => encryptProvisioningEmail("Employee@Example.com"),
+    () => encryptProvisioningEmailWithKeyring("Employee@Example.com", { key_1: oldKey }, "key_1"),
     /normalized email/,
   );
-});
-
-test.after(() => {
-  if (originalKeys === undefined) {
-    delete process.env.EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_KEYS;
-  } else {
-    process.env.EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_KEYS = originalKeys;
-  }
-  if (originalCurrentKey === undefined) {
-    delete process.env.EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_CURRENT_KEY_ID;
-  } else {
-    process.env.EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_CURRENT_KEY_ID = originalCurrentKey;
-  }
 });

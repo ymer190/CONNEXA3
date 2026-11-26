@@ -34,6 +34,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Test issue 92 employee input validation
+        run: node --experimental-strip-types --test src/lib/admin/employee-input.test.ts
+
       - name: Run ESLint
         run: npm run lint
 

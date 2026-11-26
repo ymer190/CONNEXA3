@@ -21,6 +21,11 @@ export type ProvisioningClaimResult =
   | { kind: "in_progress" }
   | { kind: "manual_reconciliation_required" };
 
+export type DomainTransactionResult =
+  | { kind: "committed" }
+  | { kind: "rolled_back" }
+  | { kind: "unknown" };
+
 export type InviteCreationResult =
   | {
       kind: "created";
@@ -64,7 +69,7 @@ export type EmployeeProvisioningDependencies = {
   persistProfileMembershipAndAuditAtomically: (
     claim: ProvisioningClaim,
     payload: EmployeeProvisioningPayload,
-  ) => Promise<boolean>;
+  ) => Promise<DomainTransactionResult>;
   completeOperation: (claim: ProvisioningClaim) => Promise<boolean>;
   markCompensationPending: (claim: ProvisioningClaim) => Promise<boolean>;
   deleteAuthIdentity: (authUserId: string) => Promise<boolean>;
@@ -153,17 +158,22 @@ export async function runEmployeeProvisioning(
     return { kind: "failed", code: "AUTH_ID_PERSISTENCE_FAILED" };
   }
 
-  let domainPersisted = false;
+  let domainResult: DomainTransactionResult;
   try {
-    domainPersisted = await dependencies.persistProfileMembershipAndAuditAtomically(
+    domainResult = await dependencies.persistProfileMembershipAndAuditAtomically(
       claim,
       payload,
     );
   } catch {
-    domainPersisted = false;
+    domainResult = { kind: "unknown" };
   }
 
-  if (!domainPersisted) {
+  if (domainResult.kind === "unknown") {
+    await requireManualReconciliation(dependencies, claim, "domain_transaction_outcome_unknown");
+    return { kind: "manual_reconciliation_required" };
+  }
+
+  if (domainResult.kind === "rolled_back") {
     let compensationClaimed = false;
     try {
       compensationClaimed = await dependencies.markCompensationPending(claim);

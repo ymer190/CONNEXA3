@@ -34,8 +34,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Test issue 92 employee input validation
-        run: node --experimental-strip-types --test src/lib/admin/employee-input.test.ts
+      - name: Test issue 92 employee input and organization lookup
+        run: >-
+          node --experimental-strip-types --test
+          src/lib/admin/employee-input.test.ts
+          src/lib/admin/list-organizations-core.test.ts
+          src/lib/admin/organizations-handler.test.ts
 
       - name: Run ESLint
         run: npm run lint
@@ -77,8 +81,6 @@ jobs:
 
           echo "PASS: unauthenticated /admin requests redirect to /login."
 
-      # NEXT_PUBLIC_* values are inlined into Next.js middleware at build time.
-      # Build a separate artifact without them to exercise the fail-closed branch.
       - name: Build Next.js application without Supabase configuration
         shell: bash
         run: |
@@ -88,7 +90,6 @@ jobs:
       - name: Smoke test admin route fails closed when Supabase configuration is missing
         shell: bash
         run: |
-          # Use a dedicated port so a previous Next.js process cannot answer this request.
           env -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY setsid npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/connexa-no-supabase-config.log 2>&1 &
           server_pid=$!
           trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
@@ -124,7 +125,6 @@ jobs:
 
           echo "PASS: /admin fails closed without Supabase configuration and /login remains public."
 
-      # Restore the normal build for authenticated browser tests.
       - name: Build Next.js application with Supabase configuration
         run: npm run build
 

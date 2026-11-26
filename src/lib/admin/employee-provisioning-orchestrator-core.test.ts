@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   runEmployeeProvisioning,
+  type EmployeeProvisioningDependencies,
   type EmployeeProvisioningPayload,
   type ProvisioningClaimResult,
 } from "./employee-provisioning-orchestrator-core.ts";
@@ -20,9 +21,9 @@ const claimed: ProvisioningClaimResult = {
   claim: { operationId: "operation-1", claimId: "claim-1" },
 };
 
-function dependencies(overrides: Record<string, unknown> = {}) {
+function dependencies(overrides: Partial<EmployeeProvisioningDependencies> = {}) {
   const events: string[] = [];
-  const base = {
+  const base: EmployeeProvisioningDependencies = {
     claimOperation: async () => {
       events.push("claim");
       return claimed;

@@ -51,7 +51,8 @@ export type EmployeeProvisioningResult =
         | "INVITE_NOT_CREATED"
         | "AUTH_ID_PERSISTENCE_FAILED"
         | "DOMAIN_TRANSACTION_FAILED"
-        | "COMPLETION_FAILED";
+        | "COMPLETION_FAILED"
+        | "RECONCILIATION_MARKER_FAILED";
     };
 
 export type EmployeeProvisioningDependencies = {
@@ -92,12 +93,13 @@ async function requireManualReconciliation(
   dependencies: EmployeeProvisioningDependencies,
   claim: ProvisioningClaim,
   reason: string,
-): Promise<void> {
+): Promise<boolean> {
   try {
     await dependencies.markManualReconciliationRequired(claim, reason);
+    return true;
   } catch {
-    // The caller still receives a fail-closed result. Operational monitoring
-    // must alert if even the reconciliation marker cannot be persisted.
+    // Do not claim that reconciliation was recorded when persistence failed.
+    return false;
   }
 }
 
@@ -135,7 +137,7 @@ export async function runEmployeeProvisioning(
   try {
     invite = await dependencies.createInviteWithFirstAccessPending(payload);
   } catch {
-    await requireManualReconciliation(dependencies, claim, "invite_outcome_unknown");
+    if (!(await requireManualReconciliation(dependencies, claim, "invite_outcome_unknown"))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     return { kind: "manual_reconciliation_required" };
   }
 
@@ -145,12 +147,12 @@ export async function runEmployeeProvisioning(
   }
 
   if (invite.kind === "not_created") {
-    await requireManualReconciliation(dependencies, claim, "invite_not_created");
+    if (!(await requireManualReconciliation(dependencies, claim, "invite_not_created"))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     return { kind: "failed", code: "INVITE_NOT_CREATED" };
   }
 
   if (!invite.authUserId || !invite.identityCreatedByOperation) {
-    await requireManualReconciliation(dependencies, claim, "auth_identity_ownership_unproven");
+    if (!(await requireManualReconciliation(dependencies, claim, "auth_identity_ownership_unproven"))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     return { kind: "manual_reconciliation_required" };
   }
 
@@ -162,7 +164,7 @@ export async function runEmployeeProvisioning(
   }
 
   if (!authIdPersisted) {
-    await requireManualReconciliation(dependencies, claim, "auth_user_id_persistence_failed");
+    if (!(await requireManualReconciliation(dependencies, claim, "auth_user_id_persistence_failed"))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     return { kind: "failed", code: "AUTH_ID_PERSISTENCE_FAILED" };
   }
 
@@ -177,7 +179,7 @@ export async function runEmployeeProvisioning(
   }
 
   if (domainResult.kind === "unknown") {
-    await requireManualReconciliation(dependencies, claim, "domain_transaction_outcome_unknown");
+    if (!(await requireManualReconciliation(dependencies, claim, "domain_transaction_outcome_unknown"))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     return { kind: "manual_reconciliation_required" };
   }
 
@@ -190,7 +192,7 @@ export async function runEmployeeProvisioning(
     }
 
     if (!compensationClaimed) {
-      await requireManualReconciliation(dependencies, claim, "compensation_claim_failed");
+      if (!(await requireManualReconciliation(dependencies, claim, "compensation_claim_failed"))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
       return { kind: "manual_reconciliation_required" };
     }
 
@@ -205,13 +207,13 @@ export async function runEmployeeProvisioning(
     }
 
     if (compensationResult.kind !== "deleted") {
-      await requireManualReconciliation(
+      if (!(await requireManualReconciliation(
         dependencies,
         claim,
         compensationResult.kind === "not_safe"
           ? "auth_identity_no_longer_safe_to_delete"
           : "auth_compensation_outcome_unknown",
-      );
+      ))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
       return { kind: "manual_reconciliation_required" };
     }
 
@@ -223,7 +225,7 @@ export async function runEmployeeProvisioning(
     }
 
     if (!compensated) {
-      await requireManualReconciliation(dependencies, claim, "compensation_state_persistence_failed");
+      if (!(await requireManualReconciliation(dependencies, claim, "compensation_state_persistence_failed"))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
       return { kind: "manual_reconciliation_required" };
     }
 
@@ -238,7 +240,7 @@ export async function runEmployeeProvisioning(
   }
 
   if (!completed) {
-    await requireManualReconciliation(dependencies, claim, "completion_state_persistence_failed");
+    if (!(await requireManualReconciliation(dependencies, claim, "completion_state_persistence_failed"))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     return { kind: "failed", code: "COMPLETION_FAILED" };
   }
 

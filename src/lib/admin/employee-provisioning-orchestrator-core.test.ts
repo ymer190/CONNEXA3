@@ -272,3 +272,116 @@ test("fails closed when the persistent claim cannot be acquired", async () => {
   );
   assert.deepEqual(events, ["claim"]);
 });
+
+
+test("does not run side effects while another request owns the persistent claim", async () => {
+  const { dependencies: deps, events } = dependencies({
+    claimOperation: async () => {
+      events.push("claim");
+      return { kind: "in_progress" };
+    },
+  });
+
+  assert.deepEqual(await runEmployeeProvisioning(payload, deps), { kind: "in_progress" });
+  assert.deepEqual(events, ["claim"]);
+});
+
+test("does not run side effects when the operation requires manual reconciliation", async () => {
+  const { dependencies: deps, events } = dependencies({
+    claimOperation: async () => {
+      events.push("claim");
+      return { kind: "manual_reconciliation_required" };
+    },
+  });
+
+  assert.deepEqual(
+    await runEmployeeProvisioning(payload, deps),
+    { kind: "manual_reconciliation_required" },
+  );
+  assert.deepEqual(events, ["claim"]);
+});
+
+test("does not persist domain records when invite creation is rejected", async () => {
+  const { dependencies: deps, events } = dependencies({
+    createInviteWithFirstAccessPending: async () => {
+      events.push("invite");
+      return { kind: "not_created" };
+    },
+  });
+
+  assert.deepEqual(
+    await runEmployeeProvisioning(payload, deps),
+    { kind: "failed", code: "INVITE_NOT_CREATED" },
+  );
+  assert.deepEqual(events, ["claim", "invite", "manual-reconciliation"]);
+});
+
+test("does not delete an Auth identity when acquiring the compensation claim fails", async () => {
+  const { dependencies: deps, events } = dependencies({
+    persistProfileMembershipAndAuditAtomically: async () => {
+      events.push("persist-domain-and-audit");
+      return { kind: "rolled_back" };
+    },
+    markCompensationPending: async () => {
+      events.push("compensation-pending");
+      return false;
+    },
+  });
+
+  assert.deepEqual(
+    await runEmployeeProvisioning(payload, deps),
+    { kind: "manual_reconciliation_required" },
+  );
+  assert.deepEqual(events, [
+    "claim",
+    "invite",
+    "persist-auth-id",
+    "persist-domain-and-audit",
+    "compensation-pending",
+    "manual-reconciliation",
+  ]);
+});
+
+test("requires manual reconciliation when Auth deletion has an unknown outcome", async () => {
+  const { dependencies: deps, events } = dependencies({
+    persistProfileMembershipAndAuditAtomically: async () => {
+      events.push("persist-domain-and-audit");
+      return { kind: "rolled_back" };
+    },
+    deleteUnacceptedAuthIdentityCreatedByOperation: async () => {
+      events.push("delete-auth-identity");
+      return { kind: "unknown" };
+    },
+  });
+
+  assert.deepEqual(
+    await runEmployeeProvisioning(payload, deps),
+    { kind: "manual_reconciliation_required" },
+  );
+  assert.deepEqual(events.slice(-2), [
+    "delete-auth-identity",
+    "manual-reconciliation",
+  ]);
+});
+
+test("does not report compensation complete when its terminal state cannot be persisted", async () => {
+  const { dependencies: deps, events } = dependencies({
+    persistProfileMembershipAndAuditAtomically: async () => {
+      events.push("persist-domain-and-audit");
+      return { kind: "rolled_back" };
+    },
+    markCompensated: async () => {
+      events.push("compensated");
+      return false;
+    },
+  });
+
+  assert.deepEqual(
+    await runEmployeeProvisioning(payload, deps),
+    { kind: "manual_reconciliation_required" },
+  );
+  assert.deepEqual(events.slice(-2), [
+    "compensated",
+    "manual-reconciliation",
+  ]);
+});

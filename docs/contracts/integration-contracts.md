@@ -1,7 +1,7 @@
 # Contratos de integração — CONNEXA3
 
 **Issue:** [#106](https://github.com/ymer190/CONNEXA3/issues/106)
-**Versão:** 1.1 — revisão do baseline e dos contratos implementados
+**Versão:** 1.2 — schema de conversas no DEV e processo de mudança
 **Atualizado em:** 2026-11-26
 **Ambiente conferido:** Supabase Online, projeto `connexa-dev` (`dzsacdtolxrqgwlekzdg`)
 **Estado:** contratos existentes e propostas pendentes estão separados. A validação conjunta Back-end/Front-end continua pendente.
@@ -10,19 +10,19 @@ Este documento é a referência compartilhada de integração. Os contratos clas
 
 ## 1. Baseline verificado
 
-Em 26/11/2026, `public` no `connexa-dev` contém 11 tabelas, todas com RLS: `organizations`, `profiles`, `organization_members`, `platform_users`, `departments`, `department_members`, `authorized_devices`, `device_sessions`, `it_support_members`, `it_support_tickets` e `administrative_audit_logs`.
+Em 26/11/2026, `public` no `connexa-dev` contém 16 tabelas. Todas têm RLS habilitado; as cinco tabelas novas de conversas também usam `FORCE ROW LEVEL SECURITY`.
 
 As tabelas de departamentos e suas RPCs foram implementadas para a #95. As tabelas/RPCs de dispositivos, suporte e auditoria administrativa estão no banco DEV pelas migrations da #97. Essas migrations ainda não estão integradas na `main` conforme a PR #153 aberta em 26/11; o contrato de banco abaixo não afirma integração no frontend nem autorização para produção.
 
-O banco DEV **não** tem `conversations`, `conversation_members`, `messages`, `message_attachments` ou `conversation_audit_logs`, nem RPC de consulta administrativa de conversas. A arquitetura e os limites de autorização aprovados estão na [ADR-001 v1.3](../architecture/ADR-001_v1.3_proposta_consolidada_SQA.md) e no [documento da #96](../architecture/authorization-permissions-issue-96.md); aprovação documental não é implementação.
+As tabelas `conversations`, `conversation_members`, `messages`, `message_attachments` e `conversation_audit_logs` foram aplicadas no DEV pelas migrations `20261126200605` e `20261126200722` (PR #156). Elas são apenas fundação de dados: não há RPC/endpoints, policies ou privilégios diretos para `anon`, `authenticated` ou `service_role`; portanto, nenhuma delas está disponível pela Data API. A arquitetura e os limites de autorização aprovados estão na [ADR-001 v1.3](../architecture/ADR-001_v1.3_proposta_consolidada_SQA.md) e no [documento da #96](../architecture/authorization-permissions-issue-96.md). A aprovação documental não equivale a uma operação de aplicação implementada.
 
 | Domínio | Estado no DEV | Limite principal |
 |---|---|---|
 | Auth e perfil próprio | Implementado | Sessão autentica; permissão é checada separadamente |
 | Departamentos e vínculos | RPCs implementadas para `platform_admin` | Acesso somente via RPC; sem paginação no banco |
 | Dispositivos, sessões e suporte | RPCs da #97 presentes no DEV | Acesso via RPC autenticada, dispositivo autorizado e escopo/ator validados |
-| Auditoria administrativa | Tabela append-only e RPC de consulta presentes | Histórico completo somente para `platform_admin`; paginação atual tem limitação de cursor |
-| Conversas, mensagens e auditoria de conversas | Não implementado no DEV | Contrato de consulta administrativa permanece proposta; nenhuma tabela ou API disponível |
+| Auditoria administrativa | Tabela append-only e RPC de consulta presentes | Histórico completo somente para `platform_admin`; cursor composto `(occurred_at, id)`, chamada PostgREST com sessão e eventos reais ainda não validada |
+| Schema de conversas, mensagens, anexos e auditoria do domínio | Tabelas presentes; sem RPC/API | RLS forçado, sem policies/grants; contrato de leitura excepcional continua proposta e não pode ser consumido |
 | Colaboradores e ciclo de vida de conta | Parcial / dependências #92–#94 | Não inferir campos, papéis ou operações que ainda não foram entregues |
 
 ## 2. Convenções de integração
@@ -121,19 +121,29 @@ Não existem `correlation_id`, `page_size`, `result_count` ou coluna de corpo de
 
 RPC no DEV: `admin_list_administrative_audit({p_before: ISO8601|null, p_before_id: bigint|null, p_limit: integer})` retorna `AdministrativeAuditEvent[]`, exclusivamente para `platform_admin` com sessão/dispositivo autorizados. `p_limit` default 50 e aceita 1–100. Primeira página: ambos os campos do cursor são `null`; páginas seguintes: enviar o par `(occurred_at, id)` do último registro recebido. Os dois campos do cursor devem ser enviados juntos. Ordenação e continuação são decrescentes pela chave composta `(occurred_at, id)`. Não há filtros de ator, ação, organização ou tipo de alvo.
 
-A correção de cursor composto foi aplicada no DEV pela migration `20261126195458_issue_97_audit_composite_cursor` e adicionada à branch da PR #153. A comparação lexicográfica foi verificada com timestamps repetidos: a página seguinte inclui os IDs menores do mesmo timestamp e continua aos timestamps anteriores. A assinatura e os grants foram conferidos; a validação PostgREST com uma sessão autenticada e evento real permanece pendente.
+A correção de cursor composto foi aplicada no DEV pela migration `20261126195458_issue_97_audit_composite_cursor` e adicionada à branch da PR #153. A regra é a comparação decrescente pela chave `(occurred_at, id)`; a assinatura exige os dois campos do cursor juntos. O teste de chamada PostgREST com sessão autorizada e eventos reais permanece pendente e será executado na etapa final de validação.
 
 A política aprovada pela PO é retenção de **cinco anos** para dados/eventos abrangidos, com holds documentados que podem estender a preservação. O mecanismo de retenção, início da contagem por categoria, expurgo de backups/réplicas e anonimização ainda são gates de implementação; esta RPC não aplica retenção.
 
-## 6. Consulta administrativa de conversas e auditoria do domínio — proposta, não implementada
+## 6. Consulta administrativa de conversas e auditoria do domínio — schema no DEV, operações propostas
 
-Não há no DEV tabelas ou operações de conversa. O contrato a seguir fixa a fronteira aprovada pela #96/ADR para orientar a implementação, sem declarar endpoint disponível.
+O DEV contém as tabelas abaixo, aplicadas pelas migrations da PR #156. Todas estão sem policies e sem privilégios de Data API. Nenhuma RPC ou endpoint de consulta administrativa foi implementada; os contratos seguintes são propostas explícitas para revisão e implementação futura.
+
+| Tabela | Campos definidos no schema | Limite atual |
+|---|---|---|
+| `conversations` | `id`, `organization_id`, `type`, `title`, `visibility`, `department_id`, `created_by`, `status`, pares de usuários para conversa direta, timestamps e arquivamento | Não disponível via API |
+| `conversation_members` | organização, conversa, usuário, estado (`invited/active/left/removed`), ator que adicionou e timestamps de ciclo de vida | Não disponível via API |
+| `messages` | organização, conversa, remetente, `encrypted_payload` opaco, tipo, metadados de evento de sistema, timestamps e soft delete | Não há plaintext; envelope/criptografia e leitura não implementados |
+| `message_attachments` | mensagem/conversa/organização, uploader, bucket/path, nome/MIME, categoria, tamanho, status de scan e exclusão | Metadados apenas; sem bucket privado, scan ou entrega de arquivo |
+| `conversation_audit_logs` | `id`, `organization_id`, `conversation_id`, `actor_id`, `target_user_id`, `event_type`, `outcome`, `justification`, `correlation_id`, `metadata`, `created_at` | Append-only; sem leitura/escrita pela Data API |
+
+FKs compostas restringem referências à mesma organização. A trilha de conversas é distinta de `administrative_audit_logs`; não se deve inferir equivalência entre seus eventos.
 
 ### Consulta excepcional de conteúdo
 
 A consulta é server-side, separada do acesso normal por participante e da administração de plataforma. Este é o contrato semântico proposto para a futura operação; não existe RPC ou endpoint no DEV.
 
-**Entrada proposta:** `conversation_id` (UUID obrigatório), `justification` (texto obrigatório e não vazio após `trim`) e `page_size`/`cursor` na leitura de mensagens. `actor_id`, papel, organização e grant nunca vêm do cliente; o servidor deriva a identidade da sessão e valida escopo e autorização. Ainda não há tamanho máximo de justificativa aprovado para essa operação.
+**Entrada proposta:** `p_conversation_id` (UUID obrigatório), `p_justification` (texto obrigatório e não vazio após `trim`), `p_limit` (padrão proposto 50, máximo proposto 100) e cursor opcional em par: `p_before_created_at` + `p_before_id`. Ordenação proposta: decrescente por `(created_at,id)`; ambos os campos do cursor devem ser enviados juntos. O servidor revalida escopo e grant a cada página. Estes nomes e limites são proposta, não uma RPC existente. `actor_id`, papel, organização e grant nunca vêm do cliente; o servidor deriva a identidade da sessão. Ainda não há tamanho máximo de justificativa aprovado.
 
 **Resposta semântica proposta:**
 
@@ -150,12 +160,12 @@ A consulta é server-side, separada do acesso normal por participante e da admin
       "id": "uuid",
       "sender_id": "uuid",
       "message_type": "string",
-      "content": "conteúdo somente dentro do grant",
+      "encrypted_payload": "envelope opaco; formato ainda depende da decisão de criptografia",
       "created_at": "2026-01-01T00:00:00Z",
       "edited_at": "2026-01-01T00:00:00Z | null",
       "deleted_at": "2026-01-01T00:00:00Z | null",
       "attachments": [
-        { "id": "uuid", "media_type": "string", "size_bytes": 0, "created_at": "2026-01-01T00:00:00Z" }
+        { "id": "uuid", "file_category": "image | video | audio | document", "detected_mime_type": "string", "size_bytes": 0, "scan_status": "string", "created_at": "2026-01-01T00:00:00Z" }
       ]
     }
   ],
@@ -163,7 +173,7 @@ A consulta é server-side, separada do acesso normal por participante e da admin
 }
 ```
 
-Os campos são projeção semântica proposta, não colunas físicas aprovadas. `page_size` padrão 50/máximo 100 também é proposta explícita para revisão conjunta, não limite já implementado. Cursor opaco deve ser estável; ordenar por timestamp e ID; revalidar escopo/grant em cada página. Não devolver bytes de anexo, chaves internas, URL pública ou conteúdo fora do grant.
+Os campos são uma projeção semântica proposta sobre o schema agora existente, não uma resposta de API implementada. O banco armazena `encrypted_payload` opaco; não existe formato de descriptografia aprovado. O limite 50/100 também é proposta para revisão, não limite implementado. Não devolver bytes de anexo, chaves internas, URL pública ou conteúdo fora do grant.
 
 A capability `conversations.exceptional_read` é nominativa, separada, com escopo definido, validade e expiração. Concedê-la exige duas decisões registradas: Direção/Chefia e TI autorizado; sem autoaprovação ou aprovação do leitor para si. RPGD faz supervisão de privacidade, não substitui aprovadores e não recebe conteúdo por esse papel. Cada leitura exige justificativa e auditoria persistida antes da divulgação; falha de autorização, escopo ou auditoria nega a consulta. `platform_admin` e `it_support` não têm acesso automático a conteúdo.
 
@@ -171,9 +181,11 @@ Erros semânticos propostos: `AUTHENTICATION_REQUIRED` (sessão ausente), `FORBI
 
 ### Auditoria de conversas
 
-`conversation_audit_logs` é uma entidade proposta pela #96 para eventos do ciclo de vida de conversas/participantes. Projeção semântica mínima para validação conjunta: `id`, `actor_id`, `action`, `target_type`, `target_id`, `organization_id` quando aplicável, `justification` quando exigida, `occurred_at` UTC, `outcome` e `correlation_id`. Consulta também precisa definir filtro por período/ação/alvo, cursor estável, limite de página e projeção por papel. Não duplicar eventos da trilha administrativa/security de `administrative_audit_logs` (#97); correlacionar os domínios por identificador comum quando a implementação definir esse vínculo.
+`conversation_audit_logs` existe como tabela append-only. Campos físicos: `id`, `organization_id`, `conversation_id`, `actor_id`, `target_user_id`, `event_type`, `outcome` (`allowed|denied`), `justification`, `correlation_id`, `metadata` objeto e `created_at`. Não há RPC de escrita/leitura ou grants/policies.
 
-O acesso ao histórico administrativo completo (`audit.read`) é exclusivo de `platform_admin`; `it_support` e colaboradores comuns não o consultam. RPGD pode supervisionar somente registros necessários ao ciclo de aprovação, concessão, renovação, revogação e consulta excepcional; essa permissão não dá acesso ao conteúdo das conversas. Não gravar corpo de mensagem, plaintext, conteúdo de anexo, tokens ou credenciais. Os campos acima, operações de leitura, papéis de consulta e paginação são contrato semântico proposto, não esquema implementado no DEV.
+**Consulta proposta:** filtros opcionais por `conversation_id`, `actor_id`, `target_user_id`, `event_type`, `outcome` e intervalo de `created_at`; ordem decrescente estável por `(created_at,id)`; `p_limit` padrão 50/máximo 100 e cursor com os dois campos. Resposta limitada aos campos da tabela acima, sem conteúdo de mensagens/anexos. Filtros, página e projeções por papel ainda dependem de decisão conjunta. Não duplicar eventos de `administrative_audit_logs` (#97).
+
+O acesso ao histórico administrativo completo (`audit.read`) é exclusivo de `platform_admin`; `it_support` e colaboradores comuns não o consultam. RPGD pode supervisionar somente registros necessários ao ciclo de aprovação, concessão, renovação, revogação e consulta excepcional; essa permissão não dá acesso ao conteúdo das conversas. Não gravar corpo de mensagem, plaintext, conteúdo de anexo, tokens ou credenciais. Campos físicos já existem; consulta, filtros, papéis e paginação seguem como contrato semântico proposto, sem endpoint ativo.
 
 Retenção de cinco anos vale às categorias abrangidas pela decisão da PO; marcos iniciais de contagem por categoria, holds, política de backup e expurgo seguro permanecem pendências, conforme ADR-001 v1.3. Não usar a antiga proposta de 12 meses.
 
@@ -191,23 +203,25 @@ Operações mutáveis de administração usam transação no banco e escrevem au
 
 ## 8. Mudanças e validação conjunta
 
-1. Alterações em campo, tipo, nullable, erro, ordenação, paginação, autorização ou semântica exigem atualização deste documento no mesmo PR da migration/implementação.
-2. O PR mostra request e response reais, classificação implementado/proposto, impacto para as duas equipes, erros e evidência verificável em `connexa-dev` quando tocar o banco.
-3. Back-end e Front-end revisam os mesmos exemplos e registram aprovação no PR antes da integração. Decisões de privacidade/produto são revisadas pelos responsáveis correspondentes.
-4. Migrations de banco são revisadas/versionadas no repositório, aplicadas primeiro em `connexa-dev` e verificadas depois; não aplicar em produção por este documento.
-5. Alteração sem compatibilidade precisa registrar migração de consumidores e janela de coexistência. Nenhum cliente presume campos, limites, respostas vazias ou autorização.
+1. A pessoa que propõe a mudança abre PR antes de integrar e atualiza este contrato no mesmo PR da migration/implementação. Cada elemento fica marcado como **implementado**, **proposto** ou **depreciado**.
+2. A descrição do PR registra motivação, campos/tipos/nullability, exemplos de entrada/resposta, erros, autorização, paginação, impacto de compatibilidade e plano para consumidores; explicita o impacto para Back-end e Front-end.
+3. A pessoa autora comunica a mudança na issue #106 e vincula o PR. Solicita revisão dos representantes de Back-end e Front-end; decisões de privacidade/produto registram também responsável e decisão.
+4. Revisores comparam contrato e implementação. Dúvidas viram questões explícitas na documentação, sem presumir comportamento. Aprovações são registradas no PR antes do merge.
+5. Mudança incompatível registra migração de consumidores e janela de coexistência; mudança compatível documenta defaults e tratamento de campos ausentes.
+6. Migrations são revisadas/versionadas e aplicadas primeiro em `connexa-dev`; evidência fica no PR. Este processo não autoriza alteração em Production.
+7. A validação conjunta de Back-end, Front-end, Tech Lead e SQA será realizada na etapa final da issue, antes do aceite.
 
-### Checklist da versão 1.1
+### Checklist da versão 1.2
 
 - [x] Atualizado baseline a partir do banco `connexa-dev` e da `main` em 26/11/2026.
 - [x] Contratos de perfil próprio e departamentos descritos a partir dos campos/RPCs reais.
-- [x] Auditoria administrativa documenta campos, limite de consulta, autorização, append-only e limitação do cursor atual.
+- [x] Auditoria administrativa documenta campos, limite de consulta, autorização, append-only e cursor composto `(occurred_at,id)`.
 - [x] Consulta administrativa de conversas e auditoria de conversas separadas do que existe hoje.
 - [ ] Back-end validou os contratos e a limitação/correção de paginação.
 - [ ] Front-end validou os mesmos exemplos, erros e limites.
 - [ ] PO/privacidade validou a aplicação da regra de acesso excepcional/retenção aos consumidores.
-- [x] Corrigir no DEV o cursor da auditoria para usar `(occurred_at, id)` e confirmar a comparação com timestamps iguais.
-- [ ] Validar a chamada PostgREST paginada com sessão autorizada e eventos reais de auditoria.
+- [x] Documentar processo de comunicação, documentação, revisão e compatibilidade antes da integração.
+- [ ] Validar a chamada PostgREST paginada com sessão autorizada e eventos reais de auditoria (etapa final).
 - [ ] Alinhar PR #153 e migrations da #97 com `main` antes de anunciar integração de dispositivos/auditoria.
 
 ## Referências

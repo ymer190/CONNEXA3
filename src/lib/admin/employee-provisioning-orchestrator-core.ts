@@ -144,7 +144,9 @@ export async function runEmployeeProvisioning(
   }
 
   if (invite.kind === "unknown") {
-    await requireManualReconciliation(dependencies, claim, "invite_outcome_unknown");
+    if (!(await requireManualReconciliation(dependencies, claim, "invite_outcome_unknown"))) {
+      return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    }
     return { kind: "manual_reconciliation_required" };
   }
 

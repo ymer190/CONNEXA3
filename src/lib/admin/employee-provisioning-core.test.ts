@@ -153,6 +153,20 @@ test("redacts private keyring and secret-key environment variables", () => {
   assert.equal(result.length < message.length, true);
 });
 
+test("redacts multiline PEM private keys from sanitized errors", () => {
+  const privateKey = [
+    "-----BEGIN PRIVATE KEY-----",
+    "MIIEvQIBADANBgkqhkiG9w0BAQEFAASC",
+    "Q8AMIIBCgKCAQEAprivate-key-material",
+    "-----END PRIVATE KEY-----",
+  ].join("\n");
+  const result = sanitizeProvisioningError(\`PRIVATE_KEY=\n\${privateKey}\noperation failed\`);
+
+  assert.equal(result.includes("MIIEvQIBADANBgkqhkiG9w0BAQEFAASC"), false);
+  assert.equal(result.includes("private-key-material"), false);
+  assert.match(result, /\[PRIVATE KEY REDACTED\]/);
+});
+
 test("redacts Supabase secret keys, JWTs, and URL credentials", () => {
   const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTYifQ.signaturevalue123";
   const message =

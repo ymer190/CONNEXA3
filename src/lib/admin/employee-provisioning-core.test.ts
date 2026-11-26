@@ -142,13 +142,15 @@ test("sanitizes multiline errors and enforces the maximum stored length", () => 
 
 test("redacts Supabase secret keys, JWTs, and URL credentials", () => {
   const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTYifQ.signaturevalue123";
-  const result = sanitizeProvisioningError(
-    \`SUPABASE_SERVICE_ROLE_KEY=service-secret sb_secret_abcdefghijklmnopqrstuvwxyz \${jwt} https://example.test/?access_token=url-secret&refresh_token=refresh-secret\`,
-  );
+  const message =
+    "SUPABASE_SERVICE_ROLE_KEY=service-secret sb_secret_abcdefghijklmnopqrstuvwxyz " +
+    jwt +
+    " https://example.test/?access_token=url-secret&refresh_token=refresh-secret";
+  const result = sanitizeProvisioningError(message);
 
   for (const secret of ["service-secret", "sb_secret_abcdefghijklmnopqrstuvwxyz", jwt, "url-secret", "refresh-secret"]) {
-    assert.equal(result.includes(secret), false, \`expected \${secret} to be redacted\`);
+    assert.equal(result.includes(secret), false, `expected ${secret} to be redacted`);
   }
-  assert.match(result, /\[REDACTED\]/);
-  assert.match(result, /\[JWT\]/);
+  assert.match(result, /\\[REDACTED\\]/);
+  assert.match(result, /\\[JWT\\]/);
 });

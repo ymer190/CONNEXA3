@@ -146,3 +146,45 @@ test("maps reconciliation and unknown failures to fail-closed responses", async 
     assert.equal(json.error.code, code);
   }
 });
+
+test("rejects malformed JSON before invoking the provisioner", async () => {
+  const { handler, received } = dependencies();
+  const malformed = new Request("https://connexa.test/api/admin/employees", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": "request-123",
+    },
+    body: "{",
+  });
+
+  const response = await handler(malformed);
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), {
+    success: false,
+    error: {
+      code: "INVALID_PAYLOAD",
+      message: "Informe os dados do colaborador em JSON válido.",
+    },
+  });
+  assert.equal(received.length, 0);
+});
+
+test("rejects invalid employee data before invoking the provisioner", async () => {
+  const { handler, received } = dependencies();
+  const response = await handler(request({ ...body, email: "not-an-email" }));
+
+  assert.equal(response.status, 400);
+  assert.equal(received.length, 0);
+});
+
+test("rejects an invalid authenticated actor before invoking the provisioner", async () => {
+  const { handler, received } = dependencies({
+    authorize: async () => ({ authorized: true, actorUserId: "not-a-uuid" }),
+  });
+  const response = await handler(request());
+
+  assert.equal(response.status, 400);
+  assert.deepEqual((await response.json()).error.code, "INVALID_ACTOR");
+  assert.equal(received.length, 0);
+});

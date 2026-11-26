@@ -137,7 +137,9 @@ export async function runEmployeeProvisioning(
   try {
     invite = await dependencies.createInviteWithFirstAccessPending(payload);
   } catch {
-    if (!(await requireManualReconciliation(dependencies, claim, "invite_outcome_unknown"))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    if (!(await requireManualReconciliation(dependencies, claim, "invite_outcome_unknown"))) {
+      return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    }
     return { kind: "manual_reconciliation_required" };
   }
 
@@ -147,12 +149,16 @@ export async function runEmployeeProvisioning(
   }
 
   if (invite.kind === "not_created") {
-    if (!(await requireManualReconciliation(dependencies, claim, "invite_not_created"))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    if (!(await requireManualReconciliation(dependencies, claim, "invite_not_created"))) {
+      return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    }
     return { kind: "failed", code: "INVITE_NOT_CREATED" };
   }
 
   if (!invite.authUserId || !invite.identityCreatedByOperation) {
-    if (!(await requireManualReconciliation(dependencies, claim, "auth_identity_ownership_unproven"))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    if (!(await requireManualReconciliation(dependencies, claim, "auth_identity_ownership_unproven"))) {
+      return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    }
     return { kind: "manual_reconciliation_required" };
   }
 
@@ -164,7 +170,9 @@ export async function runEmployeeProvisioning(
   }
 
   if (!authIdPersisted) {
-    if (!(await requireManualReconciliation(dependencies, claim, "auth_user_id_persistence_failed"))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    if (!(await requireManualReconciliation(dependencies, claim, "auth_user_id_persistence_failed"))) {
+      return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    }
     return { kind: "failed", code: "AUTH_ID_PERSISTENCE_FAILED" };
   }
 
@@ -179,7 +187,9 @@ export async function runEmployeeProvisioning(
   }
 
   if (domainResult.kind === "unknown") {
-    if (!(await requireManualReconciliation(dependencies, claim, "domain_transaction_outcome_unknown"))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    if (!(await requireManualReconciliation(dependencies, claim, "domain_transaction_outcome_unknown"))) {
+      return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    }
     return { kind: "manual_reconciliation_required" };
   }
 
@@ -192,7 +202,9 @@ export async function runEmployeeProvisioning(
     }
 
     if (!compensationClaimed) {
-      if (!(await requireManualReconciliation(dependencies, claim, "compensation_claim_failed"))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+      if (!(await requireManualReconciliation(dependencies, claim, "compensation_claim_failed"))) {
+        return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+      }
       return { kind: "manual_reconciliation_required" };
     }
 
@@ -225,7 +237,9 @@ export async function runEmployeeProvisioning(
     }
 
     if (!compensated) {
-      if (!(await requireManualReconciliation(dependencies, claim, "compensation_state_persistence_failed"))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+      if (!(await requireManualReconciliation(dependencies, claim, "compensation_state_persistence_failed"))) {
+        return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+      }
       return { kind: "manual_reconciliation_required" };
     }
 
@@ -240,7 +254,9 @@ export async function runEmployeeProvisioning(
   }
 
   if (!completed) {
-    if (!(await requireManualReconciliation(dependencies, claim, "completion_state_persistence_failed"))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    if (!(await requireManualReconciliation(dependencies, claim, "completion_state_persistence_failed"))) {
+      return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    }
     return { kind: "failed", code: "COMPLETION_FAILED" };
   }
 

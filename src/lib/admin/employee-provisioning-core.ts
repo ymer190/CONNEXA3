@@ -105,6 +105,10 @@ export function mayCompensateAuthUser(input: {
 export function sanitizeProvisioningError(value: unknown): string {
   const raw = value instanceof Error ? value.message : String(value ?? "Unknown error");
   return raw
+    .replace(
+      /-----BEGIN ([A-Z0-9 ]*PRIVATE KEY)-----[\s\S]*?-----END \1-----/g,
+      "[PRIVATE KEY REDACTED]",
+    )
     .replace(/Bearer\s+\S+/gi, "Bearer [REDACTED]")
     .replace(/\bsb_secret_[A-Za-z0-9_-]+/gi, "[REDACTED]")
     .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, "[JWT]")

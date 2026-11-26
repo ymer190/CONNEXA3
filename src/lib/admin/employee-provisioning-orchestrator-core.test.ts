@@ -385,3 +385,23 @@ test("does not report compensation complete when its terminal state cannot be pe
     "manual-reconciliation",
   ]);
 });
+
+test("does not claim reconciliation was recorded when its persistence fails", async () => {
+  const { dependencies: deps, events } = dependencies({
+    createInviteWithFirstAccessPending: async () => {
+      events.push("invite");
+      return { kind: "unknown" };
+    },
+    markManualReconciliationRequired: async () => {
+      events.push("manual-reconciliation");
+      throw new Error("database unavailable");
+    },
+  });
+
+  assert.deepEqual(
+    await runEmployeeProvisioning(payload, deps),
+    { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" },
+  );
+  assert.deepEqual(events, ["claim", "invite", "manual-reconciliation"]);
+});
+

@@ -14,7 +14,10 @@ begin
   perform pg_advisory_xact_lock(hashtextextended('issue97_legacy_device_revalidation', 0));
 
   with legacy as materialized (
-    select d.id, d.user_id, ds.session_id
+    select d.id, d.user_id, ds.session_id,
+           d.approved_at as prior_approved_at,
+           d.approved_by as prior_approved_by,
+           d.requested_at as original_requested_at
       from public.authorized_devices d
       join public.device_sessions ds on ds.device_id = d.id and ds.user_id = d.user_id
      where d.id = ds.session_id and d.status = 'approved' and ds.status = 'approved'
@@ -43,9 +46,15 @@ begin
     )
     select null, 'device.legacy_revalidation_required', 'device', s.device_id::text,
            s.user_id,
-           'Controlled legacy revalidation rollout; historical device/session identifiers preserved.',
+           left(public.redact_audit_text(format(
+             'Controlled legacy revalidation; prior_approved_at=%s; prior_approved_by=%s; original_requested_at=%s; identifiers preserved.',
+             coalesce(l.prior_approved_at::text, 'NULL'),
+             coalesce(l.prior_approved_by::text, 'NULL'),
+             l.original_requested_at::text
+           )), 500),
            'allowed'
       from sessions s
+      join legacy l on l.id = s.device_id and l.user_id = s.user_id
     returning id
   )
   select counts.expected,

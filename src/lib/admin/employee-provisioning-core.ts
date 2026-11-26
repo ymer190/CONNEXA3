@@ -55,8 +55,7 @@ export function decideIdempotency(
 ): IdempotencyDecision {
   if (
     typeof idempotencyKey !== "string" ||
-    idempotencyKey.length === 0 ||
-    idempotencyKey.length > 128 ||
+    !/^[\\x21-\\x7E]{1,128}$/.test(idempotencyKey) ||
     typeof payloadHash !== "string" ||
     !/^sha256:[a-f0-9]{64}$/.test(payloadHash)
   ) {

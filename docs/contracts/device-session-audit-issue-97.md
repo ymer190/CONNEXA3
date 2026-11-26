@@ -67,3 +67,17 @@ O Security Advisor registra 20 avisos genéricos para RPCs `SECURITY DEFINER` ac
 - Helpers de sanitização e triggers append-only não são executáveis por papéis de cliente.
 
 Essas justificativas não substituem os testes de execução exigidos pelo Tech Lead/SQA. A matriz inclui usuário comum, platform_admin, it_support, autoaprovação, ticket ausente/inativo, cross-organization, revogação, conta suspensa, acesso direto, rollback e leitura auditada. Sem fixtures e JWTs autorizados, esses casos permanecem não verificados.
+
+## Contrato RPC de aprovação de dispositivo — revisão
+
+**Diferença identificada:** `src/app/admin/dispositivos/actions.ts` chama `admin_approve_device` com `p_device_id`, `p_justification` e `p_ticket_reference`. A migration inicial `20261126005001` instalada em `connexa-dev` define apenas `(p_device_id uuid, p_justification text)`. O PostgREST seleciona RPCs pela combinação de nomes/assinaturas; portanto, a chamada de três argumentos não corresponde ao contrato disponível no DEV e a aprovação pela interface falha até uma migration compatível ser aplicada.
+
+**Correção preparada no repositório:** a migration já existente `20261126010200_issue_97_sqa_gates.sql` remove a assinatura de dois argumentos e cria a versão de três argumentos. Ela exige ticket ativo pertencente à organização e ao usuário do dispositivo, impede autoaprovação, mantém justificativa e autorização server-side e concede execução somente a `authenticated`. A implementação do Front-end já envia esses três campos; não foi adicionada sobrecarga de dois argumentos nem fallback permissivo.
+
+**Teste de contrato preparado:** `node --test scripts/device-approval-rpc-contract.test.cjs` verifica os nomes dos argumentos enviados pelo Front-end, demonstra a assinatura legada da migration inicial e garante que a migration gated introduz apenas o contrato de três argumentos com validação de ticket e grant correspondente. O teste é estático; não substitui teste PostgREST autenticado.
+
+**Concluído:** análise Front-end/migration, correção de schema já presente e coberta por teste estático; nenhuma mudança de comportamento do banco foi executada nesta tarefa.
+
+**Aguardando infraestrutura sob responsabilidade do solicitante:** configuração do projeto/secrets SQA e execução de CI/CD e validação dinâmica com JWT/PostgREST. Não alterei workflows nem secrets.
+
+**Dependente de decisão/alinhamento técnico antes de release:** aprovar aplicação de 10200 no `connexa-dev` após apresentação e testes; confirmar janela/ordem junto à #94 e ao Tech Lead. Até essa decisão, DEV continua na assinatura de dois argumentos e a tela de aprovação permanece incompatível. Não aplicar em DEV ou Production; 10200/10300 seguem restritas ao SQA.

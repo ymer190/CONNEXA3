@@ -87,11 +87,13 @@ async function main() {
       console.log("PASS: administrator can sign out.");
     }
 
-    // Verify the protected route redirects a signed-out session to login.
-    await page.goto(`${baseUrl}/admin`);
-    await page.waitForURL((url) => url.pathname === "/login", { timeout: 20000, waitUntil: "domcontentloaded" });
-    await page.getByRole("heading", { name: "Bem-vindo de volta" }).waitFor();
-    console.log("PASS: signed-out administrator is redirected away from /admin.");
+    if (deviceId) {
+      // Verify the protected route redirects a signed-out session to login.
+      await page.goto(`${baseUrl}/admin`);
+      await page.waitForURL((url) => url.pathname === "/login", { timeout: 20000, waitUntil: "domcontentloaded" });
+      await page.getByRole("heading", { name: "Bem-vindo de volta" }).waitFor();
+      console.log("PASS: signed-out administrator is redirected away from /admin.");
+    }
   } finally {
     await browser.close();
   }

@@ -74,6 +74,33 @@ jobs:
 
           echo "PASS: unauthenticated /admin requests redirect to /login."
 
+          first_access_status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/primeiro-acesso || true)
+          if [ "$first_access_status" != "307" ]; then
+            echo "Expected unauthenticated /primeiro-acesso to redirect; received: $first_access_status"
+            cat /tmp/connexa-next.log
+            exit 1
+          fi
+
+          invite_status=$(curl -sS -D - -o /dev/null 'http://127.0.0.1:3000/auth/callback?type=invite' | awk 'NR==1 {print $2}')
+          if [ "$invite_status" != "307" ]; then
+            echo "Expected malformed invitation callback to redirect; received: $invite_status"
+            cat /tmp/connexa-next.log
+            exit 1
+          fi
+
+          csrf_status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
+            -H 'Origin: https://attacker.invalid' \
+            -H 'Content-Type: application/json' \
+            --data '{"password":"not-a-real-password"}' \
+            http://127.0.0.1:3000/api/auth/first-access/password || true)
+          if [ "$csrf_status" != "403" ]; then
+            echo "Expected cross-origin password update to be rejected with HTTP 403; received: $csrf_status"
+            cat /tmp/connexa-next.log
+            exit 1
+          fi
+
+          echo "PASS: first-access route redirects without session, malformed invite is rejected, and cross-origin password update is blocked."
+
       # NEXT_PUBLIC_* values are inlined into Next.js middleware at build time.
       # Build a separate artifact without them to exercise the fail-closed branch.
       - name: Build Next.js application without Supabase configuration

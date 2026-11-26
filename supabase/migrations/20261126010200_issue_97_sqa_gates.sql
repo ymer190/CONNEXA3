@@ -138,7 +138,9 @@ begin
   if p_device_id is null
      or nullif(btrim(p_ticket_reference), '') is null
      or nullif(btrim(p_justification), '') is null
-     or p_operator_audit_reference !~ '^https://github\.com/ymer190/CONNEXA3/actions/runs/[0-9]+$' then
+     or p_operator_audit_reference is null
+     or nullif(btrim(p_operator_audit_reference), '') is null
+     or btrim(p_operator_audit_reference) !~ '^https://github\.com/ymer190/CONNEXA3/actions/runs/[0-9]+$' then
     raise exception 'Device, active ticket, justification and verified workflow run reference are required' using errcode = '22023';
   end if;
   perform pg_advisory_xact_lock(hashtextextended('issue97_admin_device_bootstrap', 0));

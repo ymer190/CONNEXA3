@@ -51,6 +51,7 @@ jobs:
         run: >-
           node --experimental-strip-types --test
           src/lib/admin/employee-input.test.ts
+          src/lib/admin/email-duplicate-core.test.ts
           src/lib/admin/list-organizations-core.test.ts
           src/lib/admin/organizations-handler.test.ts
 

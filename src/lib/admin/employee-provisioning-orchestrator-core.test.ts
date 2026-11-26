@@ -42,7 +42,7 @@ function dependencies(overrides: Partial<EmployeeProvisioningDependencies> = {})
     },
     persistProfileMembershipAndAuditAtomically: async () => {
       events.push("persist-domain-and-audit");
-      return true;
+      return { kind: "committed" as const };
     },
     completeOperation: async () => {
       events.push("complete");
@@ -148,7 +148,7 @@ test("compensates a proven Auth identity after the atomic domain transaction fai
   const { dependencies: deps, events } = dependencies({
     persistProfileMembershipAndAuditAtomically: async () => {
       events.push("persist-domain-and-audit");
-      return false;
+      return { kind: "rolled_back" as const };
     },
   });
 
@@ -164,6 +164,27 @@ test("compensates a proven Auth identity after the atomic domain transaction fai
     "compensation-pending",
     "delete-auth-identity",
     "compensated",
+  ]);
+});
+
+test("does not compensate when the PostgreSQL transaction outcome is ambiguous", async () => {
+  const { dependencies: deps, events } = dependencies({
+    persistProfileMembershipAndAuditAtomically: async () => {
+      events.push("persist-domain-and-audit");
+      return { kind: "unknown" };
+    },
+  });
+
+  assert.deepEqual(
+    await runEmployeeProvisioning(payload, deps),
+    { kind: "manual_reconciliation_required" },
+  );
+  assert.deepEqual(events, [
+    "claim",
+    "invite",
+    "persist-auth-id",
+    "persist-domain-and-audit",
+    "manual-reconciliation",
   ]);
 });
 

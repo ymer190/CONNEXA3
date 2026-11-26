@@ -79,7 +79,9 @@ A branch contém `employee-provisioning-orchestrator-core.ts`, uma orquestraçã
 5. Marcar a operação como concluída somente após a confirmação da transação.
 6. Em rollback PostgreSQL confirmado, compensar somente uma identidade comprovadamente criada pela própria operação e ainda não aceita; resultado de transação ou de exclusão ambíguo segue para reconciliação manual, sem exclusão.
 
-Os testes cobrem replay sem novo convite, conflito de chave, resultado Auth ambíguo, propriedade não comprovada, falha de persistência, rollback/compensação, resultado PostgreSQL ambíguo (sem exclusão) e falha ao concluir. Os adaptadores concretos permanecem deliberadamente ausentes até aprovação dos contratos #97 e do mecanismo de marcador pré-convite.
+Os testes cobrem replay sem novo convite, conflito de chave, resultado Auth ambíguo, propriedade não comprovada, falha de persistência, rollback/compensação, resultado PostgreSQL ambíguo (sem exclusão) e falha ao concluir. O contrato HTTP foi separado em `employee-provisioning-handler.ts`: autoriza antes de processar a entrada, lê `Idempotency-Key` do cabeçalho, deriva ator/hash no servidor, mapeia replay/conflito/em andamento/falha para respostas HTTP estáveis e não expõe `auth_user_id` ou dados pessoais. Seus testes usam provisionador injetado; a rota Next.js real ainda depende dos adapters concretos.
+
+Os adaptadores concretos permanecem deliberadamente ausentes até aprovação dos contratos #97 e do mecanismo de marcador pré-convite.
 
 ## 7. Estados e transições
 

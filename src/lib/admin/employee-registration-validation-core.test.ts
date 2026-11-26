@@ -23,6 +23,18 @@ test("accepts valid data when email and organization are available", async () =>
   });
 });
 
+test("maps invalid input errors into the stable validation contract", async () => {
+  const result = await validateEmployeeRegistration({ email: "bad" }, {
+    emailExists: async () => ({ success: true, exists: false }),
+    organizationExists: async () => ({ success: true, exists: true }),
+  });
+  assert.deepEqual(result, {
+    success: false,
+    code: "INVALID_NAME",
+    message: "Informe um nome válido.",
+  });
+});
+
 test("rejects duplicate email before checking organization", async () => {
   let organizationChecked = false;
   const result = await validateEmployeeRegistration(validPayload, {
@@ -50,6 +62,15 @@ test("fails closed when duplicate lookup fails", async () => {
   const result = await validateEmployeeRegistration(validPayload, {
     emailExists: async () => ({ success: false }),
     organizationExists: async () => ({ success: true, exists: true }),
+  });
+  assert.equal(result.success, false);
+  if (!result.success) assert.equal(result.code, "VALIDATION_CHECK_FAILED");
+});
+
+test("fails closed when organization lookup fails", async () => {
+  const result = await validateEmployeeRegistration(validPayload, {
+    emailExists: async () => ({ success: true, exists: false }),
+    organizationExists: async () => ({ success: false }),
   });
   assert.equal(result.success, false);
   if (!result.success) assert.equal(result.code, "VALIDATION_CHECK_FAILED");

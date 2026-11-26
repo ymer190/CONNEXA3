@@ -20,6 +20,8 @@ O servidor deve:
 
 O hash atual implementado em `employee-provisioning-core.ts` é uma primitiva pura; não constitui claim persistente nem proteção contra concorrência por si só.
 
+A preparação confiável da entrada está implementada em `employee-provisioning-request-core.ts`: valida a chave de idempotência, recebe o ator autenticado como argumento server-side, normaliza os campos e calcula o hash no servidor. Campos `actorUserId`, `payloadHash` ou `idempotencyKey` enviados no corpo pelo navegador são ignorados. A rota definitiva ainda deve obter o ator de `requirePlatformAdmin()`/sessão validada e a chave do cabeçalho HTTP, nunca do corpo.
+
 ## 3. Persistência operacional proposta
 
 A tabela operacional `employee_provisioning_operations` deverá ser separada da auditoria central e conter somente metadados operacionais mínimos, por exemplo:

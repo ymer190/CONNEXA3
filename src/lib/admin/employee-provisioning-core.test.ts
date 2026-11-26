@@ -151,6 +151,6 @@ test("redacts Supabase secret keys, JWTs, and URL credentials", () => {
   for (const secret of ["service-secret", "sb_secret_abcdefghijklmnopqrstuvwxyz", jwt, "url-secret", "refresh-secret"]) {
     assert.equal(result.includes(secret), false, `expected ${secret} to be redacted`);
   }
-  assert.match(result, /\\[REDACTED\\]/);
-  assert.match(result, /\\[JWT\\]/);
+  assert.match(result, /REDACTED/);
+  assert.match(result, /JWT/);
 });

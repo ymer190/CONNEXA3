@@ -51,7 +51,7 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("Todas");
   const [message, setMessage] = useState("");
-  const [showContact, setShowContact] = useState(false);
+  const [showContact, setShowContact] = useState(true);
   const [toast, setToast] = useState("");
   const [mobileView, setMobileView] = useState<"inbox" | "chat">("inbox");
   const activeNav: string = "Conversas";
@@ -119,7 +119,7 @@ export default function Home() {
   }
 
   return (
-    <main className="app-shell">
+    <main className={showContact ? "app-shell contact-open" : "app-shell contact-closed"}>
       <aside className="nav-rail" aria-label="Navegação principal">
         <div className="rail-brand"><BrandMark compact /></div>
         <button className={activeNav === "Conversas" ? "rail-button active" : "rail-button"} onClick={() => router.push("/conversas")} aria-label="Conversas" title="Conversas">▤</button>
@@ -159,7 +159,7 @@ export default function Home() {
           <button className="chat-person" onClick={() => setShowContact(!showContact)}><strong>{active.name}</strong><small>{active.channel === "Grupo" ? active.company : active.online ? "● Online agora" : active.company}</small></button>
           <span className="header-spacer" />
           <button className="header-action" onClick={() => notify("Busca nesta conversa.")} aria-label="Buscar na conversa">⌕</button>
-          <button className="header-action" onClick={() => setShowContact(!showContact)} aria-label="Detalhes do contato">ⓘ</button>
+          <button className="header-action" onClick={() => setShowContact(!showContact)} aria-label={showContact ? "Recolher perfil do contato" : "Expandir perfil do contato"} aria-expanded={showContact}>ⓘ</button>
           <button className="header-action" onClick={() => notify("Mais opções da conversa.")} aria-label="Mais opções">⋯</button>
         </header>
         <div className="chat-context"><span className="secure-icon" aria-hidden="true">✳</span> Protótipo local · mensagens não são enviadas nem armazenadas no servidor. <button onClick={() => notify("A segurança e a privacidade serão detalhadas na versão integrada.")}>Saiba mais</button></div>
@@ -176,11 +176,12 @@ export default function Home() {
       </section>
 
       {showContact && <aside className="contact-panel">
-        <div className="contact-panel-head"><strong>Detalhes do contato</strong><button className="icon-button" onClick={() => setShowContact(false)} aria-label="Fechar detalhes">×</button></div>
-        <div className="contact-profile"><span className={"contact-avatar large " + active.color}>{active.initials}</span><h2>{active.name}</h2><p>{active.company}</p><span className="profile-channel">● {active.channel}</span></div>
+        <div className="contact-panel-head"><div><strong>Perfil da conversa</strong><span className="contact-panel-subtitle">{active.channel === "Grupo" ? "Informações do grupo" : "Informações do colaborador"}</span></div><button className="icon-button" onClick={() => setShowContact(false)} aria-label="Recolher perfil">×</button></div>
+        <div className="contact-profile"><span className={"contact-avatar large " + active.color}>{active.initials}</span><h2>{active.name}</h2><p>{active.channel === "Grupo" ? "Grupo organizacional" : "Colaborador"}</p><span className="profile-channel">{active.channel}</span></div>
         <div className="detail-section"><span className="detail-label">DEPARTAMENTO</span><p className="detail-value">{active.label}</p></div>
+        <div className="detail-section"><span className="detail-label">{active.channel === "Grupo" ? "DESCRIÇÃO DO GRUPO" : "VÍNCULO ORGANIZACIONAL"}</span><p className="detail-placeholder">{active.company}</p></div>
         <div className="detail-section"><span className="detail-label">PARTICIPANTES</span><p className="detail-placeholder">{active.channel === "Grupo" ? active.company : "Conversa individual entre colaboradores"}</p></div>
-        <div className="detail-section"><span className="detail-label">INFORMAÇÕES</span><p className="detail-placeholder">Dados organizacionais e informações de acesso serão exibidos conforme as permissões do seu perfil.</p></div>
+        <div className="detail-section"><span className="detail-label">SOBRE</span><p className="detail-placeholder">A descrição institucional e a apresentação pessoal serão exibidas quando estiverem disponíveis no perfil cadastrado.</p></div>
         <div className="detail-section"><span className="detail-label">HISTÓRICO</span><p className="detail-placeholder">As mensagens desta demonstração são locais e não representam registros permanentes.</p></div>
       </aside>}
       {showNewConversation && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowNewConversation(false); }}><form className="new-conversation-modal" onSubmit={createConversation} role="dialog" aria-modal="true" aria-labelledby="new-conversation-title"><div className="modal-heading"><div><p className="eyebrow">COMUNICAÇÃO INTERNA</p><h2 id="new-conversation-title">Nova conversa</h2></div><button type="button" className="icon-button" onClick={() => setShowNewConversation(false)} aria-label="Fechar">×</button></div><label className="modal-field">Colaborador<input autoFocus required value={newConversationName} onChange={(event) => setNewConversationName(event.target.value)} placeholder="Digite o nome do colaborador" /></label><div className="modal-actions"><button type="button" className="outline-button" onClick={() => setShowNewConversation(false)}>Cancelar</button><button type="submit" className="modal-submit">Iniciar conversa</button></div><p className="modal-disclaimer">Demonstração visual. O diretório real e a gestão de grupos e departamentos serão administrados pelo TI.</p></form></div>}

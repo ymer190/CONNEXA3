@@ -56,6 +56,24 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const isFirstAccessPending =
+    user?.app_metadata?.first_access_pending === true;
+  const isFirstAccessAllowedPath = [
+    "/primeiro-acesso",
+    "/auth/callback",
+    "/api/auth/first-access/password",
+  ].some((path) =>
+    request.nextUrl.pathname === path ||
+    request.nextUrl.pathname.startsWith(`${path}/`)
+  );
+
+  if (isFirstAccessPending && !isFirstAccessAllowedPath) {
+    const firstAccessUrl = request.nextUrl.clone();
+    firstAccessUrl.pathname = "/primeiro-acesso";
+    firstAccessUrl.search = "";
+    return NextResponse.redirect(firstAccessUrl);
+  }
+
   if (isWorkspaceRoute && !user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";

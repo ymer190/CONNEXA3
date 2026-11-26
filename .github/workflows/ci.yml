@@ -21,7 +21,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_VxDDuEIFkXx4OrkVdg4xbg_7RAzlmR9
       HAS_AUTH_TEST_SECRETS: ${{ secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' }}
       HAS_AUTH_ADMIN_TEST_SECRETS: ${{ secrets.AUTH_TEST_ADMIN_EMAIL != '' && secrets.AUTH_TEST_ADMIN_PASSWORD != '' }}
-      HAS_DEPARTMENT_RPC_TEST_SECRETS: ${{ secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' && secrets.AUTH_TEST_ADMIN_EMAIL != '' && secrets.AUTH_TEST_ADMIN_PASSWORD != '' }}
+      HAS_DEPARTMENT_RPC_TEST_SECRETS: ${{ secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' && secrets.AUTH_TEST_USER_DEVICE_ID != '' && secrets.AUTH_TEST_USER_DEVICE_SECRET != '' && secrets.AUTH_TEST_ADMIN_EMAIL != '' && secrets.AUTH_TEST_ADMIN_PASSWORD != '' && secrets.AUTH_TEST_ADMIN_DEVICE_ID != '' && secrets.AUTH_TEST_ADMIN_DEVICE_SECRET != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -132,11 +132,15 @@ jobs:
           AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
           AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
           AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
+          AUTH_TEST_USER_DEVICE_ID: ${{ secrets.AUTH_TEST_USER_DEVICE_ID }}
+          AUTH_TEST_USER_DEVICE_SECRET: ${{ secrets.AUTH_TEST_USER_DEVICE_SECRET }}
+          AUTH_TEST_ADMIN_DEVICE_ID: ${{ secrets.AUTH_TEST_ADMIN_DEVICE_ID }}
+          AUTH_TEST_ADMIN_DEVICE_SECRET: ${{ secrets.AUTH_TEST_ADMIN_DEVICE_SECRET }}
         run: node scripts/department-rpc-security-smoke.cjs
 
       - name: Explain skipped department RPC PostgREST test
         if: env.HAS_DEPARTMENT_RPC_TEST_SECRETS != 'true'
-        run: echo "Department RPC PostgREST test skipped because regular-user and platform-admin GitHub Actions secrets are required."
+        run: echo "Department RPC/PostgREST audit test skipped because user/admin credentials and pre-approved CI device credentials are required."
 
       - name: Install browser test dependencies
         if: env.HAS_AUTH_TEST_SECRETS == 'true'

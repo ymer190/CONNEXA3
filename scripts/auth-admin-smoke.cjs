@@ -11,6 +11,13 @@ async function main() {
 
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
+  let authenticatedUserId = "not captured";
+
+  page.on("response", async (response) => {
+    if (!response.url().includes("/auth/v1/token?grant_type=password")) return;
+    const body = await response.json().catch(() => ({}));
+    if (body.user?.id) authenticatedUserId = body.user.id;
+  });
 
   async function assertAdminPage(stage) {
     const currentUrl = page.url();
@@ -44,7 +51,7 @@ async function main() {
     } catch {
       const currentUrl = page.url();
       const visibleText = await page.locator("body").innerText().catch(() => "");
-      throw new Error(`Admin login did not reach /admin. Current URL: ${currentUrl}. Visible page text: ${visibleText.slice(0, 500)}`);
+      throw new Error(`Admin login did not reach /admin. Auth user ID: ${authenticatedUserId}. Current URL: ${currentUrl}. Visible page text: ${visibleText.slice(0, 500)}`);
     }
 
     await assertAdminPage("Initial admin access");

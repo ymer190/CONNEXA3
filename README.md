@@ -40,6 +40,7 @@ Não faz parte da estratégia do projeto implantar infraestrutura on-premises ou
 
 ## Documentação
 
+- `docs/contracts/integration-contracts.md`: contratos de integração versionados para Back-end e Front-end, com o que já existe em DEV separado das propostas pendentes de revisão.
 - `docs/requirements/calls-audio-video.md`: requisitos aprovados para chamadas individuais e em grupo, regras de negócio, critérios de aceitação, diagramas e pendências técnicas.
 - `docs/contracts/department-domain-issue-95.md`: contrato implementado do domínio de departamentos, RPCs, regras de segurança e integração com a Issue #96.
 - `docs/architecture/authorization-permissions-issue-96.md`: contrato de autorização aprovado e proposta física de conversas da Issue #96; consultar os gates e pendências antes de implementar.

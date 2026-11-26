@@ -52,9 +52,9 @@ function dependencies(overrides: Partial<EmployeeProvisioningDependencies> = {})
       events.push("compensation-pending");
       return true;
     },
-    deleteAuthIdentity: async () => {
+    deleteUnacceptedAuthIdentityCreatedByOperation: async () => {
       events.push("delete-auth-identity");
-      return true;
+      return { kind: "deleted" as const };
     },
     markCompensated: async () => {
       events.push("compensated");
@@ -194,9 +194,9 @@ test("requires manual reconciliation when Auth compensation fails", async () => 
       events.push("persist-domain-and-audit");
       return { kind: "rolled_back" as const };
     },
-    deleteAuthIdentity: async () => {
+    deleteUnacceptedAuthIdentityCreatedByOperation: async () => {
       events.push("delete-auth-identity");
-      return false;
+      return { kind: "not_safe" as const };
     },
   });
 

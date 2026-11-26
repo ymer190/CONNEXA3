@@ -11,7 +11,9 @@ export async function GET(request: NextRequest) {
   // Do not consume the one-time invite token on GET: email security scanners
   // may prefetch links. Verification happens only after the user confirms.
   const confirmationUrl = new URL("/confirmar-convite", request.url);
-  confirmationUrl.searchParams.set("token_hash", tokenHash);
-  confirmationUrl.searchParams.set("type", "invite");
+  confirmationUrl.hash = new URLSearchParams({
+    token_hash: tokenHash,
+    type: "invite",
+  }).toString();
   return NextResponse.redirect(confirmationUrl);
 }

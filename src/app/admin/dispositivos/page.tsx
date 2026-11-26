@@ -3,7 +3,20 @@ import { DeviceSessionsPanel } from "./device-sessions-panel";
 
 export const dynamic = "force-dynamic";
 
-export default function DeviceSessionsAdminPage() {
+type DeviceSessionsAdminPageProps = {
+  searchParams: Promise<{ error?: string; updated?: string }>;
+};
+
+const errorMessages: Record<string, string> = {
+  validation: "Confira os identificadores, justificativas e referência do chamado.",
+  forbidden: "Sua conta não tem autorização para concluir essa operação.",
+  action: "A operação não foi concluída. Revise o estado atual e tente novamente.",
+  unavailable: "O serviço de dispositivos está indisponível. Tente novamente em alguns instantes.",
+};
+
+export default async function DeviceSessionsAdminPage({ searchParams }: DeviceSessionsAdminPageProps) {
+  const { error, updated } = await searchParams;
+
   return (
     <main className="auth-page">
       <section className="auth-card admin-card">
@@ -14,6 +27,8 @@ export default function DeviceSessionsAdminPage() {
           alteração exige justificativa e fica registrada na auditoria.
         </p>
         <p><Link href="/admin">Voltar à administração</Link></p>
+        {error && errorMessages[error] ? <p role="alert">{errorMessages[error]}</p> : null}
+        {updated === "1" ? <p role="status">A operação foi registrada na auditoria.</p> : null}
         <DeviceSessionsPanel />
       </section>
     </main>

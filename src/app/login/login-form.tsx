@@ -18,8 +18,10 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
     setErrorMessage("");
     setIsSubmitting(true);
 
+    let supabase: ReturnType<typeof createClient> | null = null;
+    let authenticated = false;
     try {
-      const supabase = createClient();
+      supabase = createClient();
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -29,22 +31,28 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         setErrorMessage("Não foi possível entrar. Verifique suas credenciais.");
         return;
       }
+      authenticated = true;
 
       const enrollment = await fetch("/api/device-sessions/register", {
         method: "POST",
         cache: "no-store",
       });
-      const enrollmentResult = (await enrollment.json()) as {
+      const enrollmentResult = (await enrollment.json().catch(() => null)) as {
         status?: "approved" | "pending";
-      };
-      if (!enrollment.ok || !enrollmentResult.status) {
-        await supabase.auth.signOut();
-        setErrorMessage("Não foi possível validar este dispositivo. Tente novamente.");
+      } | null;
+      if (!enrollment.ok || !enrollmentResult || !["approved", "pending"].includes(enrollmentResult.status ?? "")) {
+        const wasCleared = await clearLocalSession(supabase);
+        authenticated = false;
+        setErrorMessage(wasCleared
+          ? "Não foi possível validar este dispositivo. Sua sessão neste navegador foi encerrada; tente novamente."
+          : "Não foi possível validar este dispositivo nem encerrar a sessão. O acesso continua bloqueado; tente novamente ou procure a TI.");
         return;
       }
 
       if (enrollmentResult.status === "pending") {
-        window.location.assign("/dispositivo-pendente");
+        const pendingUrl = new URL("/dispositivo-pendente", window.location.origin);
+        pendingUrl.searchParams.set("next", redirectTo);
+        window.location.assign(pendingUrl.toString());
         return;
       }
 
@@ -52,8 +60,14 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       // Supabase session cookies before rendering the protected destination.
       window.location.assign(redirectTo);
     } catch {
+      const wasAuthenticated = authenticated;
+      const wasCleared = wasAuthenticated && supabase ? await clearLocalSession(supabase) : false;
       setErrorMessage(
-        "Não foi possível conectar ao serviço de autenticação. Tente novamente.",
+        wasAuthenticated
+          ? wasCleared
+            ? "Não foi possível validar o dispositivo por uma falha temporária. Sua sessão neste navegador foi encerrada; tente novamente."
+            : "Não foi possível validar este dispositivo nem encerrar a sessão. O acesso continua bloqueado; tente novamente ou procure a TI."
+          : "Não foi possível conectar ao serviço de autenticação. Tente novamente.",
       );
     } finally {
       setIsSubmitting(false);
@@ -97,4 +111,14 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       </button>
     </form>
   );
+}
+
+async function clearLocalSession(supabase: ReturnType<typeof createClient>) {
+  try {
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+    return !error;
+  } catch {
+    // The protected routes still require a registered device if local cleanup fails.
+    return false;
+  }
 }

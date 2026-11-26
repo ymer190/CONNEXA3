@@ -23,8 +23,8 @@ async function main() {
   const authBody = await auth.json().catch(() => ({}));
   if (!auth.ok || !authBody.user?.id) throw new Error(`Admin test sign-in failed with HTTP ${auth.status}.`);
 
-  const fixture = await createApprovedDeviceFixture({ baseUrl: supabaseUrl, apiKey, serviceRoleKey, userId: authBody.user.id });
-  const browser = await chromium.launch({ headless: true });
+  let fixture;
+  let browser;
   let pendingDeviceId;
 
   async function newContext(device) {
@@ -61,6 +61,8 @@ async function main() {
   }
 
   try {
+    fixture = await createApprovedDeviceFixture({ baseUrl: supabaseUrl, apiKey, serviceRoleKey, userId: authBody.user.id });
+    browser = await chromium.launch({ headless: true });
     const context = await newContext(fixture);
     const page = await context.newPage();
     await page.goto(`${baseUrl}/login?next=%2Fadmin`);
@@ -85,14 +87,29 @@ async function main() {
       console.log("PASS: authorized administrator access persists after refresh.");
     }
 
+    const secondContext = await newContext(fixture);
+    const secondPage = await secondContext.newPage();
+    await secondPage.goto(`${baseUrl}/login?next=%2Fadmin`);
+    await secondPage.locator("#email").fill(email);
+    await secondPage.locator("#password").fill(password);
+    await secondPage.getByRole("button", { name: "Entrar" }).click();
+    await secondPage.waitForURL((url) => url.pathname === "/admin", { timeout: 20000, waitUntil: "domcontentloaded" });
+    await assertAdminPage(secondPage, "Second independent administrator session");
+
     // Register the navigation waiter before clicking to avoid a client-router race.
     {
       await Promise.all([
         page.waitForURL((url) => url.pathname === "/login", { timeout: 20000, waitUntil: "domcontentloaded" }),
         page.getByRole("button", { name: "Sair" }).click(),
       ]);
-      console.log("PASS: administrator can sign out.");
+      console.log("PASS: administrator can sign out of the current browser session.");
+
+      await secondPage.goto(`${baseUrl}/admin`);
+      await secondPage.waitForURL((url) => url.pathname === "/admin", { timeout: 20000, waitUntil: "domcontentloaded" });
+      await assertAdminPage(secondPage, "Other session after local sign-out");
+      console.log("PASS: signing out locally preserves an independent administrator session.");
     }
+    await secondContext.close();
 
     {
       // Verify the protected route redirects a signed-out session to login.
@@ -105,24 +122,32 @@ async function main() {
     await context.close();
 
     const pendingContext = await newContext(null);
-    const pendingPage = await pendingContext.newPage();
-    await pendingPage.goto(`${baseUrl}/login?next=%2Fadmin`);
-    await pendingPage.locator("#email").fill(email);
-    await pendingPage.locator("#password").fill(password);
-    await pendingPage.getByRole("button", { name: "Entrar" }).click();
-    await pendingPage.waitForURL((url) => url.pathname === "/dispositivo-pendente", { timeout: 20000, waitUntil: "domcontentloaded" });
-    await pendingPage.getByRole("heading", { name: "Aguardando liberação da TI" }).waitFor();
-    console.log("PASS: platform_admin with a new/unapproved browser is held at device authorization.");
-    await pendingPage.reload({ waitUntil: "networkidle" });
-    await pendingPage.waitForURL((url) => url.pathname === "/dispositivo-pendente", { timeout: 20000, waitUntil: "domcontentloaded" });
-    await pendingPage.getByRole("heading", { name: "Aguardando liberação da TI" }).waitFor();
-    console.log("PASS: unapproved administrator device remains blocked after refresh.");
-    pendingDeviceId = (await pendingContext.cookies(baseUrl)).find((cookie) => cookie.name === "connexa-device-id")?.value;
-    await pendingContext.close();
+    try {
+      const pendingPage = await pendingContext.newPage();
+      await pendingPage.goto(`${baseUrl}/login?next=%2Fadmin`);
+      await pendingPage.locator("#email").fill(email);
+      await pendingPage.locator("#password").fill(password);
+      await pendingPage.getByRole("button", { name: "Entrar" }).click();
+      await pendingPage.waitForURL((url) => url.pathname === "/dispositivo-pendente", { timeout: 20000, waitUntil: "domcontentloaded" });
+      pendingDeviceId = (await pendingContext.cookies(baseUrl)).find((cookie) => cookie.name === "connexa-device-id")?.value;
+      await pendingPage.getByRole("heading", { name: "Aguardando liberação da TI" }).waitFor();
+      console.log("PASS: platform_admin with a new/unapproved browser is held at device authorization.");
+      await pendingPage.reload({ waitUntil: "networkidle" });
+      await pendingPage.waitForURL((url) => url.pathname === "/dispositivo-pendente", { timeout: 20000, waitUntil: "domcontentloaded" });
+      await pendingPage.getByRole("heading", { name: "Aguardando liberação da TI" }).waitFor();
+      console.log("PASS: unapproved administrator device remains blocked after refresh.");
+    } finally {
+      if (!pendingDeviceId) {
+        pendingDeviceId = (await pendingContext.cookies(baseUrl)).find((cookie) => cookie.name === "connexa-device-id")?.value;
+      }
+      await pendingContext.close();
+    }
   } finally {
-    await fixture.cleanup();
-    await deleteDeviceFixture({ baseUrl: supabaseUrl, serviceRoleKey, deviceId: pendingDeviceId });
-    await browser.close();
+    const cleanup = [];
+    if (fixture) cleanup.push(fixture.cleanup());
+    cleanup.push(deleteDeviceFixture({ baseUrl: supabaseUrl, serviceRoleKey, deviceId: pendingDeviceId }));
+    if (browser) cleanup.push(browser.close());
+    await Promise.all(cleanup);
   }
 }
 

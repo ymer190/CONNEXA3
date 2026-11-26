@@ -31,6 +31,9 @@ jobs:
       - name: Test isolated Supabase allowlist guard
         run: node scripts/assert-isolated-supabase-smoke.cjs
 
+      - name: Test local authentication flow rules
+        run: npm run test:auth
+
       - name: Report dependency advisories for review
         continue-on-error: true
         shell: bash
@@ -92,7 +95,7 @@ jobs:
           fi
 
           location=$(curl -sS -D - -o /dev/null http://127.0.0.1:3000/admin | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\r$/, ""); print $2 }')
-          location_path="${location#http://localhost:3000}"
+          location_path="/${location#*://*/}"
           if [[ "$location_path" != /acesso-negado* ]]; then
             echo "Expected fail-closed redirect to /acesso-negado without Supabase config; received: $location"
             exit 1
@@ -104,4 +107,26 @@ jobs:
             exit 1
           fi
 
-          echo "PASS: protected route fails closed and public /login remains available."
+          for protected_path in / /conversas /grupos /colaboradores /departamentos /arquivos /admin/dispositivos; do
+            protected_status=$(curl -sS -o /dev/null -w '%{http_code}' "http://127.0.0.1:3000${protected_path}" || true)
+            protected_location=$(curl -sS -D - -o /dev/null "http://127.0.0.1:3000${protected_path}" | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\r$/, ""); print $2 }')
+            protected_location_path="/${protected_location#*://*/}"
+            if [ "$protected_status" != "307" ] || [[ "$protected_location_path" != /acesso-negado* ]]; then
+              echo "Expected ${protected_path} to fail closed at /acesso-negado; received HTTP ${protected_status}, location: ${protected_location}"
+              exit 1
+            fi
+          done
+
+          unavailable_status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/servico-indisponivel || true)
+          if [ "$unavailable_status" != "200" ]; then
+            echo "Expected public service-unavailable page to remain available; received: $unavailable_status"
+            exit 1
+          fi
+
+          enrollment_status=$(curl -sS -X POST -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/device-sessions/register || true)
+          if [ "$enrollment_status" != "403" ]; then
+            echo "Expected device enrollment to reject a request without a same-origin Origin header; received: $enrollment_status"
+            exit 1
+          fi
+
+          echo "PASS: protected routes fail closed without Supabase configuration; recovery pages stay public and device enrollment rejects non-browser origins."

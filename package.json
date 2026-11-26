@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "test:auth": "node --test scripts/auth-flow.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

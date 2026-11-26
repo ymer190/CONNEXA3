@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+const { createHash, randomBytes, randomUUID } = require("node:crypto");
 
 const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
 const apiKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;

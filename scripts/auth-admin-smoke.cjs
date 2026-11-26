@@ -136,7 +136,10 @@ async function main() {
     let authPayload;
     await page.route(/\/auth\/v1\/token\?grant_type=password/, async (route) => {
       const response = await route.fetch();
-      authPayload = await response.json();
+      // Read the intercepted API response body before fulfilling the route;
+      // this avoids Playwright trying to retrieve it after the page navigates.
+      const responseBody = await response.body();
+      authPayload = JSON.parse(responseBody.toString("utf8"));
       await route.fulfill({ response });
     });
     await page.getByRole("button", { name: "Entrar" }).click();

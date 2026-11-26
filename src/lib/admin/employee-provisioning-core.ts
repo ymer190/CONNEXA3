@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export const PROVISIONING_STATUSES = [
   "pending",
   "completed",
@@ -7,6 +9,33 @@ export const PROVISIONING_STATUSES = [
 ] as const;
 
 export type ProvisioningStatus = (typeof PROVISIONING_STATUSES)[number];
+
+export type NormalizedProvisioningPayload = {
+  fullName: string;
+  email: string;
+  organizationId: string;
+};
+
+export function createProvisioningPayloadHash(
+  payload: NormalizedProvisioningPayload,
+): string {
+  const { fullName, email, organizationId } = payload;
+  if (
+    !fullName ||
+    fullName !== fullName.trim().replace(/\s+/g, " ") ||
+    !email ||
+    email !== email.trim().toLowerCase() ||
+    !organizationId ||
+    organizationId !== organizationId.toLowerCase()
+  ) {
+    throw new Error("A normalized provisioning payload is required.");
+  }
+
+  // Fixed-position tuple makes serialization deterministic and avoids trusting
+  // a client-provided hash or object property ordering.
+  const canonicalPayload = JSON.stringify([fullName, email, organizationId]);
+  return `sha256:${createHash("sha256").update(canonicalPayload, "utf8").digest("hex")}`;
+}
 
 export type ProvisioningOperation = {
   idempotencyKey: string;

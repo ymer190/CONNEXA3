@@ -160,7 +160,7 @@ test("redacts multiline PEM private keys from sanitized errors", () => {
     "Q8AMIIBCgKCAQEAprivate-key-material",
     "-----END PRIVATE KEY-----",
   ].join("\n");
-  const result = sanitizeProvisioningError(\`PRIVATE_KEY=\n\${privateKey}\noperation failed\`);
+  const result = sanitizeProvisioningError("PRIVATE_KEY=\n" + privateKey + "\noperation failed");
 
   assert.equal(result.includes("MIIEvQIBADANBgkqhkiG9w0BAQEFAASC"), false);
   assert.equal(result.includes("private-key-material"), false);

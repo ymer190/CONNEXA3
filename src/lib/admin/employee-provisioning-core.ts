@@ -31,8 +31,6 @@ export function createProvisioningPayloadHash(
     throw new Error("A normalized provisioning payload is required.");
   }
 
-  // Fixed-position tuple makes serialization deterministic and avoids trusting
-  // a client-provided hash or object property ordering.
   const canonicalPayload = JSON.stringify([fullName, email, organizationId]);
   return `sha256:${createHash("sha256").update(canonicalPayload, "utf8").digest("hex")}`;
 }
@@ -55,8 +53,22 @@ export function decideIdempotency(
   idempotencyKey: string,
   payloadHash: string,
 ): IdempotencyDecision {
+  if (
+    typeof idempotencyKey !== "string" ||
+    idempotencyKey.length === 0 ||
+    idempotencyKey.length > 128 ||
+    typeof payloadHash !== "string" ||
+    !/^sha256:[a-f0-9]{64}$/.test(payloadHash)
+  ) {
+    throw new Error("A valid idempotency key and payload hash are required.");
+  }
+
   if (!existing) return { kind: "create" };
-  if (existing.idempotencyKey !== idempotencyKey) return { kind: "create" };
+
+  // An existing row returned for this key must never be silently treated as a
+  // new operation if its stored key differs: that indicates a lookup/integrity
+  // error and must fail closed.
+  if (existing.idempotencyKey !== idempotencyKey) return { kind: "conflict" };
   if (existing.payloadHash !== payloadHash) return { kind: "conflict" };
   return { kind: "reuse", operation: existing };
 }
@@ -79,10 +91,6 @@ export function transitionProvisioningOperation(
   return { success: true, status: next };
 }
 
-/**
- * Compensation is permitted only when the caller can prove that the Auth
- * identity was created by this exact operation. Email equality is insufficient.
- */
 export function mayCompensateAuthUser(input: {
   authUserId: string | null;
   identityProvenForOperation: boolean;
@@ -95,7 +103,6 @@ export function mayCompensateAuthUser(input: {
   );
 }
 
-/** Redacts common credentials and personal identifiers before persistence. */
 export function sanitizeProvisioningError(value: unknown): string {
   const raw = value instanceof Error ? value.message : String(value ?? "Unknown error");
   return raw

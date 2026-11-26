@@ -2,6 +2,7 @@ import {
   prepareEmployeeProvisioningRequest,
 } from "./employee-provisioning-request-core.ts";
 import type {
+  EmployeeProvisioningPayload,
   EmployeeProvisioningResult,
 } from "./employee-provisioning-orchestrator-core.ts";
 
@@ -16,9 +17,7 @@ export type EmployeeProvisioningAuthorization =
 
 type Dependencies = {
   authorize: () => Promise<EmployeeProvisioningAuthorization>;
-  provision: (payload: Parameters<
-    typeof prepareEmployeeProvisioningRequest
-  > extends never ? never : import("./employee-provisioning-orchestrator-core.ts").EmployeeProvisioningPayload) => Promise<EmployeeProvisioningResult>;
+  provision: (payload: EmployeeProvisioningPayload) => Promise<EmployeeProvisioningResult>;
 };
 
 function responseForResult(result: EmployeeProvisioningResult): Response {

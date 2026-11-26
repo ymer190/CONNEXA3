@@ -24,32 +24,36 @@ export async function requirePlatformAdmin(): Promise<PlatformAdminAuthorization
     return { authorized: false, reason: "AUTHORIZATION_CHECK_FAILED" };
   }
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-  if (userError) {
+    if (userError) {
+      return { authorized: false, reason: "AUTHORIZATION_CHECK_FAILED" };
+    }
+
+    if (!user) {
+      return { authorized: false, reason: "UNAUTHENTICATED" };
+    }
+
+    const { data: platformUser, error: platformUserError } = await supabase
+      .from("platform_users")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (platformUserError) {
+      return { authorized: false, reason: "AUTHORIZATION_CHECK_FAILED" };
+    }
+
+    if (platformUser?.role !== "platform_admin") {
+      return { authorized: false, reason: "FORBIDDEN" };
+    }
+
+    return { authorized: true, userId: user.id };
+  } catch {
     return { authorized: false, reason: "AUTHORIZATION_CHECK_FAILED" };
   }
-
-  if (!user) {
-    return { authorized: false, reason: "UNAUTHENTICATED" };
-  }
-
-  const { data: platformUser, error: platformUserError } = await supabase
-    .from("platform_users")
-    .select("role")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (platformUserError) {
-    return { authorized: false, reason: "AUTHORIZATION_CHECK_FAILED" };
-  }
-
-  if (platformUser?.role !== "platform_admin") {
-    return { authorized: false, reason: "FORBIDDEN" };
-  }
-
-  return { authorized: true, userId: user.id };
 }

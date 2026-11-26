@@ -92,3 +92,49 @@ test("sanitizes credentials and personal identifiers from errors", () => {
   assert.match(result, /\[EMAIL\]/);
   assert.match(result, /\[REDACTED\]/);
 });
+
+test("covers the complete provisioning status transition matrix", () => {
+  const statuses = [
+    "pending",
+    "completed",
+    "compensation_pending",
+    "compensated",
+    "manual_reconciliation_required",
+  ] as const;
+  const allowed: Record<(typeof statuses)[number], readonly string[]> = {
+    pending: ["completed", "compensation_pending", "compensated", "manual_reconciliation_required"],
+    completed: [],
+    compensation_pending: ["compensated", "manual_reconciliation_required"],
+    compensated: [],
+    manual_reconciliation_required: ["compensation_pending", "compensated"],
+  };
+
+  for (const current of statuses) {
+    for (const next of statuses) {
+      const result = transitionProvisioningOperation(current, next);
+      if (allowed[current].includes(next)) {
+        assert.deepEqual(result, { success: true, status: next }, `expected ${current} -> ${next} to be allowed`);
+      } else {
+        assert.deepEqual(result, { success: false, code: "INVALID_TRANSITION" }, `expected ${current} -> ${next} to be rejected`);
+      }
+    }
+  }
+});
+
+test("never compensates when the Auth identity is missing", () => {
+  assert.equal(
+    mayCompensateAuthUser({ authUserId: null, identityProvenForOperation: true, preexistingIdentity: false }),
+    false,
+  );
+});
+
+test("sanitizes multiline errors and enforces the maximum stored length", () => {
+  const result = sanitizeProvisioningError(
+    `Request failed\nAuthorization: Bearer very-secret-token\ncontact=private@example.com\n${"x".repeat(400)}`,
+  );
+  assert.equal(result.includes("\\n"), false);
+  assert.equal(result.includes("very-secret-token"), false);
+  assert.equal(result.includes("private@example.com"), false);
+  assert.ok(result.length <= 240);
+});
+

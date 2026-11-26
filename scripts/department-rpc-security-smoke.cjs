@@ -72,10 +72,10 @@ async function serviceRequest(path, options = {}) {
   return response;
 }
 
-// RLS requires an approved device row and an approved device_sessions row
-// matching the session_id embedded in this real Auth JWT. The service key is
-// used only for temporary CI fixture setup/cleanup. All assertions use the
-// regular users' JWTs and the production RLS policies remain enabled.
+// Provision only a temporary approved device with the private fixture key,
+// then register the current Auth session through the real user-facing RPC.
+// This exercises the #97 device/session contract instead of inserting a
+// device_sessions row directly. All tested RPCs still use the real user JWT.
 async function provisionAuthorizedDeviceSession(token, label) {
   const claims = decodeJwtClaims(token);
   const userId = claims.sub;
@@ -85,8 +85,9 @@ async function provisionAuthorizedDeviceSession(token, label) {
   }
 
   const deviceId = randomUUID();
+  const deviceSecret = randomBytes(32).toString("base64url");
   const deviceSecretHash = createHash("sha256")
-    .update(randomBytes(32))
+    .update(deviceSecret)
     .digest("hex");
   let deviceCreated = false;
 
@@ -107,24 +108,26 @@ async function provisionAuthorizedDeviceSession(token, label) {
     });
     deviceCreated = true;
 
-    await serviceRequest("device_sessions", {
-      method: "POST",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({
-        session_id: sessionId,
-        user_id: userId,
-        device_id: deviceId,
-        status: "approved",
-      }),
-    });
+    const registration = await callRpc("register_device_session", {
+      p_device_id: deviceId,
+      p_device_secret: deviceSecret,
+      p_label: `CI security smoke: ${label}`,
+      p_user_agent: "CONNEXA GitHub Actions security smoke",
+    }, token);
+    if (registration.status !== 200 || registration.body !== "approved") {
+      throw new Error(
+        `register_device_session did not approve the current Auth session for ${label} (HTTP ${registration.status}, result ${JSON.stringify(registration.body)}).`
+      );
+    }
   } catch (error) {
     if (deviceCreated) {
+      await serviceRequest(`device_sessions?session_id=eq.${sessionId}`, { method: "DELETE" }).catch(() => {});
       await serviceRequest(`authorized_devices?id=eq.${deviceId}`, { method: "DELETE" }).catch(() => {});
     }
     throw error;
   }
 
-  console.log(`PASS: temporary approved device/session fixture created for ${label}.`);
+  console.log(`PASS: ${label} registered its current Auth session through register_device_session on a pre-approved temporary device.`);
   return async () => {
     await serviceRequest(`device_sessions?session_id=eq.${sessionId}`, { method: "DELETE" });
     await serviceRequest(`authorized_devices?id=eq.${deviceId}`, { method: "DELETE" });
@@ -178,18 +181,34 @@ async function main() {
     cleanups.push(await provisionAuthorizedDeviceSession(userToken, "regular-user"));
     cleanups.push(await provisionAuthorizedDeviceSession(adminToken, "platform-admin"));
 
-    // Check the admin's role only after its JWT has an authorized device session.
-    const adminRoleResponse = await fetch(`${baseUrl}/rest/v1/platform_users?select=role`, {
-      headers: { apikey: apiKey, Authorization: `Bearer ${adminToken}` },
-    });
-    const adminRoleRows = await adminRoleResponse.json().catch(() => []);
-    if (!adminRoleResponse.ok) {
-      throw new Error(`Admin role lookup failed with HTTP ${adminRoleResponse.status} using an approved device/session.`);
+    // Verify both fixture identities through their own JWTs after registering
+    // their sessions. This catches accidentally configuring an admin as the
+    // regular-user test account (which would make the negative RPC test invalid).
+    const adminClaims = decodeJwtClaims(adminToken);
+    const userClaims = decodeJwtClaims(userToken);
+    const readOwnRole = async (token, userId, label) => {
+      const response = await fetch(
+        `${baseUrl}/rest/v1/platform_users?select=role&user_id=eq.${encodeURIComponent(userId)}`,
+        { headers: { apikey: apiKey, Authorization: `Bearer ${token}` } },
+      );
+      const rows = await response.json().catch(() => []);
+      if (!response.ok || !Array.isArray(rows)) {
+        throw new Error(`${label} role lookup failed with HTTP ${response.status} using its registered device session.`);
+      }
+      return rows;
+    };
+
+    const adminRoleRows = await readOwnRole(adminToken, adminClaims.sub, "Admin");
+    if (!adminRoleRows.some((row) => row.role === "platform_admin")) {
+      throw new Error("The authenticated CI administrator has no visible platform_admin row after registering its session on an approved device.");
     }
-    if (!Array.isArray(adminRoleRows) || !adminRoleRows.some((row) => row.role === "platform_admin")) {
-      throw new Error("The authenticated CI administrator still has no visible platform_admin row after an approved device/session was provisioned. Check the DEV fixture identity and authorization contract.");
+    console.log("PASS: CI administrator has its own platform_admin row through restrictive RLS.");
+
+    const regularRoleRows = await readOwnRole(userToken, userClaims.sub, "Regular-user");
+    if (regularRoleRows.some((row) => row.role === "platform_admin")) {
+      throw new Error("AUTH_TEST_USER_EMAIL is configured with platform_admin role. Configure a non-admin DEV test account; do not change database roles to satisfy CI.");
     }
-    console.log("PASS: CI administrator can read its own platform_admin row through restrictive RLS with an approved device/session.");
+    console.log("PASS: regular-user CI identity is not a platform_admin.");
 
     for (const [name, payload] of rpcCases) {
       const anonymous = await callRpc(name, payload, null);
@@ -200,7 +219,14 @@ async function main() {
     for (const [name, payload] of rpcCases) {
       const regularUser = await callRpc(name, payload, userToken);
       if (!isPermissionDenied(regularUser)) {
-        throw new Error(`${name}: regular-user request was not denied as platform_admin (HTTP ${regularUser.status}).`);
+        const bodySummary = Array.isArray(regularUser.body)
+          ? `JSON array (\\${regularUser.body.length} rows)`
+          : regularUser.body && typeof regularUser.body === "object"
+            ? `JSON object (code=${regularUser.body.code ?? "none"}, message=${regularUser.body.message ?? "none"})`
+            : `response type=${typeof regularUser.body}`;
+        throw new Error(
+          `${name}: regular-user request was not denied as platform_admin (HTTP ${regularUser.status}; ${bodySummary}).`
+        );
       }
       console.log(`PASS: ${name} denies a regular authenticated user (HTTP ${regularUser.status}).`);
     }

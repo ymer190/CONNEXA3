@@ -140,6 +140,19 @@ test("sanitizes multiline errors and enforces the maximum stored length", () => 
 
 
 
+test("redacts private keyring and secret-key environment variables", () => {
+  const message =
+    "SUPABASE_SECRET_KEY=server-secret " +
+    "EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_KEYS={\\"key_1\\":\\"base64-secret-material\\"} " +
+    "PRIVATE_KEY=private-signing-material";
+  const result = sanitizeProvisioningError(message);
+
+  for (const secret of ["server-secret", "base64-secret-material", "private-signing-material"]) {
+    assert.equal(result.includes(secret), false, `expected ${secret} to be redacted`);
+  }
+  assert.equal(result.length < message.length, true);
+});
+
 test("redacts Supabase secret keys, JWTs, and URL credentials", () => {
   const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTYifQ.signaturevalue123";
   const message =

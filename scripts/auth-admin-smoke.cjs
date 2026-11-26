@@ -53,17 +53,17 @@ async function main() {
     await page.getByRole("button", { name: "Entrar" }).click();
 
     if (!deviceId) {
-      await page.waitForURL((url) => url.pathname === "/dispositivo-pendente", { timeout: 20000 });
+      await page.waitForURL((url) => url.pathname === "/dispositivo-pendente", { timeout: 20000, waitUntil: "domcontentloaded" });
       await page.getByRole("heading", { name: "Aguardando liberação da TI" }).waitFor();
       console.log("PASS: platform_admin with a new/unapproved browser is held at device authorization.");
 
       await page.reload({ waitUntil: "networkidle" });
-      await page.waitForURL((url) => url.pathname === "/dispositivo-pendente", { timeout: 20000 });
+      await page.waitForURL((url) => url.pathname === "/dispositivo-pendente", { timeout: 20000, waitUntil: "domcontentloaded" });
       await page.getByRole("heading", { name: "Aguardando liberação da TI" }).waitFor();
       console.log("PASS: unapproved administrator device remains blocked after refresh.");
     } else {
       try {
-        await page.waitForURL((url) => url.pathname === "/admin", { timeout: 20000 });
+        await page.waitForURL((url) => url.pathname === "/admin", { timeout: 20000, waitUntil: "domcontentloaded" });
       } catch {
         const currentUrl = page.url();
         const visibleText = await page.locator("body").innerText().catch(() => "");
@@ -81,7 +81,7 @@ async function main() {
     // Register the navigation waiter before clicking to avoid a client-router race.
     if (deviceId) {
       await Promise.all([
-        page.waitForURL((url) => url.pathname === "/login", { timeout: 20000 }),
+        page.waitForURL((url) => url.pathname === "/login", { timeout: 20000, waitUntil: "domcontentloaded" }),
         page.getByRole("button", { name: "Sair" }).click(),
       ]);
       console.log("PASS: administrator can sign out.");
@@ -89,7 +89,7 @@ async function main() {
 
     // Verify the protected route redirects a signed-out session to login.
     await page.goto(`${baseUrl}/admin`);
-    await page.waitForURL((url) => url.pathname === "/login", { timeout: 20000 });
+    await page.waitForURL((url) => url.pathname === "/login", { timeout: 20000, waitUntil: "domcontentloaded" });
     await page.getByRole("heading", { name: "Bem-vindo de volta" }).waitFor();
     console.log("PASS: signed-out administrator is redirected away from /admin.");
   } finally {
@@ -101,3 +101,4 @@ main().catch((error) => {
   console.error("Administrator authentication smoke test failed:", error.message);
   process.exit(1);
 });
+

@@ -138,13 +138,12 @@ export function createEmployeeProvisioningPostHandler(dependencies: Dependencies
       authorization.actorUserId,
     );
     if (!prepared.success) {
-      const status = prepared.code === "INVALID_PAYLOAD" ? 400 : 400;
       return Response.json(
         {
           success: false,
           error: { code: prepared.code, message: prepared.message },
         },
-        { status },
+        { status: 400 },
       );
     }
 

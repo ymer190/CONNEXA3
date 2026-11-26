@@ -12,7 +12,7 @@ export type EmployeeProvisioningRequestResult =
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const IDEMPOTENCY_KEY_PATTERN = /^[\\x21-\\x7E]{1,128}$/;
+const IDEMPOTENCY_KEY_PATTERN = /^[\x21-\x7E]{1,128}$/;
 
 /**
  * Builds the trusted orchestration input from request data.

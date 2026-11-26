@@ -55,7 +55,9 @@ jobs:
           src/lib/admin/employee-registration-validation-core.test.ts
           src/lib/admin/employee-validation-handler.test.ts
           src/lib/admin/list-organizations-core.test.ts
-          src/lib/admin/organizations-handler.test.ts\n          src/lib/admin/employee-provisioning-core.test.ts
+          src/lib/admin/organizations-handler.test.ts
+          src/lib/admin/employee-provisioning-core.test.ts
+          src/lib/admin/employee-provisioning-email-crypto.test.ts
 
       - name: Run ESLint
         run: npm run lint

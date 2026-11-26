@@ -1,7 +1,7 @@
 # Contratos de integração — CONNEXA3
 
 **Issue:** [#106](https://github.com/ymer190/CONNEXA3/issues/106)
-**Versão:** 1.2 — schema de conversas no DEV e processo de mudança
+**Versão:** 1.3 — proposta inicial de mensagens diretas para #108 e teste PostgREST
 **Atualizado em:** 2026-11-26
 **Ambiente conferido:** Supabase Online, projeto `connexa-dev` (`dzsacdtolxrqgwlekzdg`)
 **Estado:** contratos existentes e propostas pendentes estão separados. A validação conjunta Back-end/Front-end continua pendente.
@@ -286,7 +286,7 @@ Os dois dispositivos precisam ser previamente aprovados pelo fluxo administrativ
 
 Para validar a auditoria com eventos reais, o CI executa duas consultas administrativas legítimas de sessões pelo JWT autorizado. A RPC registra os eventos na trilha central; em seguida, o teste consulta `admin_list_administrative_audit` via PostgREST e verifica a continuação pela chave composta `(occurred_at,id)`. Não são inseridas linhas artificiais nem executadas mutações de departamentos.
 
-### Checklist da versão 1.2
+### Checklist da versão 1.3
 
 - [x] Atualizado baseline a partir do banco `connexa-dev` e da `main` em 26/11/2026.
 - [x] Contratos de perfil próprio e departamentos descritos a partir dos campos/RPCs reais.

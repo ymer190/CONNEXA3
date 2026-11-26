@@ -1,0 +1,75 @@
+name: Department RPC security
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  detect-security-secrets:
+    name: Check device test prerequisites
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - name: Check required Actions secrets without exposing values
+        id: check
+        shell: bash
+        env:
+          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
+          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
+          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
+          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
+          AUTH_TEST_USER_DEVICE_ID: ${{ secrets.AUTH_TEST_USER_DEVICE_ID }}
+          AUTH_TEST_USER_DEVICE_SECRET: ${{ secrets.AUTH_TEST_USER_DEVICE_SECRET }}
+          AUTH_TEST_ADMIN_DEVICE_ID: ${{ secrets.AUTH_TEST_ADMIN_DEVICE_ID }}
+          AUTH_TEST_ADMIN_DEVICE_SECRET: ${{ secrets.AUTH_TEST_ADMIN_DEVICE_SECRET }}
+        run: |
+          if [[ -n "$AUTH_TEST_USER_EMAIL" &&
+                -n "$AUTH_TEST_USER_PASSWORD" &&
+                -n "$AUTH_TEST_ADMIN_EMAIL" &&
+                -n "$AUTH_TEST_ADMIN_PASSWORD" &&
+                -n "$AUTH_TEST_USER_DEVICE_ID" &&
+                -n "$AUTH_TEST_USER_DEVICE_SECRET" &&
+                -n "$AUTH_TEST_ADMIN_DEVICE_ID" &&
+                -n "$AUTH_TEST_ADMIN_DEVICE_SECRET" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "All prerequisites are configured; the isolated security test will run."
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Department RPC security test is pending approved CI device credentials. No security check was removed."
+          fi
+
+  department-rpc-security:
+    name: Department RPC authorization (approved CI devices)
+    needs: detect-security-secrets
+    if: needs.detect-security-secrets.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test department RPC authorization through PostgREST with real JWTs
+        env:
+          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
+          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
+          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
+          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
+          AUTH_TEST_USER_DEVICE_ID: ${{ secrets.AUTH_TEST_USER_DEVICE_ID }}
+          AUTH_TEST_USER_DEVICE_SECRET: ${{ secrets.AUTH_TEST_USER_DEVICE_SECRET }}
+          AUTH_TEST_ADMIN_DEVICE_ID: ${{ secrets.AUTH_TEST_ADMIN_DEVICE_ID }}
+          AUTH_TEST_ADMIN_DEVICE_SECRET: ${{ secrets.AUTH_TEST_ADMIN_DEVICE_SECRET }}
+        run: node scripts/department-rpc-security-smoke.cjs

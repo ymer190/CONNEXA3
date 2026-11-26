@@ -2,14 +2,15 @@
 
 **Ambiente:** Supabase `connexa-dev`
 
-**Migrations already applied in DEV:** `20261126005001_issue_97_device_session_audit.sql`, `20261126005334_issue_97_harden_audit_access.sql`, `20261126005741_issue_97_redact_device_metadata.sql`, `20261126005949_issue_97_protect_audit_truncation.sql`
-**Migrations prepared for review only:** `20261126010200_issue_97_sqa_gates.sql`, `20261126010300_issue_97_revalidate_legacy_devices.sql`
+**Migrations already applied in DEV:** the four original #97 migrations plus the function-only migrations `20261126025656_issue_97_fix_device_enrollment_session_id.sql` and the current proof-of-possession fix.
+**Migrations prepared for isolated SQA review only:** `20261126010200_issue_97_sqa_gates.sql`, `20261126010300_issue_97_revalidate_legacy_devices.sql`.
 
 ## Fluxo de dispositivo
 
 - No login, o servidor gera um UUID aleatório para o dispositivo e um segredo aleatório de 256 bits quando ainda não há credencial local. O identificador não usa fingerprint do navegador.
 - ID e segredo ficam em cookies `HttpOnly`, `SameSite=Strict`; o cookie do segredo é `Secure` em produção. O banco persiste somente o SHA-256 do segredo.
 - `register_device_session` vincula a sessão Auth atual ao dispositivo. Novo dispositivo fica `pending`; sessão nova em dispositivo aprovado é vinculada automaticamente. Um dispositivo revogado não pode ser reutilizado; a nova tentativa cria outro pedido de autorização.
+- O RPC compara o hash do segredo também quando a sessão Auth já está vinculada. Repetir o ID correto com segredo incorreto é negado.
 - O middleware envia sessões sem dispositivo liberado para `/dispositivo-pendente`. RLS e RPCs administrativas repetem a checagem no banco, então uma chamada direta com sessão pendente também é negada.
 - Os registros das sessões existentes são preservados, mas o estado `approved` atribuído no primeiro rollout não é prova de aprovação humana. A transição desses dispositivos para revalidação permanece pendente até a publicação e revisão do fluxo de bootstrap/recuperação administrativa; nenhuma alteração em massa deve ocorrer antes desse gate.
 
@@ -39,7 +40,13 @@ As RPCs administrativas de departamentos também verificam o vínculo dispositiv
 
 ## Gate SQA para sessões legadas
 
-A migration `20261126010200_issue_97_sqa_gates.sql` corrige as RPCs e o gate, mas não deve ser aplicada ao DEV antes da revisão formal do fluxo e dos testes com JWT real. Ela oferece `bootstrap_approve_admin_device`, RPC exclusiva de `service_role`, serializada e disponível apenas quando não há sessão aprovada de administrador. O operador não é informado pelo chamador SQL: a trilha registra ator `NULL` e ação de sistema, correlacionada com a execução do workflow e sua identidade/revisão externas. O workflow `.github/workflows/device-session-break-glass.yml` só roda em `main` e usa o ambiente GitHub `device-session-break-glass`; esse ambiente deve ter reviewer(s) obrigatórios, prevenção de autoaprovação e secrets exclusivamente do projeto DEV configurados antes de qualquer uso. O runbook envia o dispositivo, ticket ativo e referência da execução; a evidência de operador fica no histórico de aprovação do GitHub e é referenciada na trilha. A migration `20261126010300_issue_97_revalidate_legacy_devices.sql` preserva IDs e linhas, altera pares aprovados para `pending`, compara exatamente pares selecionados, dispositivos/sessões atualizados e eventos auditados, e aborta a transação em divergência. Não aplicar qualquer uma delas antes do review SQA/Tech Lead, da execução da matriz JWT, das contagens pré/pós e da aprovação do plano de rollback.
+A migration `20261126010200_issue_97_sqa_gates.sql` corrige as RPCs e o gate, mas não deve ser aplicada ao DEV antes da revisão formal do fluxo e dos testes com JWT real. Ela oferece `bootstrap_approve_admin_device`, RPC exclusiva de `service_role`, serializada e disponível apenas quando não há sessão aprovada de administrador. A referência nula ou vazia do operador é rejeitada explicitamente. O operador não é informado pelo chamador SQL: a trilha registra ator `NULL` e ação de sistema, correlacionada com a execução do workflow e sua identidade/revisão externas.
+
+O workflow `.github/workflows/device-session-break-glass.yml` só roda em `main` e usa o ambiente GitHub `device-session-break-glass`; esse ambiente deve ter reviewer(s) obrigatórios, prevenção de autoaprovação e secrets exclusivamente do projeto DEV configurados antes de qualquer uso. Esse estado de configuração ainda requer evidência do administrador do repositório. O workflow de deploy do DEV também falha fechado para as migrations `10200`/`10300`, salvo quando as variáveis de release e referência formal forem configuradas após aprovação SQA/Tech Lead.
+
+A migration `20261126010300_issue_97_revalidate_legacy_devices.sql` preserva IDs e linhas, altera pares aprovados para `pending`, compara exatamente pares selecionados, dispositivos/sessões atualizados e eventos auditados, e aborta a transação em divergência. O evento por dispositivo guarda os valores históricos de `approved_at`, `approved_by` e `requested_at` antes de limpar os campos de aprovação ativos; não trata o `approved_at` automático como aprovação humana.
+
+O CI não usa credenciais ou URL de `connexa-dev` para autenticação. Com `AUTH_TEST_SUPABASE_URL`, `AUTH_TEST_SUPABASE_DB_URL` e chave publicável configurados para o mesmo projeto isolado, valida a proveniência de 272 pares e zero eventos antes de aplicar as migrations em atraso, e confirma os eventos/timestamps de proveniência depois. Sem esse ambiente, os testes de banco e JWT aparecem como skipped. As migrations `10200`/`10300` permanecem não aplicadas no `connexa-dev`; executar o workflow isolado não as promove para o DEV.
 
 ## Exposição das RPCs `SECURITY DEFINER`
 

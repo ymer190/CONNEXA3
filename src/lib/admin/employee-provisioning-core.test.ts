@@ -1,12 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  createProvisioningPayloadHash,
   decideIdempotency,
   mayCompensateAuthUser,
   sanitizeProvisioningError,
   transitionProvisioningOperation,
   type ProvisioningOperation,
 } from "./employee-provisioning-core.ts";
+
+const normalizedPayload = {
+  fullName: "Maria da Silva",
+  email: "maria@example.com",
+  organizationId: "550e8400-e29b-41d4-a716-446655440000",
+};
 
 const operation: ProvisioningOperation = {
   idempotencyKey: "request-123",
@@ -15,6 +22,45 @@ const operation: ProvisioningOperation = {
   authUserId: null,
   attempts: 0,
 };
+
+test("creates a deterministic server-side hash from normalized payload fields", () => {
+  const first = createProvisioningPayloadHash(normalizedPayload);
+  const second = createProvisioningPayloadHash({ ...normalizedPayload });
+
+  assert.equal(first, second);
+  assert.match(first, /^sha256:[a-f0-9]{64}$/);
+  assert.equal(first.includes(normalizedPayload.email), false);
+});
+
+test("changes the payload hash when any canonical field changes", () => {
+  const baseline = createProvisioningPayloadHash(normalizedPayload);
+  assert.notEqual(
+    createProvisioningPayloadHash({ ...normalizedPayload, fullName: "Maria Silva" }),
+    baseline,
+  );
+  assert.notEqual(
+    createProvisioningPayloadHash({ ...normalizedPayload, email: "other@example.com" }),
+    baseline,
+  );
+  assert.notEqual(
+    createProvisioningPayloadHash({
+      ...normalizedPayload,
+      organizationId: "650e8400-e29b-41d4-a716-446655440000",
+    }),
+    baseline,
+  );
+});
+
+test("rejects non-normalized payload before hashing", () => {
+  assert.throws(
+    () => createProvisioningPayloadHash({ ...normalizedPayload, email: " MARIA@example.com " }),
+    /normalized provisioning payload/,
+  );
+  assert.throws(
+    () => createProvisioningPayloadHash({ ...normalizedPayload, fullName: " Maria  da Silva " }),
+    /normalized provisioning payload/,
+  );
+});
 
 test("creates a new operation when the key is not registered", () => {
   assert.deepEqual(decideIdempotency(null, "request-123", "sha256:payload-a"), {

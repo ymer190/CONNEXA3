@@ -83,9 +83,10 @@ test("runs the complete sequence and only reports success after domain audit and
 });
 
 test("replays an existing operation without sending another invite", async () => {
+  let claimCalls = 0;
   const { dependencies: deps, events } = dependencies({
     claimOperation: async () => {
-      events.push("claim");
+      claimCalls += 1;
       return {
         kind: "replay",
         status: "completed",
@@ -101,19 +102,22 @@ test("replays an existing operation without sending another invite", async () =>
     status: "completed",
     authUserId: "auth-user-1",
   });
-  assert.deepEqual(events, ["claim"]);
+  assert.equal(claimCalls, 1);
+  assert.deepEqual(events, []);
 });
 
 test("does not perform side effects when the idempotency key conflicts", async () => {
+  let claimCalls = 0;
   const { dependencies: deps, events } = dependencies({
     claimOperation: async () => {
-      events.push("claim");
+      claimCalls += 1;
       return { kind: "conflict" };
     },
   });
 
   assert.deepEqual(await runEmployeeProvisioning(payload, deps), { kind: "conflict" });
-  assert.deepEqual(events, ["claim"]);
+  assert.equal(claimCalls, 1);
+  assert.deepEqual(events, []);
 });
 
 test("does not retry an invite whose external outcome is unknown", async () => {

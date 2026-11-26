@@ -1,7 +1,7 @@
 import {
   validateCreateEmployeeInput,
   type CreateEmployeeInput,
-} from "./employee-input";
+} from "./employee-input.ts";
 
 export type EmployeeRegistrationValidationResult =
   | { success: true; data: CreateEmployeeInput }

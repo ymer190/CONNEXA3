@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test:auth": "node --test scripts/auth-flow.test.mjs",
+    "test:auth": "node --test scripts/auth-flow.test.mjs scripts/rpc-contract.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

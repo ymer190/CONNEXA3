@@ -13,6 +13,10 @@ npm run build
 
 `test:auth` cobre redirecionamentos internos seguros e diferencia sessão ausente, token expirado e falha temporária de autenticação. Esses casos rodam sem Supabase, conta de usuário ou segredo de CI.
 
+A suíte também compara os nomes e a ordem dos argumentos enviados pela aplicação com a assinatura mais recente das RPCs nas migrations locais da #153. Ela cobre registro de dispositivo, listagem, aprovação/revogação, revogação de sessão e cursor composto da auditoria. Isso detecta divergências de contrato sem depender de credenciais ou de uma instância Supabase ativa.
+
+Na migration atual da #153, `admin_approve_device` recebe `p_device_id`, `p_justification` e `p_ticket_reference`. A interface envia os três campos separadamente; a RPC verifica chamado ativo e o vínculo com organização e usuário-alvo. A suíte de contrato detecta regressões nessa assinatura. A confirmação desses controles em banco ainda depende dos testes autenticados de SQA descritos abaixo.
+
 ## Testes que dependem de ambiente isolado e credenciais
 
 Os testes abaixo não devem apontar para Production ou `connexa-dev`; usam usuários e dispositivos descartáveis em um projeto Supabase de SQA isolado. O workflow `issue-97-sqa.yml` exige `scripts/assert-isolated-supabase.cjs` antes das operações e aplica as migrations apenas nesse projeto. A configuração de Auth do SQA deve permitir duas sessões simultâneas por usuário para validar que o logout local mantém a outra sessão ativa.
@@ -34,3 +38,5 @@ Configure os valores somente em um GitHub Actions Environment protegido para SQA
 - Aprovação, revogação e consulta de dispositivos/sessões retornam erros seguros e criam os eventos de auditoria esperados no servidor.
 - Usuário comum não acessa rotas nem operações administrativas, mesmo invocando server actions diretamente.
 - Redirecionamento pós-login só aceita destino relativo da própria aplicação.
+
+Os testes autenticados acima permanecem pendentes até existir ambiente SQA isolado, credenciais descartáveis para dois perfis e usuários/dispositivos de teste. Os testes locais e de CI verificam contratos estáticos e comportamento sem credenciais; não comprovam autorização efetiva no banco, isolamento entre usuários, persistência de auditoria, revogação real nem o comportamento de sessão entre navegadores. Portanto, autenticação, dispositivos e auditoria não estão integralmente homologados.

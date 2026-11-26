@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { classifyAuthFailure, isSameOriginRequest } from "@/lib/auth-flow.mjs";
+import { buildRegisterDeviceSessionArgs } from "@/lib/device-session-rpc.mjs";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -50,12 +51,12 @@ export async function POST(request: Request) {
 
   const register = async (): Promise<{ data: unknown; error: { message?: string } | null }> => {
     try {
-      const { data, error } = await supabase.rpc("register_device_session", {
-        p_device_id: credentials.id,
-        p_device_secret: credentials.secret,
-        p_label: "Navegador",
-        p_user_agent: requestHeaders.get("user-agent")?.slice(0, 500) ?? null,
-      });
+      const { data, error } = await supabase.rpc("register_device_session", buildRegisterDeviceSessionArgs({
+        deviceId: credentials.id,
+        deviceSecret: credentials.secret,
+        label: "Navegador",
+        userAgent: requestHeaders.get("user-agent")?.slice(0, 500) ?? null,
+      }));
       return { data, error };
     } catch {
       return { data: null, error: { message: "Enrollment service unavailable" } };

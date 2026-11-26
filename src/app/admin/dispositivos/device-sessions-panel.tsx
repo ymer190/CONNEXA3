@@ -69,7 +69,7 @@ export function DeviceSessionsPanel() {
               {row.device_status === "pending" ? (
                 <form action={approveDevice} className="device-session-action">
                   <input type="hidden" name="target" value={row.device_id} />
-                  <label>Referência do chamado<input name="ticket_reference" required maxLength={80} /></label>
+                  <label>Referência do chamado<input name="ticket_reference" required maxLength={80} pattern="[A-Za-z0-9][A-Za-z0-9._/-]{0,79}" title="Use até 80 letras, números, ponto, hífen, sublinhado ou barra." /></label>
                   <label>Justificativa<input name="justification" required maxLength={500} /></label>
                   <button type="submit">Liberar dispositivo</button>
                 </form>

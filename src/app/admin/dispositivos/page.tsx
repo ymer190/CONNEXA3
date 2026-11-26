@@ -26,6 +26,9 @@ export default async function DeviceSessionsAdminPage({ searchParams }: DeviceSe
           Aprove dispositivos pendentes ou revogue dispositivos e sessões. Cada
           alteração exige justificativa e fica registrada na auditoria.
         </p>
+        <p className="auth-description">
+          Para aprovar, informe um chamado ativo vinculado à organização e à pessoa proprietária do dispositivo. O servidor valida esses vínculos antes de liberar o acesso.
+        </p>
         <p><Link href="/admin">Voltar à administração</Link></p>
         {error && errorMessages[error] ? <p role="alert">{errorMessages[error]}</p> : null}
         {updated === "1" ? <p role="status">A operação foi registrada na auditoria.</p> : null}

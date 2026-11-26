@@ -18,10 +18,10 @@ jobs:
     name: Validate application
     runs-on: ubuntu-latest
     env:
-      NEXT_PUBLIC_SUPABASE_URL: https://dzsacdtolxrqgwlekzdg.supabase.co
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_VxDDuEIFkXx4OrkVdg4xbg_7RAzlmR9
-      HAS_AUTH_TEST_SECRETS: ${{ secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' }}
-      HAS_AUTH_ADMIN_TEST_SECRETS: ${{ secrets.AUTH_TEST_ADMIN_EMAIL != '' && secrets.AUTH_TEST_ADMIN_PASSWORD != '' }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_CI_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_CI_PUBLISHABLE_KEY }}
+      HAS_AUTH_TEST_SECRETS: ${{ secrets.SUPABASE_CI_URL != '' && secrets.SUPABASE_CI_PUBLISHABLE_KEY != '' && secrets.AUTH_CI_USER_EMAIL != '' && secrets.AUTH_CI_USER_PASSWORD != '' }}
+      HAS_AUTH_ADMIN_TEST_SECRETS: ${{ secrets.SUPABASE_CI_URL != '' && secrets.SUPABASE_CI_PUBLISHABLE_KEY != '' && secrets.AUTH_CI_ADMIN_EMAIL != '' && secrets.AUTH_CI_ADMIN_PASSWORD != '' }}
       HAS_DEPARTMENT_RPC_TEST_SECRETS: ${{ secrets.SUPABASE_CI_URL != '' && secrets.SUPABASE_CI_PUBLISHABLE_KEY != '' && secrets.AUTH_CI_USER_EMAIL != '' && secrets.AUTH_CI_USER_PASSWORD != '' && secrets.AUTH_CI_ADMIN_EMAIL != '' && secrets.AUTH_CI_ADMIN_PASSWORD != '' }}
     steps:
       - name: Checkout repository
@@ -34,6 +34,18 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Reject shared or production Supabase targets
+        if: env.NEXT_PUBLIC_SUPABASE_URL != ''
+        shell: bash
+        run: |
+          case "$NEXT_PUBLIC_SUPABASE_URL" in
+            *dzsacdtolxrqgwlekzdg*|*uwrzrwwzkurjdhxituwq*)
+              echo "Refusing to build authenticated CI tests against DEV or PROD."
+              exit 1
+              ;;
+          esac
+          echo "Supabase CI target is not the shared DEV or PROD project."
 
       - name: Test issue 92 employee input and organization lookup
         run: >-
@@ -158,8 +170,8 @@ jobs:
       - name: Test regular user login and admin denial
         if: env.HAS_AUTH_TEST_SECRETS == 'true'
         env:
-          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
-          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
+          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_CI_USER_EMAIL }}
+          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_CI_USER_PASSWORD }}
         shell: bash
         run: |
           setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-auth-test.log 2>&1 &
@@ -178,8 +190,8 @@ jobs:
       - name: Test platform administrator login, access, and logout
         if: env.HAS_AUTH_ADMIN_TEST_SECRETS == 'true'
         env:
-          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
-          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
+          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_CI_ADMIN_EMAIL }}
+          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_CI_ADMIN_PASSWORD }}
         shell: bash
         run: |
           setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-admin-auth-test.log 2>&1 &

@@ -131,19 +131,32 @@ async function main() {
     await page.goto(`${baseUrl}/login?next=%2Fadmin`);
     await page.locator("#email").fill(email);
     await page.locator("#password").fill(password);
-    // Capture the token response inside the route handler before the browser
-    // processes the login redirect and disposes the response body.
+    // Use Node's fetch for the upstream Auth request. Playwright's route.fetch()
+    // shares the browser request context, which can be disposed during the
+    // application's post-login navigation before its response body is read.
     let authPayload;
     await page.route(/\/auth\/v1\/token\?grant_type=password/, async (route) => {
-      const response = await route.fetch();
-      // Read the intercepted API response body before fulfilling the route;
-      // this avoids Playwright trying to retrieve it after the page navigates.
-      const responseBody = await response.body();
+      const request = route.request();
+      const upstream = await fetch(request.url(), {
+        method: request.method(),
+        headers: request.headers(),
+        body: request.postData() ?? undefined,
+      });
+      const responseBody = Buffer.from(await upstream.arrayBuffer());
       authPayload = JSON.parse(responseBody.toString("utf8"));
-      await route.fulfill({ response });
+      const headers = Object.fromEntries(
+        Object.entries(Object.fromEntries(upstream.headers)).filter(
+          ([name]) => !["content-encoding", "content-length", "transfer-encoding"].includes(name.toLowerCase()),
+        ),
+      );
+      await route.fulfill({
+        status: upstream.status,
+        headers,
+        body: responseBody,
+      });
     });
     await page.getByRole("button", { name: "Entrar" }).click();
-    if (!authPayload.access_token) {
+    if (!authPayload?.access_token) {
       throw new Error("Admin sign-in response did not contain an access token.");
     }
 
@@ -164,20 +177,16 @@ async function main() {
     await assertAdminPage("Initial admin access");
     console.log("PASS: platform administrator can sign in and access /admin.");
 
-    // Wait for the reload navigation to finish before asserting the protected page.
-    // waitForURL("**/admin") alone can pass immediately against the pre-reload URL.
     await page.reload({ waitUntil: "networkidle" });
     await assertAdminPage("Admin access after refresh");
     console.log("PASS: administrator session persists and access remains allowed after refresh.");
 
-    // Register the navigation waiter before clicking to avoid a client-router race.
     await Promise.all([
       page.waitForURL((url) => url.pathname === "/login", { timeout: 20000 }),
       page.getByRole("button", { name: "Sair" }).click(),
     ]);
     console.log("PASS: administrator can sign out.");
 
-    // Verify the protected route redirects a signed-out session to login.
     await page.goto(`${baseUrl}/admin`);
     await page.waitForURL((url) => url.pathname === "/login", { timeout: 20000 });
     await page.getByRole("heading", { name: "Bem-vindo de volta" }).waitFor();

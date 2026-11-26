@@ -59,6 +59,7 @@ jobs:
           src/lib/admin/employee-provisioning-core.test.ts
           src/lib/admin/employee-provisioning-email-crypto.test.ts
           src/lib/admin/employee-provisioning-orchestrator-core.test.ts
+          src/lib/admin/employee-provisioning-request-core.test.ts
 
       - name: Run ESLint
         run: npm run lint

@@ -131,13 +131,15 @@ async function main() {
     await page.goto(`${baseUrl}/login?next=%2Fadmin`);
     await page.locator("#email").fill(email);
     await page.locator("#password").fill(password);
-    const authResponsePromise = page.waitForResponse(
-      (response) => response.url().includes("/auth/v1/token?grant_type=password") && response.request().method() === "POST",
-      { timeout: 20000 },
-    );
+    // Capture the token response inside the route handler before the browser
+    // processes the login redirect and disposes the response body.
+    let authPayload;
+    await page.route(/\\/auth\\/v1\\/token\\?grant_type=password/, async (route) => {
+      const response = await route.fetch();
+      authPayload = await response.json();
+      await route.fulfill({ response });
+    });
     await page.getByRole("button", { name: "Entrar" }).click();
-    const authResponse = await authResponsePromise;
-    const authPayload = await authResponse.json();
     if (!authPayload.access_token) {
       throw new Error("Admin sign-in response did not contain an access token.");
     }

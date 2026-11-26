@@ -61,7 +61,6 @@ export async function middleware(request: NextRequest) {
   const isFirstAccessAllowedPath = [
     "/primeiro-acesso",
     "/confirmar-convite",
-    "/auth/callback",
     "/api/auth/first-access/password",
     "/api/auth/accept-invite",
     "/auth/logout",

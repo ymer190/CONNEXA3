@@ -170,7 +170,8 @@ jobs:
 
       - name: Explain skipped department RPC PostgREST test
         if: env.HAS_DEPARTMENT_RPC_TEST_SECRETS != 'true'
-        run: echo "Department RPC PostgREST test skipped: dedicated online CI Supabase URL/key and synthetic CI user/admin credentials are required."
+        run: |
+          echo "Department RPC PostgREST test skipped: dedicated online CI Supabase URL/key and synthetic CI user/admin credentials are required."
 
       - name: Install browser test dependencies
         if: env.HAS_AUTH_TEST_SECRETS == 'true'

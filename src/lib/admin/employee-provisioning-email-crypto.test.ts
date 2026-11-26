@@ -34,7 +34,7 @@ test("supports key rotation while old ciphertext is being migrated", () => {
     keyring,
     "new_key",
   );
-  assert.match(newCiphertext, /^v1\\.new_key\\./);
+  assert.match(newCiphertext, /^v1\.new_key\./);
   assert.equal(decryptProvisioningEmailWithKeyring(newCiphertext, keyring), "employee@example.com");
 });
 

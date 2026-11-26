@@ -3,6 +3,7 @@ import "server-only";
 import {
   decryptProvisioningEmailWithKeyring,
   encryptProvisioningEmailWithKeyring,
+  validateProvisioningEmailKeyring,
 } from "./employee-provisioning-email-crypto-core.ts";
 
 const KEYRING_ENV = "EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_KEYS";
@@ -23,16 +24,13 @@ function loadKeyring(): { keys: Record<string, string>; currentKeyId: string } {
     throw new Error("Employee provisioning email encryption configuration is invalid.");
   }
 
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+  try {
+    validateProvisioningEmailKeyring(parsed, currentKeyId);
+  } catch {
     throw new Error("Employee provisioning email encryption configuration is invalid.");
   }
 
-  const keys = parsed as Record<string, string>;
-  if (!Object.hasOwn(keys, currentKeyId)) {
-    throw new Error("Current employee provisioning email encryption key is unavailable.");
-  }
-
-  return { keys, currentKeyId };
+  return { keys: parsed, currentKeyId };
 }
 
 export function encryptProvisioningEmail(normalizedEmail: string): string {

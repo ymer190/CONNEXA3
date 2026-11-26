@@ -1,5 +1,8 @@
+const { createApprovedDeviceFixture } = require("./issue97-isolated-device-fixture.cjs");
+
 const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
 const apiKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const serviceRoleKey = process.env.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY;
 
 const rpcCases = [
   ["admin_list_departments", { p_organization_id: "00000000-0000-0000-0000-000000000000" }],
@@ -12,7 +15,7 @@ const rpcCases = [
 
 // These deliberately nonexistent IDs make the admin calls non-mutating.
 // Expected domain errors prove the request passed the role guard without creating,
-// updating, transferring, or deactivating real DEV data.
+// updating, transferring, or deactivating real application data.
 const adminDomainOutcomes = {
   admin_list_departments: { status: 200, predicate: (result) => Array.isArray(result.body) && result.body.length === 0 },
   admin_create_department: { code: "23503" }, // FK: organization does not exist
@@ -38,7 +41,7 @@ async function signIn(email, password, label) {
   if (!response.ok || !body.access_token) {
     throw new Error(`${label} sign-in failed with HTTP ${response.status}.`);
   }
-  return body.access_token;
+  return { accessToken: body.access_token, userId: body.user?.id };
 }
 
 async function callRpc(name, payload, token) {
@@ -74,9 +77,40 @@ function assertAdminReachedRpc(name, result) {
 }
 
 async function main() {
-  if (!baseUrl || !apiKey) throw new Error("Supabase URL and publishable key are required.");
-  const userToken = await signIn(required("AUTH_TEST_USER_EMAIL"), required("AUTH_TEST_USER_PASSWORD"), "Regular-user");
-  const adminToken = await signIn(required("AUTH_TEST_ADMIN_EMAIL"), required("AUTH_TEST_ADMIN_PASSWORD"), "Platform-admin");
+  if (!baseUrl || !apiKey || !serviceRoleKey) throw new Error("Isolated Supabase URL, publishable key, and service-role key are required.");
+  const userSession = await signIn(required("AUTH_TEST_USER_EMAIL"), required("AUTH_TEST_USER_PASSWORD"), "Regular-user");
+  const adminSession = await signIn(required("AUTH_TEST_ADMIN_EMAIL"), required("AUTH_TEST_ADMIN_PASSWORD"), "Platform-admin");
+  const userToken = userSession.accessToken;
+  const adminToken = adminSession.accessToken;
+  const adminDeviceFixture = await createApprovedDeviceFixture({
+    baseUrl,
+    apiKey,
+    serviceRoleKey,
+    userId: adminSession.userId,
+  });
+
+  try {
+    const registration = await callRpc("register_device_session", {
+      p_device_id: adminDeviceFixture.id,
+      p_device_secret: adminDeviceFixture.secret,
+      p_label: "Issue 97 isolated SQA fixture",
+      p_user_agent: "GitHub Actions isolated SQA test",
+    }, adminToken);
+    if (registration.status !== 200 || registration.body !== "approved") {
+      throw new Error(`Unable to bind the approved isolated admin-device fixture (HTTP ${registration.status}).`);
+    }
+    console.log("PASS: isolated platform_admin session is bound to its approved device fixture.");
+
+    const wrongSecretRegistration = await callRpc("register_device_session", {
+      p_device_id: adminDeviceFixture.id,
+      p_device_secret: "invalid-device-secret-for-sqa-regression-test",
+      p_label: "Issue 97 isolated SQA fixture",
+      p_user_agent: "GitHub Actions isolated SQA test",
+    }, adminToken);
+    if (wrongSecretRegistration.status !== 403 || wrongSecretRegistration.body?.code !== "42501") {
+      throw new Error(`An existing session accepted the wrong device secret (HTTP ${wrongSecretRegistration.status}, code ${wrongSecretRegistration.body?.code ?? "none"}).`);
+    }
+    console.log("PASS: existing session rejects the correct device ID paired with an incorrect secret.");
 
   for (const [name, payload] of rpcCases) {
     const anonymous = await callRpc(name, payload, null);
@@ -110,8 +144,11 @@ async function main() {
     }
   }
 
-  console.log("PASS: all six department RPCs were exercised through real Supabase Auth JWTs and the current device-authorization state.");
-  console.log("NOTE: admin mutation RPCs use nonexistent identifiers and expected domain errors to avoid persistent DEV mutations; read RPCs may append their required audit events.");
+    console.log("PASS: all six department RPCs were exercised through real Supabase Auth JWTs and an approved device in the isolated SQA project.");
+    console.log("NOTE: admin mutations use nonexistent identifiers; read RPCs may append test audit events in the isolated SQA project.");
+  } finally {
+    await adminDeviceFixture.cleanup();
+  }
 }
 
 main().catch((error) => {

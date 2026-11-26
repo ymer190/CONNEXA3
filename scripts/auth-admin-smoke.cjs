@@ -103,7 +103,8 @@ async function main() {
   }
 
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();\n  let cleanupDeviceSession;
+  const page = await browser.newPage();
+  let cleanupDeviceSession;
 
   async function assertAdminPage(stage) {
     const currentUrl = page.url();

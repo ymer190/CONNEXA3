@@ -109,7 +109,7 @@ export function sanitizeProvisioningError(value: unknown): string {
     .replace(/\bsb_secret_[A-Za-z0-9_-]+/gi, "[REDACTED]")
     .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, "[JWT]")
     .replace(/([?&](?:access_token|refresh_token|token|apikey|api_key)=)[^&#\s]+/gi, "$1[REDACTED]")
-    .replace(/\b(password|passwd|token|secret|authorization|api[_-]?key|service[_-]?role[_-]?key|refresh[_-]?token|access[_-]?token)\s*[:=]\s*[^\s,;&]+/gi, "$1=[REDACTED]")
+    .replace(/(^|[^A-Za-z0-9])([A-Za-z0-9_-]*(?:password|passwd|token|secret|authorization|api[_-]?key|service[_-]?role[_-]?key|refresh[_-]?token|access[_-]?token))\s*[:=]\s*[^\s,;&]+/gi, "$1$2=[REDACTED]")
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[EMAIL]")
     .replace(/[\r\n\t]+/g, " ")
     .slice(0, 240);

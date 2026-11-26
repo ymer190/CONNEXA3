@@ -172,7 +172,7 @@ FKs compostas restringem referências à mesma organização. A trilha de conver
 
 #### Supabase Realtime proposto
 
-- Usar canal privado por conversa, com autorização de assinatura validada no servidor/Reatime para membro ativo e vínculo organizacional ativo. Canais públicos ou nomes de canal adivinháveis sem policy não são permitidos.
+- Usar canal privado por conversa, com autorização de assinatura validada no servidor/Realtime para membro ativo e vínculo organizacional ativo. Canais públicos ou nomes de canal adivinháveis sem policy não são permitidos.
 - O backend publica somente após o commit da mensagem um evento minimizado `message.created` contendo `conversation_id`, `message_id`, `sender_id`, `message_type` e `created_at`; não publicar plaintext, token, chave ou URL permanente de anexo.
 - O evento funciona como sinal de atualização. O cliente consulta a mensagem/histórico pela operação autenticada, que revalida a autorização e descriptografa somente no backend.
 - Remoção de participante, bloqueio, suspensão ou encerramento de sessão deve impedir novas consultas e novas assinaturas/entregas. A propagação de revogação em assinaturas já abertas precisa ser validada por teste.

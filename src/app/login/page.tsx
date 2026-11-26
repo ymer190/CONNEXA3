@@ -8,29 +8,29 @@ export const metadata: Metadata = {
 };
 
 type LoginPageProps = {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; reason?: string }>;
 };
 
 function getSafeRedirectDestination(next?: string) {
   if (!next?.startsWith("/") || next.startsWith("//")) {
-    return "/admin";
+    return "/";
   }
 
   try {
     const destination = new URL(next, "https://connexa.invalid");
 
     if (destination.origin !== "https://connexa.invalid") {
-      return "/admin";
+      return "/";
     }
 
     return `${destination.pathname}${destination.search}${destination.hash}`;
   } catch {
-    return "/admin";
+    return "/";
   }
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const { next } = await searchParams;
+  const { next, reason } = await searchParams;
   const destination = getSafeRedirectDestination(next);
 
   return (
@@ -44,6 +44,16 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <p className="auth-description">
           Entre com seu e-mail e senha para continuar.
         </p>
+        {reason === "session-expired" && (
+          <p className="auth-notice" role="status">
+            Sua sessão expirou por segurança. Entre novamente para continuar.
+          </p>
+        )}
+        {reason === "auth-required" && (
+          <p className="auth-notice" role="status">
+            Entre na sua conta para acessar o espaço de trabalho.
+          </p>
+        )}
         <LoginForm redirectTo={destination} />
         <p className="auth-footer">
           <Link href="/">Voltar para a página inicial</Link>

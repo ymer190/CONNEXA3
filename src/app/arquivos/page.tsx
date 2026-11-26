@@ -1,0 +1,2 @@
+import { WorkspaceModulePage } from "@/components/workspace-module-page";
+export default function FilesPage() { return <WorkspaceModulePage active="Arquivos" eyebrow="CONTEÚDO COMPARTILHADO" title="Arquivos" description="Documentos, imagens e áudios das conversas." detail="O acesso a arquivos será integrado ao armazenamento privado e às permissões das conversas. O conteúdo não ficará publicamente acessível." />; }

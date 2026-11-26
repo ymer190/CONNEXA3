@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ThemeToggle } from "@/components/theme-toggle";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#10131b",
+  themeColor: "#F8F5EB",
 };
 
 export default function RootLayout({
@@ -23,8 +24,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
-      <body>{children}</body>
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try { if (localStorage.getItem("connexa-theme") === "sunset") { document.documentElement.dataset.theme = "sunset"; document.documentElement.style.colorScheme = "dark"; } } catch (_) {}`,
+          }}
+        />
+      </head>
+      <body>
+        {children}
+        <ThemeToggle />
+      </body>
     </html>
   );
 }

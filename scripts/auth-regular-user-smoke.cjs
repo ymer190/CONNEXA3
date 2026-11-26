@@ -21,6 +21,11 @@ async function main() {
     await page.waitForURL("**/acesso-negado", { timeout: 20000 });
     console.log("PASS: authenticated regular user is denied access to /admin.");
 
+    await page.goto(`${baseUrl}/admin/usuarios`, { waitUntil: "domcontentloaded", timeout: 20000 });
+    await page.waitForURL("**/acesso-negado", { timeout: 20000 });
+    await page.getByRole("heading", { name: "Acesso negado" }).waitFor();
+    console.log("PASS: authenticated regular user is denied direct access to /admin/usuarios.");
+
     await page.reload();
     await page.waitForURL("**/acesso-negado", { timeout: 20000 });
     console.log("PASS: authenticated session persists and admin access remains denied after refresh.");

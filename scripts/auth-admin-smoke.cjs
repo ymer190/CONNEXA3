@@ -50,11 +50,20 @@ async function main() {
     await assertAdminPage("Initial admin access");
     console.log("PASS: platform administrator can sign in and access /admin.");
 
-    // Wait for the document navigation, not network idle. Supabase/auth requests
-    // may remain active even though the protected page is already usable.
-    await page.reload({ waitUntil: "domcontentloaded", timeout: 20000 });
+    // Wait for the reload navigation to finish before asserting the protected page.
+    // waitForURL("**/admin") alone can pass immediately against the pre-reload URL.
+    await page.reload({ waitUntil: "networkidle" });
     await assertAdminPage("Admin access after refresh");
     console.log("PASS: administrator session persists and access remains allowed after refresh.");
+
+    // Verify the protected users route directly as an authenticated platform administrator.
+    await page.goto(`${baseUrl}/admin/usuarios`, { waitUntil: "domcontentloaded", timeout: 20000 });
+    if (new URL(page.url()).pathname !== "/admin/usuarios") throw new Error("Administrator was denied /admin/usuarios: " + page.url());
+    await page.getByRole("heading", { name: "Usuários e permissões" }).waitFor();
+    console.log("PASS: platform administrator can access /admin/usuarios directly.");
+
+    await page.goto(`${baseUrl}/admin`, { waitUntil: "domcontentloaded", timeout: 20000 });
+    await assertAdminPage("Admin access before sign out");
 
     // Register the navigation waiter before clicking to avoid a client-router race.
     await Promise.all([

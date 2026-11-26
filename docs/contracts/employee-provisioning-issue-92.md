@@ -89,7 +89,7 @@ Estados propostos, alinhados aos helpers existentes:
 - `compensated`
 - `manual_reconciliation_required`
 
-As transições devem ser condicionais e auditáveis. `completed` e `compensated` são terminais. Falhas ambíguas devem exigir reconciliação manual, não repetição automática insegura.
+As transições devem ser condicionais e auditáveis. `completed` e `compensated` são terminais. Falhas ambíguas devem exigir reconciliação manual, não repetição automática insegura. Se a própria gravação do marcador de reconciliação falhar, a orquestração deve retornar `RECONCILIATION_MARKER_FAILED`; não pode afirmar que o estado manual foi persistido.
 
 ## 8. Contrato pendente da auditoria #97
 

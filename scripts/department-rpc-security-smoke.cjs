@@ -1,5 +1,8 @@
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+
 const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
 const apiKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const serviceKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const rpcCases = [
   ["admin_list_departments", { p_organization_id: "00000000-0000-0000-0000-000000000000" }],
@@ -41,6 +44,94 @@ async function signIn(email, password, label) {
   return body.access_token;
 }
 
+
+function decodeJwtClaims(token) {
+  const payload = token.split(".")[1];
+  if (!payload) throw new Error("Supabase returned an invalid access token.");
+  try {
+    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+  } catch {
+    throw new Error("Supabase returned an unreadable access token.");
+  }
+}
+
+async function serviceRequest(path, options = {}) {
+  const response = await fetch(`${baseUrl}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      "Content-Type": "application/json",
+      ...(options.headers ?? {}),
+    },
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`CI device-session fixture request failed with HTTP ${response.status}: ${detail.slice(0, 500)}`);
+  }
+  return response;
+}
+
+// RLS requires an approved device row and an approved device_sessions row
+// matching the session_id embedded in this real Auth JWT. The service key is
+// used only for temporary CI fixture setup/cleanup. All assertions use the
+// regular users' JWTs and the production RLS policies remain enabled.
+async function provisionAuthorizedDeviceSession(token, label) {
+  const claims = decodeJwtClaims(token);
+  const userId = claims.sub;
+  const sessionId = claims.session_id;
+  if (!userId || !sessionId) {
+    throw new Error("Authenticated fixture token is missing sub/session_id claims.");
+  }
+
+  const deviceId = randomUUID();
+  const deviceSecretHash = createHash("sha256")
+    .update(randomBytes(32))
+    .digest("hex");
+  let deviceCreated = false;
+
+  try {
+    await serviceRequest("authorized_devices", {
+      method: "POST",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({
+        id: deviceId,
+        user_id: userId,
+        secret_hash: `\\x${deviceSecretHash}`,
+        label: `CI security smoke: ${label}`,
+        user_agent: "CONNEXA GitHub Actions security smoke",
+        status: "approved",
+        approved_at: new Date().toISOString(),
+        approved_by: userId,
+      }),
+    });
+    deviceCreated = true;
+
+    await serviceRequest("device_sessions", {
+      method: "POST",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({
+        session_id: sessionId,
+        user_id: userId,
+        device_id: deviceId,
+        status: "approved",
+      }),
+    });
+  } catch (error) {
+    if (deviceCreated) {
+      await serviceRequest(`authorized_devices?id=eq.${deviceId}`, { method: "DELETE" }).catch(() => {});
+    }
+    throw error;
+  }
+
+  console.log(`PASS: temporary approved device/session fixture created for ${label}.`);
+  return async () => {
+    await serviceRequest(`device_sessions?session_id=eq.${sessionId}`, { method: "DELETE" });
+    await serviceRequest(`authorized_devices?id=eq.${deviceId}`, { method: "DELETE" });
+    console.log(`PASS: temporary device/session fixture removed for ${label}.`);
+  };
+}
+
 async function callRpc(name, payload, token) {
   const headers = { apikey: apiKey, "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -75,47 +166,56 @@ function assertAdminReachedRpc(name, result) {
 
 async function main() {
   if (!baseUrl || !apiKey) throw new Error("Supabase URL and publishable key are required.");
+  if (!serviceKey) {
+    throw new Error("SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY) is required to create and clean temporary approved device/session fixtures.");
+  }
+
   const userToken = await signIn(required("AUTH_TEST_USER_EMAIL"), required("AUTH_TEST_USER_PASSWORD"), "Regular-user");
   const adminToken = await signIn(required("AUTH_TEST_ADMIN_EMAIL"), required("AUTH_TEST_ADMIN_PASSWORD"), "Platform-admin");
+  const cleanups = [];
 
-  // platform_users has an RLS policy that exposes only the caller's own role.
-  // Check this fixture before exercising RPCs so a valid Auth login is not
-  // mistaken for a provisioned platform administrator.
-  const adminRoleResponse = await fetch(`${baseUrl}/rest/v1/platform_users?select=role`, {
-    headers: { apikey: apiKey, Authorization: `Bearer ${adminToken}` },
-  });
-  const adminRoleRows = await adminRoleResponse.json().catch(() => []);
-  if (!adminRoleResponse.ok) {
-    throw new Error(`Admin fixture role lookup failed with HTTP ${adminRoleResponse.status}; verify authenticated SELECT access to the caller's own platform_users row.`);
-  }
-  if (!Array.isArray(adminRoleRows) || !adminRoleRows.some((row) => row.role === "platform_admin")) {
-    throw new Error("AUTH_TEST_ADMIN_EMAIL authenticated successfully, but its user has no platform_admin row in public.platform_users on Supabase DEV. Configure the CI admin test credentials to match the already-provisioned DEV platform administrator; do not grant the role from the client.");
-  }
-  console.log("PASS: CI administrator fixture has its own platform_admin row in public.platform_users.");
+  try {
+    cleanups.push(await provisionAuthorizedDeviceSession(userToken, "regular-user"));
+    cleanups.push(await provisionAuthorizedDeviceSession(adminToken, "platform-admin"));
 
-  for (const [name, payload] of rpcCases) {
-    const anonymous = await callRpc(name, payload, null);
-    if (anonymous.status !== 401) throw new Error(`${name}: expected anonymous HTTP 401, received HTTP ${anonymous.status}.`);
-    console.log(`PASS: ${name} denies a request without a user JWT (HTTP 401).`);
-  }
-
-  for (const [name, payload] of rpcCases) {
-    const regularUser = await callRpc(name, payload, userToken);
-    if (!isPermissionDenied(regularUser)) {
-      throw new Error(`${name}: regular-user request was not denied as platform_admin (HTTP ${regularUser.status}).`);
+    // Check the admin's role only after its JWT has an authorized device session.
+    const adminRoleResponse = await fetch(`${baseUrl}/rest/v1/platform_users?select=role`, {
+      headers: { apikey: apiKey, Authorization: `Bearer ${adminToken}` },
+    });
+    const adminRoleRows = await adminRoleResponse.json().catch(() => []);
+    if (!adminRoleResponse.ok) {
+      throw new Error(`Admin role lookup failed with HTTP ${adminRoleResponse.status} using an approved device/session.`);
     }
-    console.log(`PASS: ${name} denies a regular authenticated user (HTTP ${regularUser.status}).`);
-  }
+    if (!Array.isArray(adminRoleRows) || !adminRoleRows.some((row) => row.role === "platform_admin")) {
+      throw new Error("The authenticated CI administrator still has no visible platform_admin row after an approved device/session was provisioned. Check the DEV fixture identity and authorization contract.");
+    }
+    console.log("PASS: CI administrator can read its own platform_admin row through restrictive RLS with an approved device/session.");
 
-  for (const [name, payload] of rpcCases) {
-    const admin = await callRpc(name, payload, adminToken);
-    assertAdminReachedRpc(name, admin);
-  }
+    for (const [name, payload] of rpcCases) {
+      const anonymous = await callRpc(name, payload, null);
+      if (anonymous.status !== 401) throw new Error(`${name}: expected anonymous HTTP 401, received HTTP ${anonymous.status}.`);
+      console.log(`PASS: ${name} denies a request without a user JWT (HTTP 401).`);
+    }
 
-  console.log("PASS: all six department RPC role guards were exercised through real Supabase Auth JWTs.");
-  console.log("NOTE: admin mutation RPCs were tested with nonexistent identifiers and expected domain errors to avoid persistent DEV changes; this is not a successful business-operation test.");
+    for (const [name, payload] of rpcCases) {
+      const regularUser = await callRpc(name, payload, userToken);
+      if (!isPermissionDenied(regularUser)) {
+        throw new Error(`${name}: regular-user request was not denied as platform_admin (HTTP ${regularUser.status}).`);
+      }
+      console.log(`PASS: ${name} denies a regular authenticated user (HTTP ${regularUser.status}).`);
+    }
+
+    for (const [name, payload] of rpcCases) {
+      const admin = await callRpc(name, payload, adminToken);
+      assertAdminReachedRpc(name, admin);
+    }
+
+    console.log("PASS: all six department RPC role guards were exercised through real Auth JWTs with approved device sessions.");
+    console.log("NOTE: mutation RPCs use nonexistent identifiers; temporary CI device/session fixtures are removed in the finally block.");
+  } finally {
+    for (const cleanup of cleanups.reverse()) await cleanup();
+  }
 }
-
 main().catch((error) => {
   console.error("Department RPC PostgREST security test failed:", error.message);
   process.exit(1);

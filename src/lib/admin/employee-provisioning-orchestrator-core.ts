@@ -44,7 +44,7 @@ export type EmployeeProvisioningResult =
         | "COMPLETION_FAILED";
     };
 
-type Dependencies = {
+export type EmployeeProvisioningDependencies = {
   claimOperation: (
     payload: EmployeeProvisioningPayload,
   ) => Promise<ProvisioningClaimResult>;
@@ -76,7 +76,7 @@ type Dependencies = {
 };
 
 async function requireManualReconciliation(
-  dependencies: Dependencies,
+  dependencies: EmployeeProvisioningDependencies,
   claim: ProvisioningClaim,
   reason: string,
 ): Promise<void> {
@@ -95,7 +95,7 @@ async function requireManualReconciliation(
  */
 export async function runEmployeeProvisioning(
   payload: EmployeeProvisioningPayload,
-  dependencies: Dependencies,
+  dependencies: EmployeeProvisioningDependencies,
 ): Promise<EmployeeProvisioningResult> {
   let claimResult: ProvisioningClaimResult;
   try {

@@ -819,3 +819,46 @@ html[data-theme="sunset"] .directory-search:focus-within,
 html[data-theme="sunset"] .directory-filter select:focus-visible {
   outline-color: rgba(233, 160, 82, .7);
 }
+
+
+/* Ajustes finais da Issue #148: painel de perfil e superfícies residuais no Sunset. */
+@media (min-width: 1400px) {
+  .app-shell.contact-closed {
+    grid-template-columns: 76px 390px minmax(400px, 1fr) 0;
+  }
+  .app-shell.contact-closed .contact-panel { display: none; }
+  .app-shell.contact-open .contact-panel {
+    grid-column: 4;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+    border-left: 1px solid var(--line);
+  }
+}
+.contact-panel-head > div { display: grid; gap: 4px; }
+.contact-panel-subtitle { color: var(--muted); font-size: 9px; }
+html[data-theme="sunset"] .inbox-footer {
+  background: var(--surface);
+  color: var(--muted);
+}
+html[data-theme="sunset"] .inbox-footer button { color: #E9A052; }
+html[data-theme="sunset"] .contact-panel { background: var(--surface); color: var(--text); }
+html[data-theme="sunset"] .contact-panel-head { background: var(--surface); }
+html[data-theme="sunset"] .detail-value { color: var(--text); }
+@media (max-width: 1399px) {
+  .app-shell.contact-closed .contact-panel { display: none; }
+  .app-shell.contact-open .contact-panel { display: flex; }
+}
+
+@media (max-width: 1399px) {
+  .app-shell.contact-open .contact-panel {
+    position: fixed;
+    z-index: 22;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(340px, 88vw);
+    max-width: calc(100vw - 24px);
+    box-shadow: -12px 0 35px rgba(12, 7, 6, .38);
+  }
+}

@@ -63,7 +63,8 @@ test("rejects empty, oversized, and malformed idempotency inputs", () => {
   assert.throws(() => decideIdempotency(null, "", validHash), /valid idempotency key/);
   assert.throws(() => decideIdempotency(null, "x".repeat(129), validHash), /valid idempotency key/);
   assert.throws(() => decideIdempotency(null, "request with spaces", validHash), /valid idempotency key/);
-  assert.throws(() => decideIdempotency(null, "request\\n123", validHash), /valid idempotency key/);
+  assert.throws(() => decideIdempotency(null, "request\n123", validHash), /valid idempotency key/);
+  assert.deepEqual(decideIdempotency(null, "request:123/abc", validHash), { kind: "create" });
   assert.throws(() => decideIdempotency(null, "request-123", "not-a-hash"), /valid idempotency key/);
 });
 

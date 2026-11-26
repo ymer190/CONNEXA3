@@ -1,9 +1,12 @@
 const { chromium } = require("playwright");
+const { deleteDeviceFixture } = require("./issue97-isolated-device-fixture.cjs");
 
 async function main() {
   const email = process.env.AUTH_TEST_USER_EMAIL;
   const password = process.env.AUTH_TEST_USER_PASSWORD;
   const baseUrl = process.env.AUTH_TEST_BASE_URL || "http://127.0.0.1:3000";
+  const supabaseUrl = process.env.AUTH_TEST_SUPABASE_URL;
+  const serviceRoleKey = process.env.AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY;
 
   if (!email || !password) {
     throw new Error("AUTH_TEST_USER_EMAIL and AUTH_TEST_USER_PASSWORD are required.");
@@ -11,6 +14,7 @@ async function main() {
 
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
+  let deviceId;
 
   async function assertDenied(stage) {
     try {
@@ -44,7 +48,9 @@ async function main() {
 
     await page.reload();
     await assertDenied("Authenticated session remains denied after refresh");
+    deviceId = (await page.context().cookies(baseUrl)).find((cookie) => cookie.name === "connexa-device-id")?.value;
   } finally {
+    await deleteDeviceFixture({ baseUrl: supabaseUrl, serviceRoleKey, deviceId });
     await browser.close();
   }
 }
@@ -53,4 +59,3 @@ main().catch((error) => {
   console.error("Authentication smoke test failed:", error.message);
   process.exit(1);
 });
-

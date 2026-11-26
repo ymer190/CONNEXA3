@@ -1,186 +1,185 @@
 # Contratos de integração — CONNEXA3
 
-**Issue:** [#106](https://github.com/ymer190/CONNEXA3/issues/106)  
-**Versão:** 1.0 — proposta para validação conjunta  
-**Atualizado em:** 2026-11-19  
-**Ambiente de referência:** Supabase Online, projeto connexa-dev  
-**Estado:** documentação para revisão; não declara APIs ainda não implantadas.
+**Issue:** [#106](https://github.com/ymer190/CONNEXA3/issues/106)
+**Versão:** 1.1 — revisão do baseline e dos contratos implementados
+**Atualizado em:** 2026-11-26
+**Ambiente conferido:** Supabase Online, projeto `connexa-dev` (`dzsacdtolxrqgwlekzdg`)
+**Estado:** contratos existentes e propostas pendentes estão separados. A validação conjunta Back-end/Front-end continua pendente.
 
-Este é o contrato compartilhado entre Back-end e Front-end. Ele diferencia o que foi verificado do que é proposto, define entradas, respostas, erros, paginação e limites de acesso. Contratos propostos não devem ser consumidos antes de aprovação conjunta e implementação/validação em DEV.
+Este documento é a referência compartilhada de integração. Os contratos classificados como **implementados no DEV** descrevem o schema/RPC verificado; isso não significa que a interface do produto já os consuma ou que tenham sido liberados para produção. Contratos **propostos** não devem ser chamados como APIs existentes.
 
 ## 1. Baseline verificado
 
-No projeto connexa-dev, o schema public contém organizations, profiles, organization_members e platform_users, com RLS habilitado. As migrations aplicadas incluem create_organizations_profiles_and_members, create_platform_users e harden_public_table_privileges.
+Em 26/11/2026, `public` no `connexa-dev` contém 11 tabelas, todas com RLS: `organizations`, `profiles`, `organization_members`, `platform_users`, `departments`, `department_members`, `authorized_devices`, `device_sessions`, `it_support_members`, `it_support_tickets` e `administrative_audit_logs`.
 
-O DEV ainda não contém tabelas de departments, department_members, conversations, conversation_members, messages, message_attachments, conversation_audit_logs ou auditoria geral. Também não existem endpoints de negócio para listagem administrativa de colaboradores, departamentos ou leitura administrativa de conversas.
+As tabelas de departamentos e suas RPCs foram implementadas para a #95. As tabelas/RPCs de dispositivos, suporte e auditoria administrativa estão no banco DEV pelas migrations da #97. Essas migrations ainda não estão integradas na `main` conforme a PR #153 aberta em 26/11; o contrato de banco abaixo não afirma integração no frontend nem autorização para produção.
 
-| Fluxo | Situação |
-|---|---|
-| Login/sessão | Supabase Auth com cliente SSR; /admin exige sessão e linha própria em platform_users |
-| Perfil | profiles oferece full_name e avatar_url; RLS limita a própria linha |
-| Colaboradores/status | Issues #92/#94 ainda abertas; organization_members usa papéis legados |
-| Departamentos | Issue #95 define regras; tabela ausente no DEV |
-| Conversas/auditoria | Issue #96 e PR #130 definem fronteira/modelo em revisão; tabelas ausentes |
+O banco DEV **não** tem `conversations`, `conversation_members`, `messages`, `message_attachments` ou `conversation_audit_logs`, nem RPC de consulta administrativa de conversas. A arquitetura e os limites de autorização aprovados estão na [ADR-001 v1.3](../architecture/ADR-001_v1.3_proposta_consolidada_SQA.md) e no [documento da #96](../architecture/authorization-permissions-issue-96.md); aprovação documental não é implementação.
 
-O documento database-model.md está marcado como modelo legado e não deve orientar novos contratos de conversa. A arquitetura canônica proposta usa conversations, conversation_members, messages, message_attachments e conversation_audit_logs. O PR #130 permanece em rascunho; as propostas nele não substituem validação pelo Back-end, Front-end e responsáveis de produto/privacidade.
+| Domínio | Estado no DEV | Limite principal |
+|---|---|---|
+| Auth e perfil próprio | Implementado | Sessão autentica; permissão é checada separadamente |
+| Departamentos e vínculos | RPCs implementadas para `platform_admin` | Acesso somente via RPC; sem paginação no banco |
+| Dispositivos, sessões e suporte | RPCs da #97 presentes no DEV | Acesso via RPC autenticada, dispositivo autorizado e escopo/ator validados |
+| Auditoria administrativa | Tabela append-only e RPC de consulta presentes | Histórico completo somente para `platform_admin`; paginação atual tem limitação de cursor |
+| Conversas, mensagens e auditoria de conversas | Não implementado no DEV | Contrato de consulta administrativa permanece proposta; nenhuma tabela ou API disponível |
+| Colaboradores e ciclo de vida de conta | Parcial / dependências #92–#94 | Não inferir campos, papéis ou operações que ainda não foram entregues |
 
-## 2. Autenticação e sessão
+## 2. Convenções de integração
 
-### Login
-- Operação: Supabase Auth signInWithPassword({ email, password }), pelo cliente SSR.
-- Entrada: email e password, strings obrigatórias. Enviar por TLS ao Supabase Auth; não colocar credenciais em URL, logs, analytics ou mensagens de erro.
-- Sucesso: user.id e user.email identificam a conta. Tokens/expiração são geridos pela sessão SSR e não fazem parte de payloads de negócio.
-- Erro: SDK retorna AuthError com status/code/message quando disponíveis. A UI usa mensagem genérica para credenciais recusadas, sem confirmar se o e-mail existe.
-- Sessão válida autentica, mas não concede permissão administrativa nem acesso ao conteúdo de conversas.
+- IDs são UUIDs, salvo `administrative_audit_logs.id` (`bigint`). Timestamps são `timestamptz` e trafegam como ISO-8601 UTC.
+- As RPCs PostgreSQL são chamadas pelo nome com argumentos `p_...`; resultado `SETOF` chega como lista JSON, inclusive para uma única linha. Listagens sem resultados retornam lista vazia.
+- `supabase.rpc()` retorna `{ data, error }`. Em erro, o SDK fornece `code`, `message`, `details` e `hint` quando disponíveis. Não expor `details`/SQL interno na UI.
+- Não existe envelope REST CONNEXA3 comum. Não presumir formato HTTP ou envelope de API de domínio que não esteja descrito aqui.
+- Acesso direto às tabelas administrativas/de departamento é revogado para `anon` e `authenticated`; usar as RPCs listadas. RLS habilitada sem policy nas tabelas privadas é intencional em combinação com privilégios revogados e operações privilegiadas auditadas.
+- `SECURITY DEFINER` e `EXECUTE` para `authenticated` não significam autorização por si: as RPCs validam identidade, dispositivo e papel/escopo dentro do banco. Não criar caminhos alternativos pelo browser, service key ou filtros enviados pelo cliente.
+- `service_role`/secret key somente no servidor. `user_metadata` não é fonte de autorização.
 
-### Sessão e área administrativa
-- Confirmar identidade no servidor com getUser().
-- A página /admin atual exige sessão e leitura da própria linha em platform_users; falha ou ausência da linha resulta em acesso negado.
-- platform_users.role aceita platform_admin. Isso protege a área administrativa atual; não autoriza leitura de mensagens.
-- signOut() encerra a sessão. user_metadata é editável pelo usuário e não serve para autorização.
-- Chave publicável/anon apropriada ao cliente; service_role/secret somente no servidor.
+## 3. Autenticação, sessão e perfil
 
-A UI atual usa redirecionamentos para login/acesso negado. Não existe envelope REST CONNEXA3 padronizado para operações de domínio.
+### Login e sessão — implementados
 
-## 3. Perfil e colaborador
+- Login usa Supabase Auth `signInWithPassword({ email, password })` no fluxo SSR existente.
+- Sucesso identifica a conta por `user.id`; tokens e renovação pertencem à sessão Supabase, não a payloads próprios de negócio.
+- Ausência/recusa de credenciais retorna `AuthError` do SDK; a interface deve usar mensagem genérica e não confirmar se um e-mail existe.
+- `getUser()` no servidor confirma identidade. A verificação de sessão não concede papel ou acesso a dados automaticamente.
+- A sessão que chama RPCs administrativas da #95/#97 também precisa estar vinculada a um dispositivo aprovado (`device_session_is_authorized()`); a autorização ocorre em cada operação protegida.
 
-### Perfil próprio, implementado
-- Consulta apenas da linha cujo id é auth.uid(); campos: id UUID, full_name string|null, avatar_url string|null, created_at e updated_at ISO-8601 UTC.
-- Resposta: um perfil ou ausência de linha; e-mail vem de Supabase Auth, não de public.profiles.
-- A UI envia full_name e avatar_url. Não trate a lista de campos da interface como barreira de segurança por coluna.
-- SELECT sem linha visível por RLS pode retornar lista vazia, sem erro explícito.
+### Perfil próprio — implementado
 
-### Cadastro administrativo, pendente da #92
-Não há contrato implantado para listar/criar contas de colaboradores. A #92 determina criação por TI autorizado, sem auto cadastro público. Não presumir que organization_members.role ou platform_users.role seja o status/cargo do colaborador. Campos mínimos, estados, erros e paginação devem ser validados com a #92 antes da integração do painel.
+`public.profiles` contém `id uuid`, `full_name text|null`, `avatar_url text|null`, `created_at timestamptz`, `updated_at timestamptz`. A linha visível é a do próprio `auth.uid()`; RLS limita SELECT/INSERT/UPDATE ao próprio perfil. O e-mail é dado de Auth, não de `profiles`. SELECT sem linha visível pode resultar em lista vazia, não em erro.
 
-## 4. Departamentos — contrato proposto para #95
+### Colaboradores — parcial
 
-Departamento é parte da estrutura organizacional, não uma conversa/grupo. Cada registro pertence ao escopo organizacional. Associação de colaborador é explícita e não pode ser inferida por cargo, nome, e-mail ou participação em grupo. Desativação preserva histórico/auditoria e impede novas associações incompatíveis.
+`organization_members` ainda tem papel legado (`owner`, `admin`, `member`) e estados `active`/`suspended`; isso não define autorização de plataforma nem cargo de produto. O DEV atual também possui fluxo de status de conta sob a #94 em validação. Ainda não há neste contrato uma API geral de listagem/cadastro de colaboradores com campos, filtros, ordenação e paginação estáveis. Não inferir essa operação a partir de uma tabela ou tela.
 
-| Operação | Entrada proposta | Resposta proposta | Autorização |
+## 4. Departamentos — #95, implementado no DEV
+
+### Modelo e projeções
+
+`departments`: `id uuid`, `organization_id uuid`, `name text`, `status ('active'|'inactive')`, `created_at timestamptz`, `updated_at timestamptz`. Nome não pode ser vazio após `btrim`; nome ativo é único após normalização dentro da organização.
+
+`department_members`: `id uuid`, `organization_id uuid`, `department_id uuid`, `user_id uuid`, `created_at timestamptz`, `created_by uuid|null`, `ended_at timestamptz|null`, `ended_by uuid|null`. Vínculos encerrados permanecem para histórico; `ended_at IS NULL` identifica vínculo atual. FKs compostas impedem cruzamento de organização.
+
+### RPCs e entradas
+
+Todas as RPCs abaixo exigem usuário autenticado, dispositivo/sessão autorizados e `platform_admin` verificado no banco. `it_support` e `collaborator` sem concessão explícita são negados. A associação de departamento não concede leitura de conversa.
+
+| Operação | RPC e argumentos nomeados | Resposta | Erros relevantes |
 |---|---|---|---|
-| Listar/buscar | filtro de estado, busca textual, paginação | lista e metadados de página | escopo organizacional validado |
-| Consultar | department_id | registro de departamento | departments.read no escopo |
-| Criar/editar/desativar | campos aprovados da entidade | registro atualizado | platform_admin ou capacidade aprovada |
-| Associar/remover colaborador | department_id, collaborator_id | associação resultante | departments.members.manage no departamento |
+| Listar departamentos | `admin_list_departments({p_organization_id: UUID})` | `Department[]`, por nome normalizado e `id` | sessão ausente `28000`; dispositivo ou papel não autorizado `42501` |
+| Criar | `admin_create_department({p_organization_id: UUID, p_name: string})` | `Department[]` com registro criado | `22023` inválido; `23503` organização inexistente; `23505` nome ativo duplicado; `28000`/`42501` autorização |
+| Editar nome | `admin_update_department({p_department_id: UUID, p_organization_id: UUID, p_name: string})` | `Department[]` atualizado | `22023` inválido; `P0002` ativo não encontrado no escopo; `23505` duplicidade; `28000`/`42501` autorização |
+| Desativar | `admin_deactivate_department({p_department_id: UUID, p_organization_id: UUID})` | `Department[]` inativado | `P0002` ativo não encontrado no escopo; `28000`/`42501` autorização |
+| Listar vínculos atuais e históricos | `admin_list_department_members({p_department_id: UUID, p_organization_id: UUID})` | `DepartmentMember[]`, atuais primeiro, depois histórico por criação/id | `28000`/`42501` autorização |
+| Transferir colaborador | `admin_transfer_department_member({p_organization_id: UUID, p_user_id: UUID, p_new_department_id: UUID})` | `DepartmentMember[]` novo; encerra o atual na mesma transação | `22023` inválido; `23514` destino não ativo/no escopo; constraints para vínculo/organização; `28000`/`42501` autorização |
 
-Resposta semântica mínima: id estável, escopo organizacional, nome, estado ativo/inativo e timestamps. A associação usa identificadores estáveis. Nomes físicos, nulabilidade, ciclo de reativação e paginação final dependem da migration #95 e revisão conjunta. A integração prevista é department_id opcional em conversations; não criar tabelas paralelas para grupos.
+A criação/edição remove espaços periféricos do nome. Desativar encerra vínculos atuais; transferência preserva o anterior. Cada operação administrativa é gravada em `administrative_audit_logs` na mesma transação.
 
-A #95 distingue:
-- platform_admin: administração da estrutura organizacional no escopo aprovado;
-- it_support: sem administração de departamentos, grupos ou participantes;
-- collaborator: sem gestão administrativa por padrão;
-- gestor departamental: continua collaborator, com departments.read, departments.members.manage, groups.read, groups.manage e groups.members.manage explicitamente concedidas e limitadas aos departamentos/grupos atribuídos.
-Gerir participantes não concede leitura de conteúdo. Negar por padrão quando identidade, capacidade, vínculo ou escopo não forem comprovados.
+**Paginação:** estas RPCs não recebem `limit`, `offset` nem cursor e não retornam metadados de paginação. A resposta é a lista integral no escopo consultado. Não inventar parâmetros no cliente. Se o volume exigir paginação, ela precisa ser adicionada ao contrato e à RPC antes de integração que dependa dela.
 
-Paginação proposta para listagens: page_size padrão 50, máximo 100, offset >= 0, ordenação estável por nome/id. Resposta: data e page {page_size, offset, has_more}. Back-end e Front-end devem aprovar ou substituir esses limites no PR antes da integração.
+**Integração app:** banco e testes da #95 estão no DEV; a página do frontend não equivale a aceite de API. Capacidades departamentais para gestores continuam não concedidas no banco; acesso permanece `platform_admin` até implementação/aprovação separada.
 
-## 5. Consulta excepcional de conversas — #96/#97
+## 5. Dispositivos, suporte e auditoria administrativa — #97 no DEV
 
-A consulta de conteúdo administrativo não existe no DEV. Deve ser operação privilegiada do servidor; não é SELECT liberado diretamente ao navegador.
+As operações abaixo descrevem as RPCs atualmente encontradas no DEV. A PR #153 está aberta e documenta gates de revisão/integração. Verificar essa dependência antes de consumir as funções em `main`.
 
-### Entrada proposta
-- conversation_id: UUID obrigatório;
-- justification: texto obrigatório, não vazio após trim;
-- page_size: padrão 50, máximo 100;
-- cursor: opaco, nulo na primeira página.
+### Escopo de autorização
 
-O ator e a sessão vêm da identidade validada no servidor. Escopo organizacional, usuário-alvo e concessões são resolvidos/validados no servidor; não confiar em role, actor_id, organization_id nem autorização fornecidos pelo cliente.
+- `platform_admin`: administra dispositivos/sessões e consulta o histórico administrativo completo, após validação de sessão e dispositivo autorizado.
+- `it_support`: somente operações de dispositivos/sessões associadas a chamado ativo e atribuído, justificativa não vazia, organização e usuário-alvo daquele chamado. Não pode consultar o histórico administrativo completo, administrar organização/papéis ou ler conteúdo de conversa.
+- A função RPGD tem supervisão de privacidade restrita ao ciclo de vida de acesso excepcional conforme ADR/#96; não é papel cadastrado no esquema atual nem tem acesso a conteúdo de conversa por esse fato.
+- Chamadas negam com `28000` se não há identidade; `42501` para dispositivo/identidade/escopo não autorizado; `22023` para argumento inválido/justificativa obrigatória; `P0002` para recurso/chamado fora do escopo ou inexistente. Mensagens de Postgres não são texto de UI.
 
-### Resposta proposta
-- conversation: id, type (channel/direct/group) e department_id quando aplicável;
-- messages: id, sender_id, message_type, body/conteúdo textual quando autorizado, created_at, estado/data de edição e exclusão;
-- attachments: apenas metadados mínimos (id, tipo, tamanho, timestamp); nunca bytes, chave interna de Storage ou URL pública;
-- page: page_size, next_cursor, has_more.
+### Consulta de dispositivos/sessões
 
-Essas são propriedades semânticas da resposta, não afirmação sobre colunas físicas já existentes. O mapeamento final depende do schema revisado da #96. Ordenação estável por instante e id; cursor opaco não altera escopo. Cada página é limitada a 100 registros. Não impor janela de tempo adicional sem aprovação de produto.
+`admin_list_device_sessions({p_user_id: UUID|null, p_justification: string|null})` retorna linhas com `user_id`, `device_id`, `session_id`, `device_label`, `user_agent`, `device_status`, `session_status`, `requested_at`, `last_seen_at`. `p_user_id = null` consulta todos os usuários; o ator precisa ser `platform_admin`. Justificativa é opcional nesta RPC. A consulta é auditada.
 
-### Limites de acesso aprovados na proposta de autorização
-- Acesso normal depende de participação ativa e escopo da conversa. Papel administrativo não concede conteúdo automaticamente.
-- Consulta excepcional exige concessão separada conversations.exceptional_read para identidade/escopo definidos, prazo vigente e justificativa. Validar em cada página.
-- platform_admin não recebe acesso automático a conteúdo; it_support é sempre negado para conteúdo de conversa.
-- Somente a função formal RPGD, independente de TI operacional, pode aprovar/revogar via conversations.exceptional_access.approve. Aprovar não concede leitura ao RPGD.
-- A identidade consultora precisa de conversations.exceptional_read separado, com escopo e validade definidos.
-- Não enviar notificação individual ao colaborador no momento da consulta, conforme decisão existente; registrar toda consulta.
-- Se autenticação, autorização, escopo ou gravação de auditoria falhar, negar e não devolver conteúdo.
-- A remoção de participante revoga imediatamente acesso futuro a mensagens/anexos. História permanece aos demais participantes autorizados.
+`support_list_device_sessions({p_ticket_reference: string, p_justification: string})` retorna a mesma projeção somente para o usuário-alvo do chamado ativo atribuído ao ator. A justificativa é obrigatória e não vazia. Organização, designação de suporte, ator, usuário-alvo e status do chamado são revalidados no servidor.
 
-## 6. Auditoria administrativa
+As duas RPCs retornam todas as linhas correspondentes, em ordem de atividade mais recente, sem parâmetros de paginação. Não presumir que filtros do cliente limitem dados que o servidor devolveu.
 
-Issue #97 é dona da trilha geral de administração/segurança, incluindo ações de dispositivos/sessões e consultas excepcionais. conversation_audit_logs é separada e cobre ciclo de vida de conversas/participantes. Não duplicar eventos entre as duas trilhas; quando a mesma operação gerar eventos de domínios distintos, compartilhar correlation_id.
+### Auditoria administrativa
 
-### Campos mínimos do evento
-| Campo semântico | Regra |
-|---|---|
-| actor_id | identidade derivada da sessão, nunca confiada do cliente |
-| action | código estável da operação |
-| target_type/target_id | recurso atingido; conversa para consulta excepcional |
-| organization_scope | escopo validado, quando aplicável |
-| justification | obrigatória em consulta excepcional e ações que assim exigirem |
-| occurred_at | timestamp UTC definido pelo servidor/banco |
-| outcome | permitido, negado ou falha |
-| correlation_id | correlação da operação |
-| page_size/result_count | limite e registros efetivamente devolvidos, quando paginada |
+`public.administrative_audit_logs` é append-only. Campos retornados pela RPC:
 
-Auditar antes de devolver conteúdo. Nunca gravar corpo de mensagem, conteúdo de anexo, senha, token ou credencial. Clientes comuns não inserem, alteram ou apagam auditoria; eventos são append-only para atores da aplicação.
+| Campo | Tipo / nulabilidade | Significado e limite |
+|---|---|---|
+| `id` | `bigint`, não nulo | Identificador crescente do evento |
+| `actor_user_id` | `uuid|null` | Ator confiável derivado da sessão; pode faltar quando aplicável ao evento |
+| `action` | `text`, não nulo | Código estável da operação |
+| `target_type` | `text`, não nulo | `device`, `session`, `support_ticket`, `it_support_assignment`, `department` ou `organization` |
+| `target_id` | `text`, não nulo | Identificador textual do alvo |
+| `target_user_id` | `uuid|null` | Usuário afetado quando aplicável |
+| `organization_id` | `uuid|null` | Escopo organizacional quando aplicável |
+| `ticket_reference` | `text|null` | Referência de chamado quando aplicável |
+| `justification` | `text|null` | Justificativa sanitizada quando fornecida/exigida; máximo persistido de 500 caracteres |
+| `outcome` | `text`, não nulo | `allowed` ou `denied` |
+| `occurred_at` | `timestamptz`, não nulo | Horário gerado pelo servidor/banco |
 
-### Consulta de auditoria
-- platform_admin: trilha administrativa completa.
-- RPGD: apenas eventos necessários para supervisão do ciclo de vida de acesso excepcional.
-- it_support: não pode consultar histórico administrativo completo.
-- collaborator comum: sem acesso à trilha administrativa.
-- Retenção padrão de 12 meses; prazo maior só com obrigação legal, investigação ou retenção formal documentada. Ao fim da obrigação, excluir/anonimizar com segurança quando permitido.
+Não existem `correlation_id`, `page_size`, `result_count` ou coluna de corpo de conversa nesta tabela. Credenciais/tokens são redigidos; não se registram corpos de mensagem ou conteúdo de anexo. Clientes `anon`/`authenticated` não têm acesso direto à tabela nem podem atualizá-la/apagá-la.
 
-Resposta contém os campos semânticos acima, nunca conteúdo de conversa. Paginação proposta: padrão 50, máximo 100 por página e escopo/permissão revalidados. Validar esses limites conjuntamente antes da implementação.
+RPC: `admin_list_administrative_audit({p_before: ISO8601|null, p_limit: integer})` retorna `AdministrativeAuditEvent[]`, exclusivamente para `platform_admin` com sessão/dispositivo autorizados. `p_limit` default 50 e aceita 1–100. Ordenação decrescente por `occurred_at`, depois `id`. `p_before` é exclusivo (`occurred_at < p_before`). Não há filtros de ator, ação, organização ou tipo de alvo.
 
-## 7. Erros
+**Limite de paginação a corrigir antes de consumo paginado:** a RPC só recebe timestamp como cursor, embora ordene por timestamp e `id`. Se vários eventos têm o mesmo `occurred_at` e o cliente reutiliza o horário do último evento como `p_before`, os demais eventos desse mesmo instante são excluídos da página seguinte. A ordenação sozinha não resolve isso. Até uma interface com cursor composto/estável (`occurred_at`, `id`) estar implementada e validada no DEV, não integrar paginação por timestamp como completa nem deduplicar/descartar resultados por suposição.
 
-Hoje, o SDK fornece AuthError/PostgrestError, não um envelope CONNEXA3. Não mostrar message/details internos ao usuário.
+A política aprovada pela PO é retenção de **cinco anos** para dados/eventos abrangidos, com holds documentados que podem estender a preservação. O mecanismo de retenção, início da contagem por categoria, expurgo de backups/réplicas e anonimização ainda são gates de implementação; esta RPC não aplica retenção.
 
-Envelope proposto para futuras operações:
+## 6. Consulta administrativa de conversas e auditoria do domínio — proposta, não implementada
 
-    {
-      "error": {
-        "code": "FORBIDDEN",
-        "message": "A operação não é permitida.",
-        "request_id": "identificador-de-correlação"
-      }
-    }
+Não há no DEV tabelas ou operações de conversa. O contrato a seguir fixa a fronteira aprovada pela #96/ADR para orientar a implementação, sem declarar endpoint disponível.
 
-| Código | HTTP proposto | Uso |
-|---|---:|---|
-| AUTHENTICATION_REQUIRED | 401 | sessão ausente/inválida |
-| FORBIDDEN | 403 | capacidade ou escopo insuficiente |
-| VALIDATION_ERROR | 400 | entrada, cursor ou justificativa inválidos |
-| NOT_FOUND | 404 | inexistente ou fora do escopo, sem revelar existência |
-| RATE_LIMITED | 429 | limite operacional excedido |
-| SERVICE_UNAVAILABLE | 503 | falha transitória sem conteúdo parcial |
+### Consulta excepcional de conteúdo
 
-Não retornar dados de outra organização, conteúdo privado, tokens ou detalhes internos de Postgres. Os códigos acima são proposta de adaptador, não códigos atualmente emitidos no DEV.
+A consulta é server-side, separada do acesso normal por participante e da administração de plataforma. Entrada mínima a ser implementada: identificador da conversa/recurso, justificativa não vazia e contexto de consulta/página. Identidade do ator, organização e grants são derivados/validados no servidor; não aceitar `actor_id`, papel ou permissão enviados pelo cliente.
 
-## 8. Comunicação e mudança de contrato
+A capability `conversations.exceptional_read` é nominativa, separada, com escopo definido, validade e expiração. Concedê-la exige duas decisões separadas e registradas: Direção/Chefia e TI autorizado; sem autoaprovação ou aprovação do leitor para si. RPGD faz supervisão de privacidade, não substitui aprovadores e não recebe conteúdo por esse papel. Cada leitura exige justificativa e auditoria persistida antes da divulgação; falha de autorização, escopo ou auditoria nega a consulta. `platform_admin` e `it_support` não têm acesso automático a conteúdo.
 
-1. Toda alteração em payload, campo, erro, paginação ou autorização atualiza este documento no mesmo PR que a implementação.
-2. O PR apresenta exemplos de entrada/resposta, compatibilidade, impacto nas duas equipes, migrations e evidência de validação em connexa-dev quando houver mudança no banco.
-3. Back-end e Front-end revisam os mesmos exemplos e registram aprovação no PR antes da integração. Decisão de produto/privacidade é validada pela autoridade do requisito.
-4. Propostas são claramente rotuladas e não são consumidas como APIs disponíveis.
-5. Migrations são aplicadas e validadas primeiro no Supabase connexa-dev. PROD permanece sem alterações até validação DEV e aprovação própria.
+Projeção mínima prevista: metadados da conversa; mensagens autorizadas com IDs, remetente, tipo, timestamps e estado; anexos somente com metadados necessários. Não devolver corpo/cifra fora do grant, bytes de anexo, chaves internas ou URLs públicas. A paginação deve usar cursor opaco/estável e limite de página aprovado antes da integração; nenhum tamanho 50/100 é ainda um contrato implementado. Ordenação determinística e escopo/grant devem ser revalidados em toda página.
 
-### Validação desta versão
-- [x] Baseline atual do GitHub e connexa-dev conferido.
-- [x] Contratos prioritários de login, sessão e perfil próprio documentados.
-- [x] Campos e limites propostos para consulta administrativa e auditoria definidos.
-- [ ] Back-end validou payloads, erros e limites.
-- [ ] Front-end validou payloads, erros e limites.
-- [ ] PO/RPGD validou a interpretação do acesso excepcional e retenção.
-- [ ] Conversas, departamentos e auditoria implantados/verificados em DEV (dependem das #95–#97).
+### Auditoria de conversas
 
-**Estado:** contrato preparado para revisão conjunta; operações de departamentos, conversas e auditoria ainda não existem no connexa-dev. O PR desta issue deve receber validação das duas equipes antes de qualquer integração.
+`conversation_audit_logs` é uma entidade proposta pela #96 para eventos do ciclo de vida de conversas/participantes. Não deve duplicar a trilha administrativa/security de `administrative_audit_logs` (#97); eventos correlatos devem compartilhar uma futura regra de correlação acordada. Não gravar corpo de mensagem, plaintext, conteúdo de anexo, tokens ou credenciais. Campos físicos, operações de leitura, papéis de consulta, paginação e retenção de cada categoria dependem da migration/contrato da #96 e não estão implementados no DEV.
+
+Retenção de cinco anos vale às categorias abrangidas pela decisão da PO; marcos iniciais de contagem por categoria, holds, política de backup e expurgo seguro permanecem pendências, conforme ADR-001 v1.3. Não usar a antiga proposta de 12 meses.
+
+## 7. Erros e comportamento da interface
+
+Auth e PostgREST continuam retornando os objetos de erro Supabase, não o envelope CONNEXA3 anterior. SQLSTATEs acima descrevem as RPCs; não presumir que todos mapeiem a códigos HTTP próprios ou que a mensagem possa ser exibida. A UI deve tratar:
+
+- sessão ausente/expirada: solicitar autenticação;
+- `42501`: acesso negado sem expor existência/escopo de recursos;
+- `22023`: entrada inválida com mensagem local genérica/associada ao campo;
+- `P0002`, `23503`, `23505`, `23514`: estado/referência inválida, sem detalhes SQL;
+- indisponibilidade/timeout: permitir nova tentativa segura e não exibir dados parciais.
+
+Operações mutáveis de administração usam transação no banco e escrevem auditoria antes/de forma atômica com a alteração quando aplicável. Em caso de erro, não apresentar sucesso otimista como estado confirmado.
+
+## 8. Mudanças e validação conjunta
+
+1. Alterações em campo, tipo, nullable, erro, ordenação, paginação, autorização ou semântica exigem atualização deste documento no mesmo PR da migration/implementação.
+2. O PR mostra request e response reais, classificação implementado/proposto, impacto para as duas equipes, erros e evidência verificável em `connexa-dev` quando tocar o banco.
+3. Back-end e Front-end revisam os mesmos exemplos e registram aprovação no PR antes da integração. Decisões de privacidade/produto são revisadas pelos responsáveis correspondentes.
+4. Migrations de banco são revisadas/versionadas no repositório, aplicadas primeiro em `connexa-dev` e verificadas depois; não aplicar em produção por este documento.
+5. Alteração sem compatibilidade precisa registrar migração de consumidores e janela de coexistência. Nenhum cliente presume campos, limites, respostas vazias ou autorização.
+
+### Checklist da versão 1.1
+
+- [x] Atualizado baseline a partir do banco `connexa-dev` e da `main` em 26/11/2026.
+- [x] Contratos de perfil próprio e departamentos descritos a partir dos campos/RPCs reais.
+- [x] Auditoria administrativa documenta campos, limite de consulta, autorização, append-only e limitação do cursor atual.
+- [x] Consulta administrativa de conversas e auditoria de conversas separadas do que existe hoje.
+- [ ] Back-end validou os contratos e a limitação/correção de paginação.
+- [ ] Front-end validou os mesmos exemplos, erros e limites.
+- [ ] PO/privacidade validou a aplicação da regra de acesso excepcional/retenção aos consumidores.
+- [ ] Resolver e validar no DEV o cursor composto/estável da auditoria antes de integrar paginação.
+- [ ] Alinhar PR #153 e migrations da #97 com `main` antes de anunciar integração de dispositivos/auditoria.
 
 ## Referências
-- [Issue #106 — contratos de integração](https://github.com/ymer190/CONNEXA3/issues/106)
-- [Issue #95 — departamentos](https://github.com/ymer190/CONNEXA3/issues/95)
-- [Issue #96 — permissões e conversas](https://github.com/ymer190/CONNEXA3/issues/96)
-- [Issue #97 — dispositivos e auditoria](https://github.com/ymer190/CONNEXA3/issues/97)
-- [PR #130 — modelo de autorização/conversas em revisão](https://github.com/ymer190/CONNEXA3/pull/130)
 
+- [Issue #106 — contratos de integração](https://github.com/ymer190/CONNEXA3/issues/106)
+- [Contrato do domínio de departamentos — #95](./department-domain-issue-95.md)
+- [Autorização e permissões — #96](../architecture/authorization-permissions-issue-96.md)
+- [ADR-001 v1.3 — segurança e retenção](../architecture/ADR-001_v1.3_proposta_consolidada_SQA.md)
+- [PR #131 — documentação dos contratos](https://github.com/ymer190/CONNEXA3/pull/131)
+- [PR #153 — dispositivos/sessões/auditoria](https://github.com/ymer190/CONNEXA3/pull/153)

@@ -11,7 +11,7 @@ Não existe senha temporária gerada pela aplicação. O provisionamento envia c
 ## 2. Fluxo proposto
 
 1. A #92 cria o convite por meio do Supabase Auth Admin e define, por operação exclusivamente server-side, o marcador confiável de primeiro acesso pendente. A sequência de criação/convite e marcação deve ser coordenada para impedir qualquer janela em que o convite possa ser aceito sem o estado pendente.
-2. O link de convite deve usar `token_hash` e `type=invite` (template `{{ .TokenHash }}` direcionado ao callback da aplicação). A rota pública valida estritamente esses parâmetros e chama `auth.verifyOtp({ token_hash, type: 'invite' })` no cliente Supabase SSR, gravando a sessão nos cookies seguros. `inviteUserByEmail` não oferece suporte a PKCE; não implementar `exchangeCodeForSession` para esse convite.
+2. O template de convite deve apontar `{{ .TokenHash }}` e `type=invite` para `/auth/callback`. O GET do callback apenas valida o formato e encaminha para uma tela de confirmação; ele **não consome o token**. Isso evita que scanners de e-mail invalidem convites por prefetch. Somente após clique explícito do usuário, o endpoint server-side chama `auth.verifyOtp({ token_hash, type: 'invite' })`, valida o marcador pendente e persiste a sessão nos cookies SSR. `inviteUserByEmail` não oferece suporte a PKCE; não implementar `exchangeCodeForSession` para esse convite.
 3. O usuário é direcionado à tela mobile-first de definição de senha. A tela não aceita alteração de e-mail, identidade ou papel.
 4. O servidor valida a sessão com `auth.getUser()`, valida a política de senha e chama `auth.updateUser({ password })` com a sessão do próprio colaborador.
 5. Após a confirmação da alteração, um serviço server-side atualiza o marcador de primeiro acesso para concluído. Se essa atualização falhar, o acesso permanece bloqueado e a operação pode ser repetida com segurança.
@@ -20,7 +20,7 @@ Não existe senha temporária gerada pela aplicação. O provisionamento envia c
 ## 3. Estado confiável e autorização
 
 - Não usar `user_metadata`, query params, localStorage, estado React ou valores enviados pelo navegador como fonte de autorização.
-- O estado precisa ser gravado em `app_metadata` pelo Supabase Auth Admin, exclusivamente server-side, ou em mecanismo persistente equivalente aprovado pelo Tech Lead/SQA.
+- O estado precisa ser gravado em `app_metadata` pelo Supabase Auth Admin, exclusivamente server-side, ou em mecanismo persistente equivalente aprovado pelo Tech Lead/SQA. A rota de conclusão usa `SUPABASE_SECRET_KEY` (ou `SUPABASE_SERVICE_ROLE_KEY` legado) apenas no servidor para limpar o marcador; essa variável deve ser cadastrada como secret privado no ambiente de deploy/CI, nunca com prefixo `NEXT_PUBLIC_`.
 - O cliente não pode definir ou limpar o marcador.
 - A leitura de estado deve consultar o usuário autenticado no servidor (`auth.getUser()`), não confiar em claims antigas de JWT sem estratégia de atualização.
 - A #92 deve criar o convite e marcar `first_access_pending=true` antes de habilitar convites reais. A #93 limpa o marcador somente depois da troca de senha confirmada.

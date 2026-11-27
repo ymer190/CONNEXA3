@@ -8,7 +8,7 @@ type DeviceSessionsAdminPageProps = {
 };
 
 const errorMessages: Record<string, string> = {
-  validation: "Confira os identificadores, justificativas e referência do chamado.",
+  validation: "Confira o identificador e a justificativa informados.",
   forbidden: "Sua conta não tem autorização para concluir essa operação.",
   action: "A operação não foi concluída. Revise o estado atual e tente novamente.",
   unavailable: "O serviço de dispositivos está indisponível. Tente novamente em alguns instantes.",
@@ -27,7 +27,7 @@ export default async function DeviceSessionsAdminPage({ searchParams }: DeviceSe
           alteração exige justificativa e fica registrada na auditoria.
         </p>
         <p className="auth-description">
-          Para aprovar, informe um chamado ativo vinculado à organização e à pessoa proprietária do dispositivo. O servidor valida esses vínculos antes de liberar o acesso.
+          A aprovação utiliza a assinatura RPC atualmente disponível no Supabase DEV. Os controles avançados que exigem chamado ativo permanecem adiados.
         </p>
         <p><Link href="/admin">Voltar à administração</Link></p>
         {error && errorMessages[error] ? <p role="alert">{errorMessages[error]}</p> : null}

@@ -37,17 +37,34 @@ test("reconciliation RPC exposes status-only fields to authenticated admins", ()
     assert.ok(rpc.includes(field), `status RPC must expose ${field}`);
   }
 
-  for (const sensitiveField of [
-    "auth_user_id",
-    "email_envelope",
-    "invite_link_envelope",
-    "email_provider_message_id",
-  ]) {
-    assert.ok(
-      !rpc.includes(sensitiveField),
-      `status RPC must not expose ${sensitiveField}`,
-    );
-  }
+  const returnTable = rpc.match(/returns\s+table\s*\(([\s\S]*?)\)\s*language/i);
+  assert.ok(returnTable, "status RPC must declare its return table");
+
+  const returnedFields = returnTable[1]
+    .split(",")
+    .map((field) => field.trim().replace(/\s+/g, " ").toLowerCase());
+  assert.deepEqual(returnedFields, [
+    "operation_id uuid",
+    "status text",
+    "phase text",
+    "has_invite_link boolean",
+    "has_provider_receipt boolean",
+    "failure_code text",
+  ]);
+
+  const projection = rpc.match(/return\s+query\s+select([\s\S]*?)\s+from\s+/i);
+  assert.ok(projection, "status RPC must have a SELECT projection");
+  const projectedExpressions = projection[1]
+    .split(",")
+    .map((expression) => expression.trim().replace(/\s+/g, " ").toLowerCase());
+  assert.deepEqual(projectedExpressions, [
+    "op.id",
+    "op.status",
+    "op.phase",
+    "(op.invite_link_envelope is not null)",
+    "(op.email_provider_message_id is not null)",
+    "op.failure_code",
+  ]);
 
   assert.match(rpc, /op\.actor_user_id\s*=\s*actor_id/);
   assert.match(

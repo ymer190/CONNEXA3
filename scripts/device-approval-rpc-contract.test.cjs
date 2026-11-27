@@ -29,7 +29,7 @@ test("device approval frontend matches the two-argument DEV RPC contract", () =>
   assert.ok(frontend.includes('supabase.rpc(action, args)'));
   assert.match(
     frontend,
-    /p_device_id:\\s*target,\\s*p_justification:\\s*justification/s,
+    /p_device_id:\s*target,\s*p_justification:\s*justification/s,
   );
   assert.doesNotMatch(frontend, /p_ticket_reference|ticketReference/);
   assert.doesNotMatch(frontend, /ticket_reference/);

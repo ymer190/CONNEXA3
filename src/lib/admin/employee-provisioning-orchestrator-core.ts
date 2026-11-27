@@ -35,14 +35,11 @@ export type AuthIdentityCreationResult =
   | {
       kind: "created";
       authUserId: string;
+      actionLink: string;
       identityCreatedByOperation: boolean;
     }
   | { kind: "not_created" }
   | { kind: "unknown" };
-
-export type InviteLinkGenerationResult =
-  | { kind: "generated"; actionLink: string }
-  | { kind: "failed" | "unknown" };
 
 export type InviteEmailDeliveryResult =
   | { kind: "sent"; providerMessageId?: string }
@@ -86,8 +83,6 @@ export type EmployeeProvisioningDependencies = {
     payload: EmployeeProvisioningPayload,
     authUserId: string,
   ) => Promise<DomainTransactionResult>;
-  /** Generate the Supabase Auth invite link only after the domain transaction commits. */
-  generateInviteLink: (payload: EmployeeProvisioningPayload) => Promise<InviteLinkGenerationResult>;
   /** Deliver the generated link through the configured email provider after commit. */
   sendInviteEmail: (
     payload: EmployeeProvisioningPayload,
@@ -282,23 +277,12 @@ export async function runEmployeeProvisioning(
     return { kind: "failed", code: "DOMAIN_TRANSACTION_FAILED" };
   }
 
-  // The Auth identity exists, but no invite has been generated or delivered yet.
-  // Only a confirmed PostgreSQL commit may advance to link generation and email.
-  let linkResult: InviteLinkGenerationResult;
-  try {
-    linkResult = await dependencies.generateInviteLink(payload);
-  } catch {
-    linkResult = { kind: "unknown" };
-  }
-
-  if (linkResult.kind !== "generated" || !linkResult.actionLink) {
-    if (!(await requireManualReconciliation(
-      dependencies,
-      claim,
-      linkResult.kind === "failed"
-        ? "invite_link_generation_failed"
-        : "invite_link_generation_outcome_unknown",
-    ))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+  // Auth generateLink creates the identity and action link without sending mail.
+  // The link is held server-side and delivered only after the domain commit.
+  if (!invite.actionLink) {
+    if (!(await requireManualReconciliation(dependencies, claim, "invite_link_missing"))) {
+      return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    }
     return { kind: "manual_reconciliation_required" };
   }
 
@@ -306,7 +290,7 @@ export async function runEmployeeProvisioning(
   try {
     deliveryResult = await dependencies.sendInviteEmail(
       payload,
-      linkResult.actionLink,
+      invite.actionLink,
       `employee-provisioning/${claim.operationId}`,
     );
   } catch {

@@ -13,7 +13,7 @@ export async function createEmployeeAuthIdentity(
 ) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const appUrl = process.env.APP_URL;
-  if (!supabaseUrl || !appUrl || !process.env.SUPABASE_SECRET_KEY) {
+  if (!supabaseUrl || !appUrl || !(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)) {
     return { kind: "not_created" as const };
   }
 

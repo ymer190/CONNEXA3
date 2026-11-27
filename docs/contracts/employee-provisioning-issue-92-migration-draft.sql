@@ -269,7 +269,7 @@ returns table (
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare actor_id uuid := private.assert_employee_provisioning_admin();
 begin
   return query
@@ -280,7 +280,7 @@ begin
    where op.id = p_operation_id
      and op.actor_user_id = actor_id;
 end;
-$;
+$$;
 
 create or replace function public.admin_commit_employee_provisioning(
   p_operation_id uuid,
@@ -428,7 +428,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare actor_id uuid := private.assert_employee_provisioning_admin();
 begin
   if p_provider_message_id is null
@@ -450,7 +450,7 @@ begin
 
   return found;
 end;
-$;
+$$;
 
 create or replace function public.admin_complete_employee_provisioning(
   p_operation_id uuid,
@@ -476,7 +476,7 @@ begin
 
   return found;
 end;
-$;
+$$;
 
 create or replace function public.admin_mark_employee_provisioning_manual_reconciliation(
   p_operation_id uuid,

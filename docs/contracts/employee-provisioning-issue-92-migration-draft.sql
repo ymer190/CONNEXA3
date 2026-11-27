@@ -85,7 +85,7 @@ begin
     raise exception 'Authentication required' using errcode = '28000';
   end if;
 
-  if not public.device_session_is_authorized() then
+  if public.device_session_is_authorized() is not true then
     raise exception 'Authorized device required' using errcode = '42501';
   end if;
 

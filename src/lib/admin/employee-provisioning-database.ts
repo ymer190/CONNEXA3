@@ -125,12 +125,21 @@ export function createEmployeeProvisioningDatabase(client: EmployeeProvisioningR
     persistAuthUserId(
       claim: ProvisioningClaim,
       authUserId: string,
-      actionLink: string,
     ): Promise<boolean> {
       return callBooleanRpc(client, "admin_persist_employee_auth_user_id", {
         p_operation_id: claim.operationId,
         p_claim_id: claim.claimId,
         p_auth_user_id: authUserId,
+      });
+    },
+
+    persistInviteLink(
+      claim: ProvisioningClaim,
+      actionLink: string,
+    ): Promise<boolean> {
+      return callBooleanRpc(client, "admin_persist_employee_invite_link", {
+        p_operation_id: claim.operationId,
+        p_claim_id: claim.claimId,
         p_invite_link_envelope: encryptProvisioningInviteLink(actionLink),
       });
     },

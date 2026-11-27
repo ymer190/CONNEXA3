@@ -1,6 +1,7 @@
 import "server-only";
 
 import { encryptProvisioningEmail } from "./employee-provisioning-email-crypto";
+import { encryptProvisioningInviteLink } from "./employee-provisioning-invite-link-crypto";
 import type {
   DomainTransactionResult,
   EmployeeProvisioningPayload,
@@ -119,11 +120,13 @@ export function createEmployeeProvisioningDatabase(client: EmployeeProvisioningR
     persistAuthUserId(
       claim: ProvisioningClaim,
       authUserId: string,
+      actionLink: string,
     ): Promise<boolean> {
       return callBooleanRpc(client, "admin_persist_employee_auth_user_id", {
         p_operation_id: claim.operationId,
         p_claim_id: claim.claimId,
         p_auth_user_id: authUserId,
+        p_invite_link_envelope: encryptProvisioningInviteLink(actionLink),
       });
     },
 

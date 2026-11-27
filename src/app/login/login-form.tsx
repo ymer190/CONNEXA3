@@ -30,6 +30,45 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         return;
       }
 
+      // Confirm the browser session is readable before the server-side
+      // enrollment endpoint validates the Supabase cookie.
+      const {
+        data: { user: authenticatedUser },
+        error: sessionError,
+      } = await supabase.auth.getUser();
+
+      if (sessionError || !authenticatedUser) {
+        await supabase.auth.signOut();
+        setErrorMessage(
+          "Sua sessão não foi confirmada. Entre novamente para continuar.",
+        );
+        return;
+      }
+
+      const enrollment = await fetch("/api/device-sessions/register", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      const enrollmentResult = (await enrollment.json()) as {
+        status?: "approved" | "pending";
+        error?: string;
+      };
+      if (!enrollment.ok || !enrollmentResult.status) {
+        await supabase.auth.signOut();
+        setErrorMessage(
+          enrollment.status === 409
+            ? "Este dispositivo foi revogado ou perdeu sua credencial. Entre novamente para cadastrá-lo como um novo dispositivo."
+            : "Não foi possível validar este dispositivo. Tente novamente.",
+        );
+        return;
+      }
+
+      if (enrollmentResult.status === "pending") {
+        window.location.assign("/dispositivo-pendente");
+        return;
+      }
+
       // A full navigation lets the server middleware read the persisted
       // Supabase session cookies before rendering the protected destination.
       window.location.assign(redirectTo);

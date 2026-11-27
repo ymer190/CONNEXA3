@@ -1,0 +1,27 @@
+name: Issue 97 SQA evidence
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pending:
+    name: Deferred SQA validation (status in summary)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record deferred SQA validation
+        shell: bash
+        run: |
+          {
+            echo "## Issue 97 SQA evidence"
+            echo "**Status: PENDENTE — nenhuma homologação SQA foi executada ou concedida.**"
+            echo ""
+            echo "- As migrations avançadas 10200 e 10300 foram separadas para uma entrega futura."
+            echo "- Os testes autenticados de navegador e de autorização de dispositivos permanecem pendentes."
+            echo "- Este workflow não aplica migrations nem altera Supabase DEV ou Production."
+            echo "- A integração básica continua limitada ao contrato atualmente instalado no DEV."
+          } >> "$GITHUB_STEP_SUMMARY"

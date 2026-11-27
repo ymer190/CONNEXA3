@@ -25,6 +25,8 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      ISSUE_97_GATED_MIGRATIONS_RELEASED: ${{ vars.ISSUE_97_GATED_MIGRATIONS_RELEASED }}
+      ISSUE_97_SQA_APPROVAL_REFERENCE: ${{ vars.ISSUE_97_SQA_APPROVAL_REFERENCE }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -39,6 +41,13 @@ jobs:
           test -n "$SUPABASE_DB_PASSWORD" || { echo "Missing SUPABASE_DB_PASSWORD in development environment"; exit 1; }
           test "$SUPABASE_PROJECT_REF" = "dzsacdtolxrqgwlekzdg" || { echo "Refusing to run: development project ref does not match connexa-dev"; exit 1; }
           test -d supabase/migrations || { echo "supabase/migrations directory not found"; exit 1; }
+          if [[ -f supabase/migrations/20261126010200_issue_97_sqa_gates.sql || -f supabase/migrations/20261126010300_issue_97_revalidate_legacy_devices.sql ]]; then
+            if [[ "$ISSUE_97_GATED_MIGRATIONS_RELEASED" == "true" || -n "$ISSUE_97_SQA_APPROVAL_REFERENCE" ]]; then
+              echo "DEV release overrides are disabled: Issue 97 migrations 10200/10300 remain SQA-only."
+            fi
+            echo "Refusing to run supabase db push: Issue 97 migrations 10200/10300 are SQA-only and must never be applied to connexa-dev."
+            exit 1
+          fi
 
       - name: Install Supabase CLI
         uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13

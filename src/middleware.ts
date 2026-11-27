@@ -3,13 +3,13 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
+  const pathname = request.nextUrl.pathname;
   const isAdminRoute =
-    request.nextUrl.pathname === "/admin" ||
-    request.nextUrl.pathname.startsWith("/admin/");
+    pathname === "/admin" || pathname.startsWith("/admin/");
   const workspacePaths = ["/", "/conversas", "/grupos", "/colaboradores", "/departamentos", "/arquivos"];
   const isWorkspaceRoute = workspacePaths.some((path) =>
-    request.nextUrl.pathname === path ||
-    (path !== "/" && request.nextUrl.pathname.startsWith(`${path}/`))
+    pathname === path ||
+    (path !== "/" && pathname.startsWith(`${path}/`))
   );
   const isProtectedRoute = isAdminRoute || isWorkspaceRoute;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -84,6 +84,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Issue #97: every authenticated protected route requires an approved device.
+  if (isProtectedRoute && user) {
+    const { data: authorizedDevice, error: deviceError } = await supabase.rpc(
+      "device_session_is_authorized",
+    );
+    if (deviceError || authorizedDevice !== true) {
+      const pendingUrl = request.nextUrl.clone();
+      pendingUrl.pathname = "/dispositivo-pendente";
+      pendingUrl.search = "";
+      return NextResponse.redirect(pendingUrl);
+    }
+  }
+
   if (isWorkspaceRoute && !user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
@@ -105,11 +118,11 @@ export async function middleware(request: NextRequest) {
 
     const { data: platformUser, error } = await supabase
       .from("platform_users")
-      .select("user_id")
+      .select("user_id, role")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (error || !platformUser) {
+    if (error || platformUser?.role !== "platform_admin") {
       const forbiddenUrl = request.nextUrl.clone();
       forbiddenUrl.pathname = "/acesso-negado";
       forbiddenUrl.search = "";

@@ -1,0 +1,57 @@
+name: Issue 97 device-session break-glass
+
+on:
+  workflow_dispatch:
+    inputs:
+      device_id:
+        description: Pending platform administrator device UUID
+        required: true
+        type: string
+      ticket_reference:
+        description: Active approved support/change ticket
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  bootstrap:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: device-session-break-glass
+    timeout-minutes: 5
+    steps:
+      - name: Approve first administrator device through audited RPC
+        env:
+          SUPABASE_URL: ${{ secrets.CONNEXA_DEV_SUPABASE_URL }}
+          SERVICE_ROLE_KEY: ${{ secrets.CONNEXA_DEV_SERVICE_ROLE_KEY }}
+          DEVICE_ID: ${{ inputs.device_id }}
+          TICKET_REFERENCE: ${{ inputs.ticket_reference }}
+          OPERATOR_AUDIT_REFERENCE: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node --input-type=module <<'NODE'
+          const { SUPABASE_URL, SERVICE_ROLE_KEY, DEVICE_ID, TICKET_REFERENCE, OPERATOR_AUDIT_REFERENCE } = process.env;
+          if (!SUPABASE_URL || !SERVICE_ROLE_KEY) throw new Error("Protected DEV environment secrets are not configured");
+          if (!/^[0-9a-f-]{36}$/i.test(DEVICE_ID || "")) throw new Error("device_id must be a UUID");
+          if (!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,79}$/.test(TICKET_REFERENCE || "")) throw new Error("Invalid ticket reference");
+          const response = await fetch(`${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/rpc/bootstrap_approve_admin_device`, {
+            method: "POST",
+            headers: {
+              apikey: SERVICE_ROLE_KEY,
+              Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              p_device_id: DEVICE_ID,
+              p_ticket_reference: TICKET_REFERENCE,
+              p_justification: `Approved break-glass recovery; see ticket ${TICKET_REFERENCE}.`,
+              p_operator_audit_reference: OPERATOR_AUDIT_REFERENCE,
+            }),
+            cache: "no-store",
+          });
+          if (!response.ok) {
+            const detail = await response.text();
+            throw new Error(`Bootstrap RPC failed with HTTP ${response.status}: ${detail}`);
+          }
+          console.log(`Bootstrap completed. Operator evidence: ${OPERATOR_AUDIT_REFERENCE}`);
+          NODE

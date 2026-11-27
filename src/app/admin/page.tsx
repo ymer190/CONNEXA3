@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SignOutButton } from "./sign-out-button";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export default async function AdminPage() {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (error || !platformUser) {
+  if (error || platformUser?.role !== "platform_admin") {
     redirect("/acesso-negado");
   }
 
@@ -43,6 +44,7 @@ export default async function AdminPage() {
           </div>
         </dl>
         <SignOutButton />
+        <p><Link href="/admin/dispositivos">Gerenciar dispositivos e sessões</Link></p>
       </section>
     </main>
   );

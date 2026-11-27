@@ -120,6 +120,7 @@ declare
   key_hash bytea;
   operation_row private.employee_provisioning_operations%rowtype;
   inserted boolean := false;
+  inserted_count integer := 0;
 begin
   if p_idempotency_key is null
      or length(p_idempotency_key) not between 1 and 128
@@ -141,7 +142,8 @@ begin
   values (actor_id, key_hash, p_payload_hash, p_email_envelope)
   on conflict (actor_user_id, idempotency_key_hash) do nothing;
 
-  get diagnostics inserted = row_count;
+  get diagnostics inserted_count = row_count;
+  inserted := inserted_count = 1;
 
   select op.*
     into operation_row

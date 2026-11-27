@@ -38,7 +38,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       } = await supabase.auth.getUser();
 
       if (sessionError || !authenticatedUser) {
-        await supabase.auth.signOut();
+        await clearLocalSession(supabase);
         setErrorMessage(
           "Sua sessão não foi confirmada. Entre novamente para continuar.",
         );
@@ -55,7 +55,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         error?: string;
       };
       if (!enrollment.ok || !enrollmentResult.status) {
-        await supabase.auth.signOut();
+        await clearLocalSession(supabase);
         setErrorMessage(
           enrollment.status === 409
             ? "Este dispositivo foi revogado ou perdeu sua credencial. Entre novamente para cadastrá-lo como um novo dispositivo."
@@ -65,7 +65,9 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       }
 
       if (enrollmentResult.status === "pending") {
-        window.location.assign("/dispositivo-pendente");
+        const pendingUrl = new URL("/dispositivo-pendente", window.location.origin);
+        pendingUrl.searchParams.set("next", redirectTo);
+        window.location.assign(pendingUrl.toString());
         return;
       }
 
@@ -118,4 +120,13 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       </button>
     </form>
   );
+}
+
+async function clearLocalSession(supabase: ReturnType<typeof createClient>) {
+  try {
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+    return !error;
+  } catch {
+    return false;
+  }
 }

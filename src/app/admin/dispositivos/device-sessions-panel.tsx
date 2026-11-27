@@ -24,19 +24,21 @@ export function DeviceSessionsPanel() {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     startTransition(async () => {
-      const result = await listDeviceSessions(formData);
-      if ("error" in result && typeof result.error === "string") {
-        setMessage(result.error);
-        setRows(null);
-        return;
+      try {
+        const result = await listDeviceSessions(formData);
+        if ("error" in result && typeof result.error === "string") {
+          setMessage(result.error);
+          return;
+        }
+        if (!("rows" in result) || !Array.isArray(result.rows)) {
+          setMessage("Não foi possível consultar as sessões. Tente novamente.");
+          return;
+        }
+        setRows(result.rows as DeviceSession[]);
+        setMessage("Consulta registrada na auditoria.");
+      } catch {
+        setMessage("O serviço de sessões está indisponível. Tente novamente em alguns instantes.");
       }
-      if (!("rows" in result) || !Array.isArray(result.rows)) {
-        setMessage("Não foi possível consultar as sessões.");
-        setRows(null);
-        return;
-      }
-      setRows(result.rows as DeviceSession[]);
-      setMessage("Consulta registrada na auditoria.");
     });
   }
 

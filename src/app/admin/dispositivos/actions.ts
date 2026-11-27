@@ -32,15 +32,21 @@ async function runAction(
 
   const target = String(formData.get("target") ?? "").trim();
   const justification = String(formData.get("justification") ?? "").trim();
-  if (!target || !justification || justification.length > 1000) {
+  if (!isUuid(target) || !justification || justification.length > 500) {
     redirect("/admin/dispositivos?error=validation");
   }
 
-  const supabase = await createClient();
   const args = action === "admin_revoke_session"
     ? { p_session_id: target, p_justification: justification }
     : { p_device_id: target, p_justification: justification };
-  const { error } = await supabase.rpc(action, args);
+  let error: { code?: string } | null = null;
+  try {
+    const supabase = await createClient();
+    error = (await supabase.rpc(action, args)).error;
+  } catch {
+    redirect("/admin/dispositivos?error=unavailable");
+  }
+  if (error?.code === "42501") redirect("/admin/dispositivos?error=forbidden");
   if (error) redirect("/admin/dispositivos?error=action");
   revalidatePath("/admin/dispositivos");
   redirect("/admin/dispositivos?updated=1");
@@ -56,17 +62,22 @@ export async function listDeviceSessions(formData: FormData) {
   }
 
   const justification = String(formData.get("justification") ?? "").trim();
-  if (!justification || justification.length > 1000) {
+  if (!justification || justification.length > 500) {
     return { error: "Informe uma justificativa válida para consultar as sessões." };
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("admin_list_device_sessions", {
-    p_user_id: null,
-    p_justification: justification,
-  });
-  if (error) return { error: "Não foi possível consultar as sessões." };
-  return { rows: data ?? [] };
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("admin_list_device_sessions", {
+      p_user_id: null,
+      p_justification: justification,
+    });
+    if (error?.code === "42501") return { error: "Você não tem permissão para consultar essas sessões." };
+    if (error) return { error: "Não foi possível consultar as sessões agora. Tente novamente." };
+    return { rows: data ?? [] };
+  } catch {
+    return { error: "O serviço de sessões está indisponível. Tente novamente em alguns instantes." };
+  }
 }
 
 export async function revokeDevice(formData: FormData) {
@@ -75,4 +86,8 @@ export async function revokeDevice(formData: FormData) {
 
 export async function revokeSession(formData: FormData) {
   await runAction("admin_revoke_session", formData);
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }

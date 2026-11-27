@@ -15,14 +15,14 @@ export function SignOutButton() {
 
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut({ scope: "local" });
 
       if (error) {
         setErrorMessage("Não foi possível encerrar sua sessão. Tente novamente.");
         return;
       }
 
-      router.replace("/login");
+      router.replace("/login?reason=signed-out");
       router.refresh();
     } catch {
       setErrorMessage("Não foi possível conectar ao serviço de autenticação. Tente novamente.");

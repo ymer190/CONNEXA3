@@ -92,3 +92,30 @@ test("claim replay does not disclose the Auth user ID", () => {
   const rpc = sql.slice(start, end);
   assert.doesNotMatch(rpc, /auth_user_id/i);
 });
+
+test("first-access link recovery is restricted to the original actor and service role", () => {
+  const start = sql.indexOf(
+    "create or replace function public.admin_get_employee_provisioning_invite_link(",
+  );
+  const end = sql.indexOf(
+    "\\ncreate or replace function public.admin_mark_employee_compensation_pending(",
+    start,
+  );
+  assert.notEqual(start, -1, "privileged link recovery RPC must exist");
+  assert.notEqual(end, -1, "link recovery RPC must end before compensation RPC");
+
+  const rpc = sql.slice(start, end);
+  assert.match(rpc, /auth\\.jwt\\(\\)\\s*->>\\s*'role'\\s*<>\\s*'service_role'/);
+  assert.match(rpc, /op\\.actor_user_id\\s*=\\s*p_actor_user_id/);
+  assert.match(rpc, /op\\.status\\s*=\\s*'completed'/);
+  assert.match(rpc, /op\\.phase\\s*=\\s*'completed'/);
+  assert.match(rpc, /op\\.invite_link_envelope\\s+is\\s+not\\s+null/);
+  assert.match(
+    sql,
+    /revoke all on function public\\.admin_get_employee_provisioning_invite_link\\(uuid,uuid\\)\\s+from public, anon, authenticated, service_role;/,
+  );
+  assert.match(
+    sql,
+    /grant execute on function public\\.admin_get_employee_provisioning_invite_link\\(uuid,uuid\\) to service_role;/,
+  );
+});

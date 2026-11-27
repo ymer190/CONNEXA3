@@ -13,9 +13,15 @@ permissions:
   contents: read
 
 jobs:
-  validate-app:
+  validate:
     name: Validate application
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://dzsacdtolxrqgwlekzdg.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_VxDDuEIFkXx4OrkVdg4xbg_7RAzlmR9
+      HAS_AUTH_TEST_SECRETS: ${{ secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' }}
+      HAS_AUTH_ADMIN_TEST_SECRETS: ${{ secrets.AUTH_TEST_ADMIN_EMAIL != '' && secrets.AUTH_TEST_ADMIN_PASSWORD != '' }}
+      HAS_DEPARTMENT_RPC_TEST_SECRETS: ${{ secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' && secrets.AUTH_TEST_ADMIN_EMAIL != '' && secrets.AUTH_TEST_ADMIN_PASSWORD != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,35 +39,6 @@ jobs:
 
       - name: Test Issue 97 device approval RPC contract
         run: node --test scripts/device-approval-rpc-contract.test.cjs
-
-      - name: Report dependency advisories for review
-        continue-on-error: true
-        shell: bash
-        run: |
-          audit_status=0
-          npm audit --json > /tmp/npm-audit.json || audit_status=$?
-          AUDIT_STATUS="$audit_status" node <<'NODE'
-          const fs = require("node:fs");
-          const report = JSON.parse(fs.readFileSync("/tmp/npm-audit.json", "utf8"));
-          const advisories = Object.entries(report.vulnerabilities ?? {}).map(([name, item]) => ({
-            name,
-            severity: item.severity,
-            direct: item.isDirect,
-            range: item.range,
-            fixAvailable: item.fixAvailable,
-            via: (item.via ?? []).map((entry) => typeof entry === "string" ? entry : {
-              title: entry.title,
-              url: entry.url,
-              range: entry.range,
-              severity: entry.severity,
-            }),
-          }));
-          console.log(JSON.stringify({
-            exitCode: Number(process.env.AUDIT_STATUS ?? 0),
-            metadata: report.metadata?.vulnerabilities,
-            advisories,
-          }, null, 2));
-          NODE
 
       - name: Run ESLint
         run: npm run lint
@@ -94,17 +71,165 @@ jobs:
             exit 1
           fi
 
-          location=$(curl -sS -D - -o /dev/null http://127.0.0.1:3000/admin | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\r$/, ""); print $2 }')
+          location=$(curl -sS -D - -o /dev/null http://127.0.0.1:3000/admin | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\\r$/, ""); print $2 }')
           location_path="${location#http://localhost:3000}"
-          if [[ "$location_path" != /acesso-negado* ]]; then
-            echo "Expected fail-closed redirect to /acesso-negado without Supabase config; received: $location"
+          if [[ "$location_path" != /login* ]]; then
+            echo "Expected redirect to /login; received: $location"
             exit 1
           fi
 
-          public_status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/login || true)
+          echo "PASS: unauthenticated /admin requests redirect to /login."
+
+          first_access_status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/primeiro-acesso || true)
+          if [ "$first_access_status" != "307" ]; then
+            echo "Expected unauthenticated /primeiro-acesso to redirect; received: $first_access_status"
+            cat /tmp/connexa-next.log
+            exit 1
+          fi
+
+          invite_status=$(curl -sS -D - -o /dev/null 'http://127.0.0.1:3000/auth/callback?type=invite' | awk 'NR==1 {print $2}')
+          if [ "$invite_status" != "307" ]; then
+            echo "Expected malformed invitation callback to redirect; received: $invite_status"
+            cat /tmp/connexa-next.log
+            exit 1
+          fi
+
+          invite_redirect=$(curl -sS -D - -o /dev/null 'http://127.0.0.1:3000/auth/callback?token_hash=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&type=invite' | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\\r$/, ""); print $2 }')
+          if [[ "$invite_redirect" != *"/convite-invalido"* || "$invite_redirect" == *"token_hash="* ]]; then
+            echo "Expected query-string invite tokens to be rejected without forwarding the token; received: $invite_redirect"
+            cat /tmp/connexa-next.log
+            exit 1
+          fi
+
+          csrf_status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
+            -H 'Origin: https://attacker.invalid' \
+            -H 'Content-Type: application/json' \
+            --data '{"password":"not-a-real-password"}' \
+            http://127.0.0.1:3000/api/auth/first-access/password || true)
+          if [ "$csrf_status" != "403" ]; then
+            echo "Expected cross-origin password update to be rejected with HTTP 403; received: $csrf_status"
+            cat /tmp/connexa-next.log
+            exit 1
+          fi
+
+          echo "PASS: first-access route redirects without session, malformed invite is rejected, and cross-origin password update is blocked."
+
+      # NEXT_PUBLIC_* values are inlined into Next.js middleware at build time.
+      # Build a separate artifact without them to exercise the fail-closed branch.
+      - name: Build Next.js application without Supabase configuration
+        shell: bash
+        run: |
+          rm -rf .next
+          env -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY npm run build
+
+      - name: Smoke test admin route fails closed when Supabase configuration is missing
+        shell: bash
+        run: |
+          # Use a dedicated port so a previous Next.js process cannot answer this request.
+          env -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY setsid npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/connexa-no-supabase-config.log 2>&1 &
+          server_pid=$!
+          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
+
+          status=""
+          for attempt in {1..30}; do
+            status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/admin || true)
+            if [ "$status" = "307" ]; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$status" != "307" ]; then
+            echo "Expected HTTP 307 when Supabase configuration is missing; received: $status"
+            cat /tmp/connexa-no-supabase-config.log
+            exit 1
+          fi
+
+          location=$(curl -sS -D - -o /dev/null http://127.0.0.1:3001/admin | awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\\r$/, ""); print $2 }')
+          location_path="${location#http://localhost:3001}"
+          if [[ "$location_path" != /acesso-negado* ]]; then
+            echo "Expected redirect to /acesso-negado; received: $location"
+            cat /tmp/connexa-no-supabase-config.log
+            exit 1
+          fi
+
+          public_status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/login || true)
           if [ "$public_status" != "200" ]; then
             echo "Expected public /login to remain available; received: $public_status"
             exit 1
           fi
 
-          echo "PASS: protected route fails closed and public /login remains available."
+          echo "PASS: /admin fails closed without Supabase configuration and /login remains public."
+
+      # Restore the normal build for authenticated browser tests.
+      - name: Build Next.js application with Supabase configuration
+        run: npm run build
+
+      - name: Test department RPC authorization through PostgREST with real JWTs
+        if: env.HAS_DEPARTMENT_RPC_TEST_SECRETS == 'true'
+        env:
+          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
+          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
+          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
+          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/department-rpc-security-smoke.cjs
+
+      - name: Explain skipped department RPC PostgREST test
+        if: env.HAS_DEPARTMENT_RPC_TEST_SECRETS != 'true'
+        run: echo "Department RPC PostgREST test skipped because regular-user and platform-admin GitHub Actions secrets are required."
+
+      - name: Install browser test dependencies
+        if: env.HAS_AUTH_TEST_SECRETS == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Test regular user login and admin denial
+        if: env.HAS_AUTH_TEST_SECRETS == 'true'
+        env:
+          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
+          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
+        shell: bash
+        run: |
+          setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-auth-test.log 2>&1 &
+          server_pid=$!
+          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
+
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/login > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          node scripts/auth-regular-user-smoke.cjs
+
+      - name: Test platform administrator login, access, and logout
+        if: env.HAS_AUTH_ADMIN_TEST_SECRETS == 'true'
+        env:
+          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
+          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        shell: bash
+        run: |
+          setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-admin-auth-test.log 2>&1 &
+          server_pid=$!
+          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
+
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/login > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          node scripts/auth-admin-smoke.cjs
+
+      - name: Explain skipped administrator browser test
+        if: env.HAS_AUTH_ADMIN_TEST_SECRETS != 'true'
+        run: echo "Administrator browser test skipped because its GitHub Actions secrets are not configured."
+
+      - name: Explain skipped authenticated browser test
+        if: env.HAS_AUTH_TEST_SECRETS != 'true'
+        run: echo "Authenticated browser test skipped because its GitHub Actions secrets are not configured."

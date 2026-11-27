@@ -18,8 +18,8 @@ function makeHandler(overrides: {
     operationId: string;
     status: string;
     phase: string;
-    actionLink: string | null;
-    providerMessageId: string | null;
+    hasInviteLink: boolean;
+    hasProviderReceipt: boolean;
     failureCode: string | null;
   } | null>;
 } = {}) {
@@ -32,8 +32,8 @@ function makeHandler(overrides: {
       operationId: id,
       status: "manual_reconciliation_required",
       phase: "manual_reconciliation_required",
-      actionLink: "https://connexa.example/confirmar-convite#token_hash=secret",
-      providerMessageId: "resend-message-secret",
+      hasInviteLink: true,
+      hasProviderReceipt: true,
       failureCode: "invite_email_delivery_outcome_unknown",
     })),
   });
@@ -52,7 +52,6 @@ test("returns only safe reconciliation metadata and never exposes PII, Auth IDs,
   assert.match(body, /hasProviderReceipt/);
   assert.equal(body.includes("token_hash"), false);
   assert.equal(body.includes("secret"), false);
-  assert.equal(body.includes("resend-message-secret"), false);
   assert.equal(body.includes("authUserId"), false);
 });
 

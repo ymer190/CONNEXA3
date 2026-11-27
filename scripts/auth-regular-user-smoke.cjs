@@ -15,6 +15,7 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext();
   const page = await context.newPage();
+  let enrollmentResponse = null;
   page.on("pageerror", (error) => console.error("Browser page error:", error.message));
   page.on("response", async (response) => {
     if (new URL(response.url()).pathname === "/api/device-sessions/register") {
@@ -24,7 +25,6 @@ async function main() {
     }
   });
   let deviceId;
-  let enrollmentResponse = null;
   let deviceCookieWasAbsentBeforeTest = false;
 
   async function assertDenied(stage) {

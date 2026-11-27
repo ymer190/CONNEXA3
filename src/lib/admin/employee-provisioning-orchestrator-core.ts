@@ -84,6 +84,7 @@ export type EmployeeProvisioningDependencies = {
   persistProfileMembershipAndAuditAtomically: (
     claim: ProvisioningClaim,
     payload: EmployeeProvisioningPayload,
+    authUserId: string,
   ) => Promise<DomainTransactionResult>;
   /** Generate the Supabase Auth invite link only after the domain transaction commits. */
   generateInviteLink: (payload: EmployeeProvisioningPayload) => Promise<InviteLinkGenerationResult>;
@@ -98,6 +99,7 @@ export type EmployeeProvisioningDependencies = {
   /** Must verify the identity is still unaccepted and belongs to this operation before deletion. */
   deleteUnacceptedAuthIdentityCreatedByOperation: (
     authUserId: string,
+    claim: ProvisioningClaim,
   ) => Promise<AuthCompensationResult>;
   markCompensated: (claim: ProvisioningClaim) => Promise<boolean>;
   markManualReconciliationRequired: (
@@ -213,6 +215,7 @@ export async function runEmployeeProvisioning(
     domainResult = await dependencies.persistProfileMembershipAndAuditAtomically(
       claim,
       payload,
+      invite.authUserId,
     );
   } catch {
     domainResult = { kind: "unknown" };
@@ -245,6 +248,7 @@ export async function runEmployeeProvisioning(
       compensationResult =
         await dependencies.deleteUnacceptedAuthIdentityCreatedByOperation(
           invite.authUserId,
+          claim,
         );
     } catch {
       compensationResult = { kind: "unknown" };

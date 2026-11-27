@@ -90,7 +90,17 @@ const handleGet = createEmployeeProvisioningReconciliationGetHandler({
     if (authorization.authorized) {
       return { authorized: true, actorUserId: authorization.userId };
     }
-    return { authorized: false, reason: authorization.reason };
+    const status = authorization.reason === "UNAUTHENTICATED"
+      ? 401
+      : authorization.reason === "FORBIDDEN"
+        ? 403
+        : 503;
+    return {
+      authorized: false,
+      status,
+      code: authorization.reason,
+      message: "Não foi possível consultar a operação administrativa.",
+    };
   },
   lookup: async (operationId) => {
     const supabase = await createClient();

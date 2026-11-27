@@ -8,6 +8,7 @@ on:
       - main
       - feature/57-initialize-web-app
       - feature/issue-91-auth-platform-admin
+      - feature/97-device-session-audit
 
 permissions:
   contents: read

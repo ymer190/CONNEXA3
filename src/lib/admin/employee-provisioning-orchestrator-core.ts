@@ -35,11 +35,14 @@ export type AuthIdentityCreationResult =
   | {
       kind: "created";
       authUserId: string;
-      actionLink: string;
       identityCreatedByOperation: boolean;
     }
   | { kind: "not_created" }
   | { kind: "unknown" };
+
+export type InviteLinkGenerationResult =
+  | { kind: "generated"; actionLink: string }
+  | { kind: "failed" | "unknown" };
 
 export type InviteEmailDeliveryResult =
   | { kind: "sent"; providerMessageId: string }
@@ -76,7 +79,6 @@ export type EmployeeProvisioningDependencies = {
   persistAuthUserId: (
     claim: ProvisioningClaim,
     authUserId: string,
-    actionLink: string,
   ) => Promise<boolean>;
   /** One PostgreSQL transaction: profiles + organization_members + central audit. */
   persistProfileMembershipAndAuditAtomically: (
@@ -84,6 +86,17 @@ export type EmployeeProvisioningDependencies = {
     payload: EmployeeProvisioningPayload,
     authUserId: string,
   ) => Promise<DomainTransactionResult>;
+  /** Generate the invite link only after the profile, membership and audit commit. */
+  generateInviteLink: (
+    payload: EmployeeProvisioningPayload,
+    claim: ProvisioningClaim,
+    authUserId: string,
+  ) => Promise<InviteLinkGenerationResult>;
+  /** Persist the generated link encrypted before delivering it. */
+  persistInviteLink: (
+    claim: ProvisioningClaim,
+    actionLink: string,
+  ) => Promise<boolean>;
   /** Deliver the generated link through the configured email provider after commit. */
   sendInviteEmail: (
     payload: EmployeeProvisioningPayload,
@@ -198,7 +211,6 @@ export async function runEmployeeProvisioning(
     authIdPersisted = await dependencies.persistAuthUserId(
       claim,
       invite.authUserId,
-      invite.actionLink,
     );
   } catch {
     authIdPersisted = false;
@@ -290,10 +302,44 @@ export async function runEmployeeProvisioning(
     return { kind: "failed", code: "DOMAIN_TRANSACTION_FAILED" };
   }
 
-  // Auth generateLink creates the identity and action link without sending mail.
-  // The link is held server-side and delivered only after the domain commit.
-  if (!invite.actionLink) {
-    if (!(await requireManualReconciliation(dependencies, claim, "invite_link_missing"))) {
+  // Generate the invite only after Auth metadata and the atomic domain/audit
+  // commit are confirmed. generateLink does not send the email.
+  let inviteLinkResult: InviteLinkGenerationResult;
+  try {
+    inviteLinkResult = await dependencies.generateInviteLink(
+      payload,
+      claim,
+      invite.authUserId,
+    );
+  } catch {
+    inviteLinkResult = { kind: "unknown" };
+  }
+
+  if (inviteLinkResult.kind !== "generated" || !inviteLinkResult.actionLink) {
+    if (!(await requireManualReconciliation(
+      dependencies,
+      claim,
+      inviteLinkResult.kind === "failed"
+        ? "invite_link_generation_failed"
+        : "invite_link_generation_outcome_unknown",
+    ))) {
+      return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    }
+    return { kind: "manual_reconciliation_required" };
+  }
+
+  let inviteLinkPersisted = false;
+  try {
+    inviteLinkPersisted = await dependencies.persistInviteLink(
+      claim,
+      inviteLinkResult.actionLink,
+    );
+  } catch {
+    inviteLinkPersisted = false;
+  }
+
+  if (!inviteLinkPersisted) {
+    if (!(await requireManualReconciliation(dependencies, claim, "invite_link_persistence_failed"))) {
       return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     }
     return { kind: "manual_reconciliation_required" };
@@ -303,7 +349,7 @@ export async function runEmployeeProvisioning(
   try {
     deliveryResult = await dependencies.sendInviteEmail(
       payload,
-      invite.actionLink,
+      inviteLinkResult.actionLink,
       `employee-provisioning/${claim.operationId}`,
     );
   } catch {

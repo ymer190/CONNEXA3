@@ -15,7 +15,7 @@ npm run build
 
 A suíte também compara os nomes e a ordem dos argumentos enviados pela aplicação com a assinatura mais recente das RPCs nas migrations locais da #153. Ela cobre registro de dispositivo, listagem, aprovação/revogação, revogação de sessão e cursor composto da auditoria. Isso detecta divergências de contrato sem depender de credenciais ou de uma instância Supabase ativa.
 
-Na migration atual da #153, `admin_approve_device` recebe `p_device_id`, `p_justification` e `p_ticket_reference`. A interface envia os três campos separadamente; a RPC verifica chamado ativo e o vínculo com organização e usuário-alvo. A suíte de contrato detecta regressões nessa assinatura. A confirmação desses controles em banco ainda depende dos testes autenticados de SQA descritos abaixo.
+No Supabase DEV, a assinatura efetivamente instalada de `admin_approve_device` é `(p_device_id uuid, p_justification text)`. A aplicação e o teste de contrato usam exatamente esses dois argumentos. O contrato de três argumentos com referência de chamado pertence às migrations avançadas 10200/10300, adiadas e não aplicadas ao DEV. Os testes autenticados de SQA continuam documentados como pendentes.
 
 ## Testes que dependem de ambiente isolado e credenciais
 

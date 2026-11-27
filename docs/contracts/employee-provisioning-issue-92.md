@@ -58,15 +58,15 @@ A implementação usa `INSERT ... ON CONFLICT` e bloqueio transacional para impe
 
 1. Validar ator, dispositivo, organização, e-mail e chave de idempotência.
 2. Obter claim persistente e exclusivo da operação.
-3. Marcar persistentemente a fase `auth_creation_started` antes da chamada externa para impedir que outra requisição repita a criação em caso de interrupção. A própria resposta de `generateLink({ type: 'invite' })` deve ser tratada como erro definitivo se o Auth informar que o e-mail já existe; timeout/resultado sem confirmação exige reconciliação, nunca retry cego.
-5. Criar a identidade e obter o link sem enviar e-mail usando `auth.admin.generateLink({ type: 'invite', email })`. A documentação atual do Supabase confirma que `generateLink` também cria a identidade para o tipo `invite`; portanto, não chamar `createUser` antes, pois isso pode gerar conflito de usuário existente. A chamada retorna `action_link` e usuário, sem entregar o e-mail.
-6. Atualizar a identidade retornada via `auth.admin.updateUserById`, definindo `app_metadata.first_access_pending=true` e `app_metadata.employee_provisioning_operation_id=<operation_id>`. Confirmar o marcador e persistir imediatamente o `auth_user_id` associado à operação. O link fica apenas em memória no backend.
-7. Executar uma RPC transacional que cria `profiles`, `organization_members` com papel fixo `member` e o evento na tabela central `administrative_audit_logs`.
-8. Somente após confirmação do commit, entregar o link previamente gerado pelo Resend. `inviteUserByEmail` não deve ser usado, pois envia o e-mail durante a chamada. Marcar a operação como concluída após confirmação da entrega; falha/timeout após commit não deve apagar perfil/vínculo nem recriar identidade, mas registrar reconciliação para reenvio seguro.
-9. Se a transação PostgreSQL falhar, compensar a identidade somente com prova de propriedade e convite ainda não entregue/aceito. Resultado ambíguo não autoriza exclusão.
+3. Marcar persistentemente a fase `auth_creation_started` antes da chamada externa. Claims interrompidos não são retomados automaticamente; exigem reconciliação manual.
+4. Criar a identidade com `auth.admin.createUser({ email, email_confirm: false, app_metadata: { first_access_pending: true, employee_provisioning_operation_id } })`. Não informar senha e não enviar e-mail nesta fase. Confirmar os dois marcadores retornados pelo Auth e persistir o `auth_user_id`.
+5. Executar uma RPC transacional que cria `profiles`, `organization_members` com papel fixo `member` e o evento `employee.created` na tabela central `administrative_audit_logs`. Falha em qualquer gravação, inclusive auditoria, implica rollback integral.
+6. Somente após confirmação do commit, consultar novamente a identidade e confirmar e-mail ainda não confirmado e os marcadores `app_metadata`. Então gerar o link com `auth.admin.generateLink({ type: 'invite', email })`. O GoTrue permite gerar link de convite para usuário existente ainda não confirmado; a operação retorna o link sem enviar o e-mail.
+7. Adaptar o link para o contrato da #93 (`/confirmar-convite#token_hash=...&type=invite`), persistir o link cifrado com AES-256-GCM e só então entregá-lo pelo Resend. Não usar `inviteUserByEmail`, pois envia o e-mail durante a chamada.
+8. Persistir o recibo `provider_message_id` do Resend e a fase `email_sent`; marcar a operação `completed` somente após a persistência do recibo.
+9. Se a transação PostgreSQL confirmar rollback, compensar a identidade somente com prova de propriedade e confirmação de que o convite ainda não foi aceito. Resultado ambíguo em Auth, PostgreSQL, geração do link ou Resend exige reconciliação manual; nunca repetir cegamente nem excluir identidade com resultado desconhecido.
 
-O estado operacional não pode ser marcado como concluído antes do commit da RPC de domínio e auditoria.
-
+O estado operacional não pode ser marcado como concluído antes do commit da RPC de domínio/auditoria e da persistência do recibo de entrega.
 ## 6. Orquestração isolada e testável
 
 A branch contém `employee-provisioning-orchestrator-core.ts`, uma orquestração pura com dependências injetadas. A sequência é:

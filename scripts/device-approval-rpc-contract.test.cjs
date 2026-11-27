@@ -54,7 +54,9 @@ test("advanced SQA migrations are excluded from the basic integration branch", (
 
 test("device enrollment rejects cross-origin requests", () => {
   assert.match(enrollmentRoute, /request\.headers\.get\("origin"\)/);
-  assert.match(enrollmentRoute, /origin !== request\.nextUrl\.origin/);
+  assert.match(enrollmentRoute, /request\.headers\.get\("host"\)/);
+  assert.match(enrollmentRoute, /originUrl\.host\.toLowerCase\(\) === host\.toLowerCase\(\)/);
+  assert.match(enrollmentRoute, /originUrl\.protocol === expectedProtocol/);
   assert.match(enrollmentRoute, /status: 403/);
 });
 

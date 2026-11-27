@@ -31,7 +31,7 @@ export type AuthCompensationResult =
   | { kind: "not_safe" }
   | { kind: "unknown" };
 
-export type InviteCreationResult =
+export type AuthIdentityCreationResult =
   | {
       kind: "created";
       authUserId: string;
@@ -39,6 +39,14 @@ export type InviteCreationResult =
     }
   | { kind: "not_created" }
   | { kind: "unknown" };
+
+export type InviteLinkGenerationResult =
+  | { kind: "generated"; actionLink: string }
+  | { kind: "failed" | "unknown" };
+
+export type InviteEmailDeliveryResult =
+  | { kind: "sent"; providerMessageId?: string }
+  | { kind: "failed" | "unknown" };
 
 export type EmployeeProvisioningResult =
   | { kind: "created"; authUserId: string }
@@ -48,7 +56,7 @@ export type EmployeeProvisioningResult =
       kind: "failed";
       code:
         | "CLAIM_FAILED"
-        | "INVITE_NOT_CREATED"
+        | "AUTH_IDENTITY_NOT_CREATED"
         | "AUTH_ID_PERSISTENCE_FAILED"
         | "DOMAIN_TRANSACTION_FAILED"
         | "COMPLETION_FAILED"
@@ -60,13 +68,12 @@ export type EmployeeProvisioningDependencies = {
     payload: EmployeeProvisioningPayload,
   ) => Promise<ProvisioningClaimResult>;
   /**
-   * Must establish app_metadata.first_access_pending through Auth Admin
-   * before any invite email can be delivered. Do not implement this adapter
-   * with inviteUserByEmail followed by updateUserById: that creates a race.
+   * Creates the Auth identity server-side with app_metadata.first_access_pending=true,
+   * without sending email. Do not use inviteUserByEmail here.
    */
-  createInviteWithFirstAccessPending: (
+  createAuthIdentityWithFirstAccessPending: (
     payload: EmployeeProvisioningPayload,
-  ) => Promise<InviteCreationResult>;
+  ) => Promise<AuthIdentityCreationResult>;
   persistAuthUserId: (
     claim: ProvisioningClaim,
     authUserId: string,
@@ -76,6 +83,14 @@ export type EmployeeProvisioningDependencies = {
     claim: ProvisioningClaim,
     payload: EmployeeProvisioningPayload,
   ) => Promise<DomainTransactionResult>;
+  /** Generate the Supabase Auth invite link only after the domain transaction commits. */
+  generateInviteLink: (payload: EmployeeProvisioningPayload) => Promise<InviteLinkGenerationResult>;
+  /** Deliver the generated link through the configured email provider after commit. */
+  sendInviteEmail: (
+    payload: EmployeeProvisioningPayload,
+    actionLink: string,
+    idempotencyKey: string,
+  ) => Promise<InviteEmailDeliveryResult>;
   completeOperation: (claim: ProvisioningClaim) => Promise<boolean>;
   markCompensationPending: (claim: ProvisioningClaim) => Promise<boolean>;
   /** Must verify the identity is still unaccepted and belongs to this operation before deletion. */
@@ -104,9 +119,9 @@ async function requireManualReconciliation(
 }
 
 /**
- * Coordinates the non-transactional Auth side effect with the PostgreSQL
- * domain transaction. All persistence and Auth operations are injected so
- * this core can be tested without touching Supabase or sending real invites.
+ * Coordinates Auth identity creation with the PostgreSQL domain transaction.
+ * The invite link and email are generated/delivered only after the transaction
+ * commits. All side effects are injected so tests never touch Supabase or email.
  */
 export async function runEmployeeProvisioning(
   payload: EmployeeProvisioningPayload,
@@ -133,9 +148,9 @@ export async function runEmployeeProvisioning(
   }
 
   const { claim } = claimResult;
-  let invite: InviteCreationResult;
+  let invite: AuthIdentityCreationResult;
   try {
-    invite = await dependencies.createInviteWithFirstAccessPending(payload);
+    invite = await dependencies.createAuthIdentityWithFirstAccessPending(payload);
   } catch {
     if (!(await requireManualReconciliation(dependencies, claim, "invite_outcome_unknown"))) {
       return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
@@ -154,7 +169,7 @@ export async function runEmployeeProvisioning(
     if (!(await requireManualReconciliation(dependencies, claim, "invite_not_created"))) {
       return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     }
-    return { kind: "failed", code: "INVITE_NOT_CREATED" };
+    return { kind: "failed", code: "AUTH_IDENTITY_NOT_CREATED" };
   }
 
   if (!invite.authUserId || !invite.identityCreatedByOperation) {
@@ -246,6 +261,49 @@ export async function runEmployeeProvisioning(
     }
 
     return { kind: "failed", code: "DOMAIN_TRANSACTION_FAILED" };
+  }
+
+  // The Auth identity exists, but no invite has been generated or delivered yet.
+  // Only a confirmed PostgreSQL commit may advance to link generation and email.
+  let linkResult: InviteLinkGenerationResult;
+  try {
+    linkResult = await dependencies.generateInviteLink(payload);
+  } catch {
+    linkResult = { kind: "unknown" };
+  }
+
+  if (linkResult.kind !== "generated" || !linkResult.actionLink) {
+    if (!(await requireManualReconciliation(
+      dependencies,
+      claim,
+      linkResult.kind === "failed"
+        ? "invite_link_generation_failed"
+        : "invite_link_generation_outcome_unknown",
+    ))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    return { kind: "manual_reconciliation_required" };
+  }
+
+  let deliveryResult: InviteEmailDeliveryResult;
+  try {
+    deliveryResult = await dependencies.sendInviteEmail(
+      payload,
+      linkResult.actionLink,
+      `employee-provisioning/${claim.operationId}`,
+    );
+  } catch {
+    deliveryResult = { kind: "unknown" };
+  }
+
+  if (deliveryResult.kind !== "sent") {
+    if (!(await requireManualReconciliation(
+      dependencies,
+      claim,
+      deliveryResult.kind === "failed"
+        ? "invite_email_delivery_failed"
+        : "invite_email_delivery_outcome_unknown",
+    ))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    // Domain records are already committed: never compensate/delete the Auth identity.
+    return { kind: "manual_reconciliation_required" };
   }
 
   let completed = false;

@@ -92,6 +92,7 @@ function responseForResult(result: EmployeeProvisioningResult): Response {
       error: {
         code: result.code,
         message: "Não foi possível concluir o provisionamento. Consulte o estado da operação antes de tentar novamente.",
+        operationId: result.operationId,
       },
     },
     { status },

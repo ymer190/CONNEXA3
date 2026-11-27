@@ -130,7 +130,7 @@ A RPC insere esse evento na mesma transação de `profiles` e `organization_memb
 
 O documento só poderá ser convertido em implementação quando:
 - Tech Lead aprovar o contrato de tabela/claim e recuperação;
-- Tech Lead/SQA aprovarem a extensão da auditoria central #97;
+- Tech Lead revisar e aprovar a extensão aditiva da auditoria central #97; não é necessário criar projeto SQA adicional;
 - #93 integrada à `main` e adaptador de convite da #92 validado ponta a ponta;
 - Tech Lead revisar a migration gerada e o contrato das RPCs; executar os testes de CI e validação controlada no DEV após autorização explícita. Não é requisito criar projeto SQA adicional.
 

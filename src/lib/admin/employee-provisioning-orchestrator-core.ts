@@ -42,7 +42,7 @@ export type AuthIdentityCreationResult =
   | { kind: "unknown" };
 
 export type InviteEmailDeliveryResult =
-  | { kind: "sent"; providerMessageId?: string }
+  | { kind: "sent"; providerMessageId: string }
   | { kind: "failed" | "unknown" };
 
 export type EmployeeProvisioningResult =
@@ -89,6 +89,7 @@ export type EmployeeProvisioningDependencies = {
     actionLink: string,
     idempotencyKey: string,
   ) => Promise<InviteEmailDeliveryResult>;
+  markInviteEmailSent: (claim: ProvisioningClaim, providerMessageId: string) => Promise<boolean>;
   completeOperation: (claim: ProvisioningClaim) => Promise<boolean>;
   markCompensationPending: (claim: ProvisioningClaim) => Promise<boolean>;
   /** Must verify the identity is still unaccepted and belongs to this operation before deletion. */
@@ -313,6 +314,31 @@ export async function runEmployeeProvisioning(
         : "invite_email_delivery_outcome_unknown",
     ))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     // Domain records are already committed: never compensate/delete the Auth identity.
+    return { kind: "manual_reconciliation_required" };
+  }
+
+  const providerMessageId = deliveryResult.providerMessageId;
+  if (!providerMessageId) {
+    if (!(await requireManualReconciliation(dependencies, claim, "email_provider_receipt_missing"))) {
+      return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    }
+    return { kind: "manual_reconciliation_required" };
+  }
+
+  let emailSentStatePersisted = false;
+  try {
+    emailSentStatePersisted = await dependencies.markInviteEmailSent(
+      claim,
+      providerMessageId,
+    );
+  } catch {
+    emailSentStatePersisted = false;
+  }
+
+  if (!emailSentStatePersisted) {
+    if (!(await requireManualReconciliation(dependencies, claim, "email_delivery_state_persistence_failed"))) {
+      return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    }
     return { kind: "manual_reconciliation_required" };
   }
 

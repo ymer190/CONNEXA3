@@ -278,10 +278,8 @@ returns table (
   operation_id uuid,
   status text,
   phase text,
-  auth_user_id uuid,
-  email_envelope text,
-  invite_link_envelope text,
-  email_provider_message_id text,
+  has_invite_link boolean,
+  has_provider_receipt boolean,
   failure_code text
 )
 language plpgsql
@@ -290,20 +288,19 @@ set search_path = ''
 as $$
 declare actor_id uuid := private.assert_employee_provisioning_admin();
 begin
+  -- Status-only contract: never expose Auth IDs, encrypted PII, invite tokens
+  -- or provider receipts through the authenticated PostgREST surface.
   return query
-  select op.id, op.status, op.phase, coalesce(op.auth_user_id, auth_identity.id),
-         op.email_envelope, op.invite_link_envelope,
-         op.email_provider_message_id, op.failure_code
-    from private.employee_provisioning_operations op
-    left join lateral (
-      select au.id
-        from auth.users au
-       where au.raw_app_meta_data ->> 'first_access_pending' = 'true'
-         and au.raw_app_meta_data ->> 'employee_provisioning_operation_id' = op.id::text
-       limit 1
-    ) auth_identity on true
-   where op.id = p_operation_id
-     and op.actor_user_id = actor_id;
+  select
+    op.id,
+    op.status,
+    op.phase,
+    (op.invite_link_envelope is not null),
+    (op.email_provider_message_id is not null),
+    op.failure_code
+  from private.employee_provisioning_operations op
+  where op.id = p_operation_id
+    and op.actor_user_id = actor_id;
 end;
 $$;
 

@@ -126,8 +126,8 @@ async function requireManualReconciliation(
 
 /**
  * Coordinates Auth identity creation with the PostgreSQL domain transaction.
- * The invite link and email are generated/delivered only after the transaction
- * commits. All side effects are injected so tests never touch Supabase or email.
+ * The invite link is generated only after the transaction commits and returned
+ * only to the initiating administrator. No email provider is used.
  */
 export async function runEmployeeProvisioning(
   payload: EmployeeProvisioningPayload,

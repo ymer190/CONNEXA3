@@ -13,8 +13,10 @@ async function main() {
   }
 
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
+  const context = await browser.newContext();
+  const page = await context.newPage();
   let deviceId;
+  let deviceCookieWasAbsentBeforeTest = false;
 
   async function assertDenied(stage) {
     try {
@@ -39,6 +41,14 @@ async function main() {
   }
 
   try {
+    // This isolated browser context must start without a device identity.
+    // Cleanup is allowed only for the ID generated during this test run.
+    const initialCookies = await context.cookies(baseUrl);
+    deviceCookieWasAbsentBeforeTest = !initialCookies.some((cookie) => cookie.name === "connexa-device-id");
+    if (!deviceCookieWasAbsentBeforeTest) {
+      throw new Error("Refusing to run cleanup-capable smoke test with a pre-existing device cookie.");
+    }
+
     await page.goto(`${baseUrl}/login?next=%2Fadmin`);
     await page.locator("#email").fill(email);
     await page.locator("#password").fill(password);
@@ -48,10 +58,19 @@ async function main() {
 
     await page.reload();
     await assertDenied("Authenticated session remains denied after refresh");
-    deviceId = (await page.context().cookies(baseUrl)).find((cookie) => cookie.name === "connexa-device-id")?.value;
+
+    const generatedCookie = (await context.cookies(baseUrl)).find((cookie) => cookie.name === "connexa-device-id");
+    if (deviceCookieWasAbsentBeforeTest && generatedCookie?.value) {
+      deviceId = generatedCookie.value;
+    }
   } finally {
-    await deleteDeviceFixture({ baseUrl: supabaseUrl, serviceRoleKey, deviceId });
-    await browser.close();
+    try {
+      // Never delete a device unless this fresh context demonstrably generated its ID.
+      await deleteDeviceFixture({ baseUrl: supabaseUrl, serviceRoleKey, deviceId });
+    } finally {
+      await context.close();
+      await browser.close();
+    }
   }
 }
 

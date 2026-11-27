@@ -13,7 +13,7 @@ npm run build
 
 `test:auth` cobre redirecionamentos internos seguros e diferencia sessão ausente, token expirado e falha temporária de autenticação. Esses casos rodam sem Supabase, conta de usuário ou segredo de CI.
 
-A suíte também compara os nomes e a ordem dos argumentos enviados pela aplicação com a assinatura mais recente das RPCs nas migrations locais da #153. Ela cobre registro de dispositivo, listagem, aprovação/revogação, revogação de sessão e cursor composto da auditoria. Isso detecta divergências de contrato sem depender de credenciais ou de uma instância Supabase ativa.
+A suíte também verifica payloads das RPCs usados pela aplicação e a assinatura local da paginação composta da auditoria. O teste específico de aprovação compara a chamada ao contrato de dois argumentos disponível no DEV e confirma que a variante de três argumentos das migrations SQA permanece separada.
 
 No Supabase DEV, a assinatura efetivamente instalada de `admin_approve_device` é `(p_device_id uuid, p_justification text)`. A aplicação e o teste de contrato usam exatamente esses dois argumentos. O contrato de três argumentos com referência de chamado pertence às migrations avançadas 10200/10300, adiadas e não aplicadas ao DEV. Os testes autenticados de SQA continuam documentados como pendentes.
 

@@ -1,6 +1,6 @@
 # Contrato proposto — provisionamento administrativo (#92)
 
-**Status:** escopo básico aprovado pelo Gestor de Tecnologia em 27/11/2026; implementação em andamento. Este contrato não autoriza convites reais nem alterações em Production.
+**Status:** escopo atualizado aprovado pelo cliente/Gestor de Tecnologia em 27/11/2026; implementação em andamento. A #92 gera e disponibiliza link seguro para compartilhamento manual, sem envio automático. Este contrato não autoriza provisionamentos reais nem alterações em Production.
 **Branch:** `feature/issue-92-admin-account-provisioning`
 **Dependências:** #93 (primeiro acesso — PR #154 integrada à main), #97 (dispositivo/sessão e auditoria central), #95 (vínculo organizacional único).
 
@@ -8,7 +8,7 @@
 
 Definir as garantias necessárias para tornar o provisionamento idempotente sob concorrência e recuperável após falhas entre Supabase Auth e PostgreSQL.
 
-A implementação básica pode avançar sem projeto SQA adicional. Não aplicar as migrations SQA-only `20261126010200` e `20261126010300`; não alterar Production. Convites reais permanecem bloqueados até a validação ponta a ponta de #93, da entrega de e-mail e da RPC no DEV.
+A implementação básica pode avançar sem projeto SQA adicional. Não aplicar as migrations SQA-only `20261126010200` e `20261126010300`; não alterar Production. Provisionamentos reais permanecem bloqueados até validação ponta a ponta do fluxo #92/#93 e da RPC no DEV. Não há envio automático de e-mail.
 
 ## 2. Entrada confiável
 
@@ -62,7 +62,7 @@ A implementação usa `INSERT ... ON CONFLICT` e bloqueio transacional para impe
 4. Criar a identidade com `auth.admin.createUser({ email, email_confirm: false, app_metadata: { first_access_pending: true, employee_provisioning_operation_id } })`. Não informar senha e não enviar e-mail nesta fase. Confirmar os dois marcadores retornados pelo Auth e persistir o `auth_user_id`.
 5. Executar uma RPC transacional que cria `profiles`, `organization_members` com papel fixo `member` e o evento `employee.created` na tabela central `administrative_audit_logs`. Falha em qualquer gravação, inclusive auditoria, implica rollback integral.
 6. Somente após confirmação do commit, consultar novamente a identidade e confirmar e-mail ainda não confirmado e os marcadores `app_metadata`. Então gerar o link com `auth.admin.generateLink({ type: 'invite', email })`. O GoTrue permite gerar link de convite para usuário existente ainda não confirmado; a operação retorna o link sem enviar o e-mail.
-7. Adaptar o link para o contrato da #93 (`/confirmar-convite#token_hash=...&type=invite`), persistir o link cifrado com AES-256-GCM e só então entregá-lo pelo Resend. Não usar `inviteUserByEmail`, pois envia o e-mail durante a chamada.
+7. Adaptar o link para o contrato da #93 (`/confirmar-convite#token_hash=...&type=invite`), persistir o link cifrado com AES-256-GCM e só então entregá-lo ao administrador autenticado. Não usar `inviteUserByEmail`, pois envia o e-mail durante a chamada.
 8. Persistir o recibo `provider_message_id` do Resend e a fase `email_sent`; marcar a operação `completed` somente após a persistência do recibo.
 9. Se a transação PostgreSQL confirmar rollback, compensar a identidade somente com prova de propriedade e confirmação de que o convite ainda não foi aceito. Resultado ambíguo em Auth, PostgreSQL, geração do link ou Resend exige reconciliação manual; nunca repetir cegamente nem excluir identidade com resultado desconhecido.
 

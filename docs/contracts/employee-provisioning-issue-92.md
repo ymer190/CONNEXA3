@@ -146,6 +146,7 @@ Até lá, manter a PR #152 Draft e limitar as alterações a código puro, teste
 - Adicionado `src/lib/admin/employee-provisioning-database.ts` com adapters para os contratos RPC do rascunho.
 - Adicionada rota `POST /api/admin/employees`, com autorização server-side, pré-validação de variáveis obrigatórias e fail-closed se o ambiente não estiver configurado.
 - Adicionada rota read-only `GET /api/admin/employees?operationId=...` para consultar status/fase/código sanitizado de reconciliação. A RPC restringe a consulta ao ator que iniciou a operação; o navegador não recebe e-mail, link, Auth ID ou recibo do provedor.
+- Respostas `202` e de reconciliação/falha após claim incluem o `operationId` opaco para rastreabilidade. O GET usa um adapter de status que não descriptografa e-mail/link; retorna somente status, fase, indicadores de presença e código de falha.
 - A criação Auth usa `createUser()` com os marcadores em `app_metadata`; após o commit PostgreSQL, `generateLink({ type: 'invite' })` gera o link para a mesma identidade ainda não confirmada.
 - Adicionado identificador `employee_provisioning_operation_id` em `app_metadata` para provar propriedade da identidade antes de eventual compensação.
 - Link de primeiro acesso e e-mail passam a ser persistidos apenas como envelopes AES-256-GCM na tabela operacional, para permitir reconciliação sem expor token.

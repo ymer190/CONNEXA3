@@ -1,2 +1,5 @@
-import { redirect } from "next/navigation";
-export default function ConversationsRoute() { redirect("/"); }
+import { ConversationsWorkspace } from "@/components/conversations/conversations-workspace";
+
+export default function ConversationsRoute() {
+  return <ConversationsWorkspace />;
+}

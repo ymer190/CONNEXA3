@@ -11,15 +11,11 @@ async function runAction(
 ) {
   const target = String(formData.get("target") ?? "");
   const justification = String(formData.get("justification") ?? "").trim();
-  const ticketReference = String(formData.get("ticket_reference") ?? "").trim();
-  if (!isUuid(target) || !justification ||
-      (action === "admin_approve_device"
-        ? !isValidTicketReference(ticketReference) || justification.length > 500
-        : justification.length > 500)) {
+  if (!isUuid(target) || !justification || justification.length > 500) {
     redirect("/admin/dispositivos?error=validation");
   }
 
-  const args = buildDeviceSessionAdminArgs(action, { target, justification, ticketReference });
+  const args = buildDeviceSessionAdminArgs(action, { target, justification });
 
   let rpcError: { code?: string } | null = null;
   try {
@@ -69,6 +65,3 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function isValidTicketReference(value: string) {
-  return /^[A-Za-z0-9][A-Za-z0-9._/-]{0,79}$/.test(value);
-}

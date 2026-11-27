@@ -143,7 +143,7 @@ test("does not retry an invite whose external outcome is unknown", async () => {
     await runEmployeeProvisioning(payload, deps),
     { kind: "manual_reconciliation_required" },
   );
-  assert.deepEqual(events, ["claim", "mark-auth-creation-started", "create-auth-identity", "manual-reconciliation"]);
+  assert.deepEqual(events, ["claim", "mark-auth-creation-started", "create-auth-identity", "persist-auth-id", "manual-reconciliation"]);
 });
 
 test("does not compensate an Auth identity whose ownership is unproven", async () => {

@@ -58,6 +58,17 @@ revoke all on table private.employee_provisioning_operations
   from public, anon, authenticated, service_role;
 
 -- The #97 append-only audit table is reused. No parallel audit object is created.
+-- DEV currently has no metadata column; add a nullable JSON object for the
+-- non-sensitive semantic context required by the #92 audit contract.
+alter table public.administrative_audit_logs
+  add column if not exists metadata jsonb null;
+
+alter table public.administrative_audit_logs
+  drop constraint if exists administrative_audit_logs_metadata_object_check;
+alter table public.administrative_audit_logs
+  add constraint administrative_audit_logs_metadata_object_check
+  check (metadata is null or jsonb_typeof(metadata) = 'object');
+
 alter table public.administrative_audit_logs
   drop constraint if exists administrative_audit_logs_target_type_check;
 alter table public.administrative_audit_logs
@@ -370,6 +381,7 @@ begin
     target_user_id,
     organization_id,
     justification,
+    metadata,
     outcome
   )
   values (
@@ -380,6 +392,10 @@ begin
     p_auth_user_id,
     p_organization_id,
     'Provisionamento administrativo de colaborador',
+    jsonb_build_object(
+      'provisioning_operation_id', p_operation_id,
+      'initial_role', 'member'
+    ),
     'allowed'
   );
 
@@ -605,6 +621,9 @@ grant execute on function public.admin_mark_employee_compensated(uuid,uuid) to a
 grant execute on function public.admin_mark_employee_invite_email_sent(uuid,uuid,text) to authenticated;
 grant execute on function public.admin_complete_employee_provisioning(uuid,uuid) to authenticated;
 grant execute on function public.admin_mark_employee_provisioning_manual_reconciliation(uuid,uuid,text) to authenticated;
+
+comment on column public.administrative_audit_logs.metadata is
+  'Non-sensitive structured context for administrative audit events; never store credentials, tokens, email addresses or other PII here.';
 
 comment on table private.employee_provisioning_operations is
   'Issue #92 operational idempotency/reconciliation state only; not an audit log. Email is AES-256-GCM encrypted by the server.';

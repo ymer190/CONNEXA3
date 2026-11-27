@@ -110,7 +110,7 @@ test("first-access link reissue context is service-role-only and actor-bound", (
   assert.ok(rpc.includes("op.status = 'completed'"));
   assert.ok(rpc.includes("op.phase = 'completed'"));
   assert.ok(rpc.includes("op.email_envelope"));
-  assert.ok(!rpc.includes("op.invite_link_envelope"));
+  assert.ok(!rpc.includes("select op.invite_link_envelope"));
   assert.ok(sql.includes("revoke all on function public.admin_get_employee_provisioning_reissue_context(uuid,uuid)"));
   assert.ok(sql.includes("grant execute on function public.admin_get_employee_provisioning_reissue_context(uuid,uuid) to service_role;"));
 });

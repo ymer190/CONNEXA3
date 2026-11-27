@@ -213,6 +213,34 @@ export function createEmployeeProvisioningDatabase(client: EmployeeProvisioningR
       });
     },
 
+    async getOperationStatusForReconciliation(operationId: string) {
+      const { data, error } = await client.rpc(
+        "admin_get_employee_provisioning_operation",
+        { p_operation_id: operationId },
+      );
+      if (error) throw new Error("Provisioning reconciliation lookup is unavailable.");
+
+      const row = firstRow(data);
+      if (!row) return null;
+      if (
+        typeof row.status !== "string" ||
+        typeof row.phase !== "string" ||
+        (row.invite_link_envelope !== null && typeof row.invite_link_envelope !== "string") ||
+        (row.email_provider_message_id !== null && typeof row.email_provider_message_id !== "string")
+      ) {
+        throw new Error("Provisioning reconciliation status is incomplete.");
+      }
+
+      return {
+        operationId,
+        status: row.status,
+        phase: row.phase,
+        hasInviteLink: typeof row.invite_link_envelope === "string",
+        hasProviderReceipt: typeof row.email_provider_message_id === "string",
+        failureCode: typeof row.failure_code === "string" ? row.failure_code : null,
+      };
+    },
+
     async getOperationForReconciliation(operationId: string) {
       const { data, error } = await client.rpc(
         "admin_get_employee_provisioning_operation",

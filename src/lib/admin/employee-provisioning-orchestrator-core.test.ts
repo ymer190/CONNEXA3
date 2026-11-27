@@ -37,6 +37,7 @@ function dependencies(overrides: Partial<EmployeeProvisioningDependencies> = {})
       return {
         kind: "created" as const,
         authUserId: "auth-user-1",
+        actionLink: "https://example.test/invite",
         identityCreatedByOperation: true,
       };
     },
@@ -47,10 +48,6 @@ function dependencies(overrides: Partial<EmployeeProvisioningDependencies> = {})
     persistProfileMembershipAndAuditAtomically: async () => {
       events.push("persist-domain-and-audit");
       return { kind: "committed" as const };
-    },
-    generateInviteLink: async () => {
-      events.push("generate-invite-link");
-      return { kind: "generated" as const, actionLink: "https://example.test/invite" };
     },
     sendInviteEmail: async () => {
       events.push("send-invite-email");
@@ -91,7 +88,6 @@ test("runs the complete sequence and only reports success after domain audit and
     "create-auth-identity",
     "persist-auth-id",
     "persist-domain-and-audit",
-    "generate-invite-link",
     "send-invite-email",
     "complete",
   ]);
@@ -276,7 +272,6 @@ test("does not delete Auth identity when the completion state cannot be confirme
     "create-auth-identity",
     "persist-auth-id",
     "persist-domain-and-audit",
-    "generate-invite-link",
     "send-invite-email",
     "complete",
     "manual-reconciliation",
@@ -432,7 +427,7 @@ test("does not claim reconciliation was recorded when its persistence fails", as
 });
 
 
-test("does not generate or send the invite until the domain transaction has committed", async () => {
+test("does not send the invite until the domain transaction has committed", async () => {
   const { dependencies: deps, events } = dependencies({
     persistProfileMembershipAndAuditAtomically: async () => {
       events.push("persist-domain-and-audit");
@@ -474,7 +469,6 @@ test("does not compensate committed records when Resend delivery fails", async (
     "create-auth-identity",
     "persist-auth-id",
     "persist-domain-and-audit",
-    "generate-invite-link",
     "send-invite-email",
     "manual-reconciliation",
   ]);

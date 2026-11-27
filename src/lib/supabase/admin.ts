@@ -14,7 +14,7 @@ export function createAdminClient() {
 
   if (!supabaseUrl || !secretKey) {
     throw new Error(
-      "A configuração administrativa do Supabase não está disponível no servidor.",
+      "A chave administrativa do Supabase não está disponível no servidor.",
     );
   }
 

@@ -32,7 +32,8 @@ create table private.employee_provisioning_operations (
       'compensated',
       'manual_reconciliation_required'
     )),
-  auth_user_id uuid null references auth.users(id) on delete set null,
+  -- Keep the immutable Auth ID as reconciliation evidence after safe compensation deletes the user.
+  auth_user_id uuid null,
   claim_id uuid not null default gen_random_uuid(),
   attempts integer not null default 1 check (attempts > 0),
   failure_code text null check (failure_code is null or failure_code ~ '^[a-z0-9_]{1,80}$'),

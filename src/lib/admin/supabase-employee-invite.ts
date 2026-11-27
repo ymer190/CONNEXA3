@@ -5,7 +5,6 @@ import { buildFirstAccessInviteUrl } from "./employee-invite-link-core";
 import type {
   EmployeeProvisioningPayload,
 } from "./employee-provisioning-orchestrator-core";
-import { sendEmployeeInviteWithResend } from "@/lib/email/resend-employee-invite";
 
 function hasProvisioningMetadata(
   metadata: Record<string, unknown> | null | undefined,
@@ -131,19 +130,6 @@ export async function generateEmployeeFirstAccessInviteLink(
     // The invite token may have been generated even if the response was lost.
     return { kind: "unknown" as const };
   }
-}
-
-export async function sendEmployeeFirstAccessInvite(
-  payload: EmployeeProvisioningPayload,
-  actionLink: string,
-  idempotencyKey: string,
-) {
-  return sendEmployeeInviteWithResend({
-    to: payload.email,
-    fullName: payload.fullName,
-    actionLink,
-    idempotencyKey,
-  });
 }
 
 /**

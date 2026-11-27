@@ -4,6 +4,7 @@ import { requirePlatformAdmin } from "@/lib/admin/require-platform-admin";
 import { runEmployeeProvisioning, type EmployeeProvisioningDependencies } from "@/lib/admin/employee-provisioning-orchestrator-core";
 import {
   createEmployeeAuthIdentity,
+  generateEmployeeFirstAccessInviteLink,
   deleteEmployeeAuthIdentityIfUnaccepted,
   sendEmployeeFirstAccessInvite,
 } from "@/lib/admin/supabase-employee-invite";
@@ -66,6 +67,8 @@ const handlePost = createEmployeeProvisioningPostHandler({
       ...persistence,
       createAuthIdentityWithFirstAccessPending: (input, claim) =>
         createEmployeeAuthIdentity(input, claim.operationId),
+      generateInviteLink: (input, claim, authUserId) =>
+        generateEmployeeFirstAccessInviteLink(input, claim.operationId, authUserId),
       sendInviteEmail: sendEmployeeFirstAccessInvite,
       deleteUnacceptedAuthIdentityCreatedByOperation: (authUserId, claim) =>
         deleteEmployeeAuthIdentityIfUnaccepted(authUserId, claim.operationId),

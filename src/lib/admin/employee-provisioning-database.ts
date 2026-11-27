@@ -2,7 +2,6 @@ import "server-only";
 
 import { decryptProvisioningEmail, encryptProvisioningEmail } from "./employee-provisioning-email-crypto";
 import { decryptProvisioningInviteLink, encryptProvisioningInviteLink } from "./employee-provisioning-invite-link-crypto";
-import { encryptProvisioningInviteLink } from "./employee-provisioning-invite-link-crypto";
 import type {
   DomainTransactionResult,
   EmployeeProvisioningPayload,
@@ -23,6 +22,7 @@ type ClaimRow = {
   operation_id?: unknown;
   claim_id?: unknown;
   status?: unknown;
+  phase?: unknown;
   auth_user_id?: unknown;
   email_envelope?: unknown;
   invite_link_envelope?: unknown;

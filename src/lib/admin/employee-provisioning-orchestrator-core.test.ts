@@ -327,7 +327,7 @@ test("does not persist domain records when invite creation is rejected", async (
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "failed", code: "INVITE_NOT_CREATED" },
+    { kind: "failed", code: "AUTH_IDENTITY_NOT_CREATED" },
   );
   assert.deepEqual(events, ["claim", "create-auth-identity", "manual-reconciliation"]);
 });

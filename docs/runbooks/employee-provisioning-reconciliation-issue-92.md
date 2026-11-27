@@ -52,7 +52,7 @@ O e-mail e o link de convite usados para reconciliação devem permanecer cifrad
 
 1. Identificar a operação pelo ID imutável, nunca por busca aproximada de e-mail.
 2. Consultar o estado persistido e coletar as evidências mínimas acima.
-3. Se o estado Auth ou PostgreSQL continuar ambíguo, manter bloqueio e escalar para Tech Lead/SQA; não executar retry, exclusão ou alteração manual.
+3. Se o estado Auth ou PostgreSQL continuar ambíguo, manter bloqueio e escalar para o Tech Lead; não executar retry, exclusão ou alteração manual. Revisão SQA adicional não é pré-requisito para o escopo básico aprovado.
 4. Se o commit de domínio e auditoria estiver confirmado, reconciliar apenas o estado operacional para completed por mecanismo autorizado e idempotente.
 5. Se o rollback estiver confirmado, verificar propriedade da identidade e não aceite do convite. Somente com ambas as provas poderá ser considerada a compensação Auth.
 6. Se o convite tiver sido aceito, ou se a propriedade/aceite não puderem ser provados, não excluir a identidade; encaminhar para decisão administrativa específica.
@@ -80,7 +80,7 @@ Uma operação só pode sair de reconciliação quando houver uma destas conclus
 - Duas requisições concorrentes com a mesma chave e payload.
 - Repetição da reconciliação sem duplicar convite, vínculo ou evento de auditoria.
 
-**Gate de liberação:** este runbook só passa a ser operacional após revisão Tech Lead/SQA, implementação dos adapters e execução dos testes em projeto Supabase SQA isolado. Não aplicar no projeto DEV compartilhado ou em Production durante a validação.
+**Gate de liberação:** este runbook só passa a ser operacional após revisão do Tech Lead, migration funcional versionada e aprovada, RPCs aplicadas no Supabase DEV em janela autorizada, configuração das variáveis Resend/criptografia e CI geral verde. Projeto SQA adicional não é requisito do escopo básico aprovado. Não aplicar no Supabase Production.
 
 
 ## 7. Estado atual

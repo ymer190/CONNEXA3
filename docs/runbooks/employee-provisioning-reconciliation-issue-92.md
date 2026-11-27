@@ -46,7 +46,7 @@ O futuro adapter deverá permitir consultar, sem expor PII desnecessária:
 - prova de que a identidade Auth foi criada por aquela operação;
 - existência de perfil, vínculo organizacional e evento de auditoria correspondentes.
 
-O e-mail usado para reconciliação deve permanecer cifrado com AES-256-GCM. Logs e comentários de incidentes não devem conter e-mail em texto puro, tokens, links de convite, chaves ou credenciais.
+O e-mail e o link de convite usados para reconciliação devem permanecer cifrados com AES-256-GCM, com AADs distintos. A consulta de reconciliação retorna apenas os envelopes cifrados ao backend autenticado; a descriptografia ocorre exclusivamente no servidor. Logs e comentários de incidentes não devem conter e-mail em texto puro, tokens, links de convite, chaves ou credenciais.
 
 ## 4. Sequência de decisão manual
 

@@ -529,6 +529,7 @@ as $$
 declare
   operation_row private.employee_provisioning_operations%rowtype;
   organization_id uuid;
+  auth_identity_id uuid;
 begin
   if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
     raise exception 'Service role required' using errcode = '42501';
@@ -552,6 +553,23 @@ begin
 
   if not found then
     return false;
+  end if;
+
+  -- Revalidate Auth state inside the same transaction that replaces the
+  -- encrypted link. Locking the row closes the check/update race with a
+  -- concurrent confirmation or app_metadata change.
+  select au.id
+    into auth_identity_id
+    from auth.users au
+   where au.id = operation_row.auth_user_id
+     and au.email_confirmed_at is null
+     and au.raw_app_meta_data ->> 'first_access_pending' = 'true'
+     and au.raw_app_meta_data ->> 'employee_provisioning_operation_id' = p_operation_id::text
+   for update;
+
+  if auth_identity_id is null then
+    raise exception 'Auth identity is no longer pending first access for this operation'
+      using errcode = '42501';
   end if;
 
   select om.organization_id

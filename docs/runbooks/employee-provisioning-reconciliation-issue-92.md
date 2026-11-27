@@ -2,7 +2,7 @@
 
 **Status:** proposta operacional; não executar em produção nem no Supabase DEV.
 **Escopo:** orientar a futura operação manual quando a integração Auth/PostgreSQL não puder determinar com segurança o resultado do provisionamento.
-**Pré-requisitos para uso:** revisão Tech Lead do SQL draft, migration gerada e aprovada, RPCs aplicadas no Supabase DEV, caminho privilegiado server-side de recuperação implementado e validado, variáveis de criptografia configuradas e CI verde. O projeto SQA adicional não é requisito para continuar o desenvolvimento.
+**Pré-requisitos para uso:** revisão Tech Lead do SQL draft, migration gerada e aprovada, RPCs aplicadas no Supabase DEV, RPC privilegiada de recuperação implementada e validada, variáveis de criptografia configuradas e CI verde. O projeto SQA adicional não é requisito para continuar o desenvolvimento.
 
 > Este documento não autoriza convites, exclusões de usuários, alterações de dados ou aplicação de migrations. Os adapters e a rota estão versionados na PR #152, mas a persistência ainda está somente em SQL draft; portanto, os passos abaixo continuam não executáveis.
 
@@ -34,7 +34,7 @@
 
 ## 3. Evidências mínimas para análise
 
-O futuro adapter deverá permitir consultar, sem expor PII desnecessária:
+O adapter server-side permite consultar, sem expor PII desnecessária:
 
 - identificador imutável da operação e chave de correlação;
 - estado atual, hash do payload, tentativas e timestamps;
@@ -46,7 +46,7 @@ O futuro adapter deverá permitir consultar, sem expor PII desnecessária:
 - prova de que a identidade Auth foi criada por aquela operação;
 - existência de perfil, vínculo organizacional e evento de auditoria correspondentes.
 
-O e-mail e o link de primeiro acesso usados para reconciliação devem permanecer cifrados com AES-256-GCM, com AADs distintos. A RPC/rota de status acessível ao administrador retorna somente status, fase, indicadores booleanos e código sanitizado; nunca retorna Auth ID, envelopes cifrados ou recibo do provedor. Uma eventual recuperação dos envelopes deve ocorrer exclusivamente por caminho backend privilegiado, sem RPC acessível a `authenticated` e sem exposição via PostgREST. A descriptografia ocorre exclusivamente no servidor. Logs e comentários de incidentes não devem conter e-mail em texto puro, tokens, links de convite, chaves ou credenciais.
+O e-mail e o link de primeiro acesso usados para reconciliação devem permanecer cifrados com AES-256-GCM, com AADs distintos. A RPC/rota de status acessível ao administrador retorna somente status, fase, indicadores booleanos e código sanitizado; nunca retorna Auth ID, envelopes cifrados ou recibo do provedor. A recuperação do link ocorre exclusivamente por RPC de `service_role`, com `actor_user_id` igual ao administrador original e estado `completed`; a rota autenticada revalida o administrador e descriptografa o envelope somente no servidor. O link é devolvido com `Cache-Control: no-store`. A RPC de status permanece sem acesso a tokens/envelopes. Logs e comentários de incidentes não devem conter e-mail em texto puro, tokens, links de convite, chaves ou credenciais.
 
 ## 4. Sequência de decisão manual
 
@@ -85,4 +85,4 @@ Uma operação só pode sair de reconciliação quando houver uma destas conclus
 
 ## 7. Estado atual
 
-A implementação da rota e dos adapters está em andamento na PR #152. O SQL da tabela operacional/RPC está em `docs/contracts/employee-provisioning-issue-92-migration-draft.sql`, ainda não é uma migration aplicada. A RPC acessível ao administrador é status-only; não há consulta PostgREST que retorne Auth ID, e-mail/link cifrados ou tokens. A recuperação operacional privilegiada ainda não foi implementada. O link é disponibilizado manualmente somente ao administrador autenticado que iniciou a operação; não existe envio automático. Até validar integralmente #92/#93 e aplicar as RPCs em janela DEV autorizada, não executar provisionamentos reais.
+A implementação da rota e dos adapters está em andamento na PR #152. O SQL da tabela operacional/RPC está em `docs/contracts/employee-provisioning-issue-92-migration-draft.sql`, ainda não é uma migration aplicada. A RPC acessível ao administrador é status-only; não há consulta PostgREST que retorne Auth ID, e-mail/link cifrados ou tokens. A recuperação do link está implementada por endpoint server-side e RPC exclusiva de `service_role`, limitada ao ator original e a operações concluídas. O link é disponibilizado manualmente somente ao administrador autenticado que iniciou a operação; não existe envio automático. Até validar integralmente #92/#93 e aplicar as RPCs em janela DEV autorizada, não executar provisionamentos reais.

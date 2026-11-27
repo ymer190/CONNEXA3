@@ -18,8 +18,8 @@ export type ProvisioningClaimResult =
   | { kind: "claimed"; claim: ProvisioningClaim }
   | { kind: "replay"; status: ProvisioningStatus; authUserId: string | null }
   | { kind: "conflict" }
-  | { kind: "in_progress" }
-  | { kind: "manual_reconciliation_required" };
+  | { kind: "in_progress"; operationId: string }
+  | { kind: "manual_reconciliation_required"; operationId: string };
 
 export type DomainTransactionResult =
   | { kind: "committed" }
@@ -51,7 +51,9 @@ export type InviteEmailDeliveryResult =
 export type EmployeeProvisioningResult =
   | { kind: "created"; authUserId: string }
   | { kind: "replayed"; status: ProvisioningStatus; authUserId: string | null }
-  | { kind: "conflict" | "in_progress" | "manual_reconciliation_required" }
+  | { kind: "conflict" }
+  | { kind: "in_progress"; operationId: string }
+  | { kind: "manual_reconciliation_required"; operationId: string }
   | {
       kind: "failed";
       code:
@@ -149,9 +151,14 @@ export async function runEmployeeProvisioning(
   }
 
   if (claimResult.kind === "conflict") return { kind: "conflict" };
-  if (claimResult.kind === "in_progress") return { kind: "in_progress" };
+  if (claimResult.kind === "in_progress") {
+    return { kind: "in_progress", operationId: claimResult.operationId };
+  }
   if (claimResult.kind === "manual_reconciliation_required") {
-    return { kind: "manual_reconciliation_required" };
+    return {
+      kind: "manual_reconciliation_required",
+      operationId: claimResult.operationId,
+    };
   }
   if (claimResult.kind === "replay") {
     return {
@@ -172,7 +179,7 @@ export async function runEmployeeProvisioning(
     if (!(await requireManualReconciliation(dependencies, claim, "auth_creation_claim_failed"))) {
       return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     }
-    return { kind: "manual_reconciliation_required" };
+    return { kind: "manual_reconciliation_required", operationId: claim.operationId };
   }
 
   let invite: AuthIdentityCreationResult;
@@ -182,14 +189,14 @@ export async function runEmployeeProvisioning(
     if (!(await requireManualReconciliation(dependencies, claim, "invite_outcome_unknown"))) {
       return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     }
-    return { kind: "manual_reconciliation_required" };
+    return { kind: "manual_reconciliation_required", operationId: claim.operationId };
   }
 
   if (invite.kind === "unknown") {
     if (!(await requireManualReconciliation(dependencies, claim, "invite_outcome_unknown"))) {
       return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     }
-    return { kind: "manual_reconciliation_required" };
+    return { kind: "manual_reconciliation_required", operationId: claim.operationId };
   }
 
   if (invite.kind === "not_created") {
@@ -203,7 +210,7 @@ export async function runEmployeeProvisioning(
     if (!(await requireManualReconciliation(dependencies, claim, "auth_identity_id_missing"))) {
       return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     }
-    return { kind: "manual_reconciliation_required" };
+    return { kind: "manual_reconciliation_required", operationId: claim.operationId };
   }
 
   let authIdPersisted = false;
@@ -227,7 +234,7 @@ export async function runEmployeeProvisioning(
     if (!(await requireManualReconciliation(dependencies, claim, "auth_identity_ownership_unproven"))) {
       return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     }
-    return { kind: "manual_reconciliation_required" };
+    return { kind: "manual_reconciliation_required", operationId: claim.operationId };
   }
 
   let domainResult: DomainTransactionResult;
@@ -245,7 +252,7 @@ export async function runEmployeeProvisioning(
     if (!(await requireManualReconciliation(dependencies, claim, "domain_transaction_outcome_unknown"))) {
       return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     }
-    return { kind: "manual_reconciliation_required" };
+    return { kind: "manual_reconciliation_required", operationId: claim.operationId };
   }
 
   if (domainResult.kind === "rolled_back") {
@@ -260,7 +267,7 @@ export async function runEmployeeProvisioning(
       if (!(await requireManualReconciliation(dependencies, claim, "compensation_claim_failed"))) {
         return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
       }
-      return { kind: "manual_reconciliation_required" };
+      return { kind: "manual_reconciliation_required", operationId: claim.operationId };
     }
 
     let compensationResult: AuthCompensationResult;
@@ -282,7 +289,7 @@ export async function runEmployeeProvisioning(
           ? "auth_identity_no_longer_safe_to_delete"
           : "auth_compensation_outcome_unknown",
       ))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
-      return { kind: "manual_reconciliation_required" };
+      return { kind: "manual_reconciliation_required", operationId: claim.operationId };
     }
 
     let compensated = false;
@@ -296,7 +303,7 @@ export async function runEmployeeProvisioning(
       if (!(await requireManualReconciliation(dependencies, claim, "compensation_state_persistence_failed"))) {
         return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
       }
-      return { kind: "manual_reconciliation_required" };
+      return { kind: "manual_reconciliation_required", operationId: claim.operationId };
     }
 
     return { kind: "failed", code: "DOMAIN_TRANSACTION_FAILED" };
@@ -325,7 +332,7 @@ export async function runEmployeeProvisioning(
     ))) {
       return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     }
-    return { kind: "manual_reconciliation_required" };
+    return { kind: "manual_reconciliation_required", operationId: claim.operationId };
   }
 
   let inviteLinkPersisted = false;
@@ -342,7 +349,7 @@ export async function runEmployeeProvisioning(
     if (!(await requireManualReconciliation(dependencies, claim, "invite_link_persistence_failed"))) {
       return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     }
-    return { kind: "manual_reconciliation_required" };
+    return { kind: "manual_reconciliation_required", operationId: claim.operationId };
   }
 
   let deliveryResult: InviteEmailDeliveryResult;
@@ -365,7 +372,7 @@ export async function runEmployeeProvisioning(
         : "invite_email_delivery_outcome_unknown",
     ))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     // Domain records are already committed: never compensate/delete the Auth identity.
-    return { kind: "manual_reconciliation_required" };
+    return { kind: "manual_reconciliation_required", operationId: claim.operationId };
   }
 
   const providerMessageId = deliveryResult.providerMessageId;
@@ -373,7 +380,7 @@ export async function runEmployeeProvisioning(
     if (!(await requireManualReconciliation(dependencies, claim, "email_provider_receipt_missing"))) {
       return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     }
-    return { kind: "manual_reconciliation_required" };
+    return { kind: "manual_reconciliation_required", operationId: claim.operationId };
   }
 
   let emailSentStatePersisted = false;
@@ -390,7 +397,7 @@ export async function runEmployeeProvisioning(
     if (!(await requireManualReconciliation(dependencies, claim, "email_delivery_state_persistence_failed"))) {
       return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     }
-    return { kind: "manual_reconciliation_required" };
+    return { kind: "manual_reconciliation_required", operationId: claim.operationId };
   }
 
   let completed = false;

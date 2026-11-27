@@ -31,7 +31,6 @@ test("reconciliation RPC exposes status-only fields to authenticated admins", ()
     "status text",
     "phase text",
     "has_invite_link boolean",
-    "has_provider_receipt boolean",
     "failure_code text",
   ]) {
     assert.ok(rpc.includes(field), `status RPC must expose ${field}`);
@@ -48,7 +47,6 @@ test("reconciliation RPC exposes status-only fields to authenticated admins", ()
     "status text",
     "phase text",
     "has_invite_link boolean",
-    "has_provider_receipt boolean",
     "failure_code text",
   ]);
 
@@ -62,7 +60,6 @@ test("reconciliation RPC exposes status-only fields to authenticated admins", ()
     "op.status",
     "op.phase",
     "(op.invite_link_envelope is not null)",
-    "(op.email_provider_message_id is not null)",
     "op.failure_code",
   ]);
 
@@ -77,7 +74,7 @@ test("authenticated reconciliation adapter never decrypts operational secrets", 
   assert.doesNotMatch(adapter, /getOperationForReconciliation/);
   assert.doesNotMatch(adapter, /decryptProvisioningEmail|decryptProvisioningInviteLink/);
   assert.match(adapter, /has_invite_link/);
-  assert.match(adapter, /has_provider_receipt/);
+  assert.doesNotMatch(adapter, /has_provider_receipt|provider_message_id|email_sent/);
 });
 
 test("claim replay does not disclose the Auth user ID", () => {

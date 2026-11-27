@@ -11,7 +11,26 @@ function newDeviceCredentials() {
 
 export async function POST(request: NextRequest) {
   const origin = request.headers.get("origin");
-  if (!origin || origin !== request.nextUrl.origin) {
+  const host = request.headers.get("host");
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  let originIsValid = false;
+
+  if (origin && host) {
+    try {
+      const originUrl = new URL(origin);
+      const expectedProtocol = forwardedProto
+        ? `${forwardedProto.replace(/:$/, "")}:`
+        : request.nextUrl.protocol;
+      originIsValid =
+        (originUrl.protocol === "http:" || originUrl.protocol === "https:") &&
+        originUrl.host.toLowerCase() === host.toLowerCase() &&
+        originUrl.protocol === expectedProtocol;
+    } catch {
+      originIsValid = false;
+    }
+  }
+
+  if (!originIsValid) {
     return NextResponse.json({ error: "INVALID_ORIGIN" }, { status: 403 });
   }
   const supabase = await createClient();

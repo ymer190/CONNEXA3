@@ -62,11 +62,11 @@ A implementação usa `INSERT ... ON CONFLICT` e bloqueio transacional para impe
 4. Criar a identidade com `auth.admin.createUser({ email, email_confirm: false, app_metadata: { first_access_pending: true, employee_provisioning_operation_id } })`. Não informar senha e não enviar e-mail nesta fase. Confirmar os dois marcadores retornados pelo Auth e persistir o `auth_user_id`.
 5. Executar uma RPC transacional que cria `profiles`, `organization_members` com papel fixo `member` e o evento `employee.created` na tabela central `administrative_audit_logs`. Falha em qualquer gravação, inclusive auditoria, implica rollback integral.
 6. Somente após confirmação do commit, consultar novamente a identidade e confirmar e-mail ainda não confirmado e os marcadores `app_metadata`. Então gerar o link com `auth.admin.generateLink({ type: 'invite', email })`. O GoTrue permite gerar link de convite para usuário existente ainda não confirmado; a operação retorna o link sem enviar o e-mail.
-7. Adaptar o link para o contrato da #93 (`/confirmar-convite#token_hash=...&type=invite`), persistir o link cifrado com AES-256-GCM e só então entregá-lo ao administrador autenticado. Não usar `inviteUserByEmail`, pois envia o e-mail durante a chamada.
-8. Persistir o recibo `provider_message_id` do Resend e a fase `email_sent`; marcar a operação `completed` somente após a persistência do recibo.
-9. Se a transação PostgreSQL confirmar rollback, compensar a identidade somente com prova de propriedade e confirmação de que o convite ainda não foi aceito. Resultado ambíguo em Auth, PostgreSQL, geração do link ou Resend exige reconciliação manual; nunca repetir cegamente nem excluir identidade com resultado desconhecido.
+7. Adaptar o link para o contrato da #93 (`/confirmar-convite#token_hash=...&type=invite`), persistir o link cifrado com AES-256-GCM e só então entregá-lo na resposta `no-store` ao administrador autenticado que iniciou a operação. Não usar `inviteUserByEmail`, pois envia o e-mail durante a chamada.
+8. Marcar a operação `completed` somente após persistência do link cifrado e confirmação do commit de perfil, vínculo e auditoria.
+9. Se a transação PostgreSQL confirmar rollback, compensar a identidade somente com prova de propriedade e confirmação de que o convite ainda não foi aceito. Resultado ambíguo em Auth, PostgreSQL ou geração do link exige reconciliação manual; nunca repetir cegamente nem excluir identidade com resultado desconhecido.
 
-O estado operacional não pode ser marcado como concluído antes do commit da RPC de domínio/auditoria e da persistência do recibo de entrega.
+O estado operacional não pode ser marcado como concluído antes do commit da RPC de domínio/auditoria e da persistência cifrada do link.
 ## 6. Orquestração isolada e testável
 
 A branch contém `employee-provisioning-orchestrator-core.ts`, uma orquestração pura com dependências injetadas. A sequência implementada é:
@@ -78,8 +78,8 @@ A branch contém `employee-provisioning-orchestrator-core.ts`, uma orquestraçã
 5. Executar perfil, vínculo e auditoria central em uma única transação PostgreSQL.
 6. Somente após commit, consultar novamente a identidade e confirmar que continua não confirmada e pertence à operação.
 7. Gerar o link por `auth.admin.generateLink({ type: 'invite', email })` para o usuário existente ainda não confirmado. O GoTrue atualiza o token de convite nesse caso; usuário já confirmado é rejeitado. A geração não envia e-mail.
-8. Adaptar o link ao contrato da #93, persistir o link cifrado e enviar via Resend.
-9. Persistir o recibo `provider_message_id` e a fase `email_sent`; concluir somente depois.
+8. Adaptar o link ao contrato da #93 e persistir o link cifrado; disponibilizá-lo somente na resposta `no-store` ao administrador que iniciou a operação.
+9. Concluir somente após confirmar o commit e a persistência do link cifrado; não há envio automático nem recibo de provedor.
 10. Em rollback confirmado, compensar somente identidade comprovadamente criada pela operação e ainda não aceita. Resultados ambíguos exigem reconciliação manual.
 
 Os testes cobrem replay sem novo convite, conflito de chave, resultado Auth ambíguo, propriedade não comprovada, falha de persistência, rollback/compensação, resultado PostgreSQL ambíguo (sem exclusão), falha ao concluir e ordem pós-commit do envio. O contrato HTTP autoriza antes de processar a entrada, lê `Idempotency-Key` do cabeçalho, deriva ator/hash no servidor e não expõe `auth_user_id` ou dados pessoais.
@@ -139,7 +139,7 @@ Até lá, manter a PR #152 Draft e limitar as alterações a código puro, teste
 
 ### Sequência Auth — documentação e comportamento GoTrue
 
-`generateLink()` gera link/OTP sem enviar e-mail. Para `type='invite'`, o GoTrue cria uma identidade quando ela ainda não existe; quando encontra identidade existente ainda não confirmada, atualiza o token de convite; se ela já estiver confirmada, retorna erro. A implementação #92 cria primeiro a identidade com `createUser()` e os marcadores confiáveis, e somente após o commit PostgreSQL confirma o mesmo Auth ID e chama `generateLink({ type: 'invite' })`. O link permanece no servidor, é cifrado antes do envio via Resend e só é enviado após o commit.
+`generateLink()` gera link/OTP sem enviar e-mail. Para `type='invite'`, o GoTrue cria uma identidade quando ela ainda não existe; quando encontra identidade existente ainda não confirmada, atualiza o token de convite; se ela já estiver confirmada, retorna erro. A implementação #92 cria primeiro a identidade com `createUser()` e os marcadores confiáveis, e somente após o commit PostgreSQL confirma o mesmo Auth ID e chama `generateLink({ type: 'invite' })`. O link permanece no servidor e é cifrado antes de ser disponibilizado ao administrador autenticado; não há envio automático.
 
 ## 11. Estado da implementação online (27/11/2026)
 
@@ -149,7 +149,7 @@ Até lá, manter a PR #152 Draft e limitar as alterações a código puro, teste
 - A recuperação operacional completa (Auth ID e envelopes cifrados) não possui RPC exposta a `authenticated` nem endpoint público. Qualquer recuperação futura deverá ocorrer por cliente privilegiado server-side, separado da consulta de status e sem expor os dados ao PostgREST para administradores.
 - A criação Auth usa `createUser()` com os marcadores em `app_metadata`; após o commit PostgreSQL, `generateLink({ type: 'invite' })` gera o link para a mesma identidade ainda não confirmada.
 - Adicionado identificador `employee_provisioning_operation_id` em `app_metadata` para provar propriedade da identidade antes de eventual compensação.
-- Link de primeiro acesso e e-mail passam a ser persistidos apenas como envelopes AES-256-GCM na tabela operacional, para permitir reconciliação sem expor token.
+- E-mail do colaborador e link de primeiro acesso são persistidos apenas como envelopes AES-256-GCM na tabela operacional, para permitir reconciliação sem expor token.
 - Corrigida a assertion de teste que esperava o código antigo `INVITE_NOT_CREATED`.
 - O SQL continua em rascunho documental; nenhuma migration foi aplicada e as RPCs ainda não existem na branch `main`.
-- O endpoint deve permanecer indisponível para provisionamento real até o SQL ser revisado/aprovado, a migration ser gerada/aplicada no DEV e as variáveis Resend/criptografia serem configuradas.
+- O endpoint deve permanecer indisponível para provisionamento real até o SQL ser revisado/aprovado, a migration ser gerada/aplicada no DEV e as variáveis de criptografia serem configuradas.

@@ -7,16 +7,9 @@ export function buildRegisterDeviceSessionArgs({ deviceId, deviceSecret, label, 
   };
 }
 
-export function buildDeviceSessionAdminArgs(action, { target, justification, ticketReference = "" }) {
+export function buildDeviceSessionAdminArgs(action, { target, justification }) {
   if (action === "admin_revoke_session") {
     return { p_session_id: target, p_justification: justification };
-  }
-  if (action === "admin_approve_device") {
-    return {
-      p_device_id: target,
-      p_justification: justification,
-      p_ticket_reference: ticketReference,
-    };
   }
   return { p_device_id: target, p_justification: justification };
 }

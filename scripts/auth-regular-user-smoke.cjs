@@ -15,6 +15,13 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext();
   const page = await context.newPage();
+  page.on("pageerror", (error) => console.error("Browser page error:", error.message));
+  page.on("response", async (response) => {
+    if (new URL(response.url()).pathname === "/api/device-sessions/register") {
+      const body = await response.text().catch(() => "<unreadable>");
+      console.log(`Device enrollment response: HTTP ${response.status()} ${body.slice(0, 300)}`);
+    }
+  });
   let deviceId;
   let deviceCookieWasAbsentBeforeTest = false;
 
@@ -53,6 +60,10 @@ async function main() {
     await page.locator("#email").fill(email);
     await page.locator("#password").fill(password);
     await page.getByRole("button", { name: "Entrar" }).click();
+    await page.waitForTimeout(1500);
+    console.log("Regular-user post-login URL:", page.url());
+    const loginAlert = await page.locator('[role="alert"]').innerText().catch(() => "");
+    if (loginAlert) console.log("Regular-user login alert:", loginAlert.slice(0, 300));
 
     await assertDenied("Authenticated regular user is denied access to /admin");
 

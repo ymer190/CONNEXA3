@@ -50,7 +50,7 @@ function responseForResult(result: EmployeeProvisioningResult): Response {
 
   if (result.kind === "in_progress") {
     return Response.json(
-      { success: true, data: { status: "in_progress" } },
+      { success: true, data: { status: "in_progress", operationId: result.operationId } },
       { status: 202, headers: { "Retry-After": "2" } },
     );
   }
@@ -62,6 +62,7 @@ function responseForResult(result: EmployeeProvisioningResult): Response {
         error: {
           code: "MANUAL_RECONCILIATION_REQUIRED",
           message: "A operação exige análise administrativa antes de nova tentativa.",
+          operationId: result.operationId,
         },
       },
       { status: 503 },

@@ -211,7 +211,7 @@ export function createEmployeeProvisioningDatabase(client: EmployeeProvisioningR
       if (
         typeof row.status !== "string" ||
         typeof row.phase !== "string" ||
-        typeof row.has_invite_link !== "boolean" ||
+        typeof row.has_invite_link !== "boolean"
       ) {
         throw new Error("Provisioning reconciliation status is incomplete.");
       }

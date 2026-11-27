@@ -27,9 +27,9 @@ const loginForm = fs.readFileSync(
 
 test("device approval frontend matches the two-argument DEV RPC contract", () => {
   assert.ok(frontend.includes('supabase.rpc(action, args)'));
-  assert.match(
-    frontend,
-    /p_device_id:\s*target,\s*p_justification:\s*justification/s,
+  assert.ok(
+    frontend.includes("{ p_device_id: target, p_justification: justification }"),
+    "approval must send only the two arguments exposed by connexa-dev",
   );
   assert.doesNotMatch(frontend, /p_ticket_reference|ticketReference/);
   assert.doesNotMatch(frontend, /ticket_reference/);

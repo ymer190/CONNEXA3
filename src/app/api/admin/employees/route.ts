@@ -107,7 +107,7 @@ const handleGet = createEmployeeProvisioningReconciliationGetHandler({
     const persistence = createEmployeeProvisioningDatabase(
       supabase as unknown as EmployeeProvisioningRpcClient,
     );
-    return persistence.getOperationForReconciliation(operationId);
+    return persistence.getOperationStatusForReconciliation(operationId);
   },
 });
 

@@ -153,6 +153,7 @@ test("does not compensate an Auth identity whose ownership is unproven", async (
       return {
         kind: "created",
         authUserId: "auth-user-1",
+        actionLink: "https://example.test/invite",
         identityCreatedByOperation: false,
       };
     },

@@ -18,6 +18,8 @@ create table private.employee_provisioning_operations (
     check (payload_hash ~ '^sha256:[a-f0-9]{64}$'),
   email_envelope text not null
     check (length(email_envelope) between 1 and 4096 and email_envelope like 'v1.%'),
+  invite_link_envelope text null
+    check (invite_link_envelope is null or (length(invite_link_envelope) between 1 and 4096 and invite_link_envelope like 'v1.%')),
   status text not null default 'pending'
     check (status in ('pending', 'completed', 'compensation_pending', 'compensated', 'manual_reconciliation_required')),
   phase text not null default 'claimed'
@@ -218,7 +220,8 @@ $$;
 create or replace function public.admin_persist_employee_auth_user_id(
   p_operation_id uuid,
   p_claim_id uuid,
-  p_auth_user_id uuid
+  p_auth_user_id uuid,
+  p_invite_link_envelope text
 )
 returns boolean
 language plpgsql
@@ -227,12 +230,16 @@ set search_path = ''
 as $$
 declare actor_id uuid := private.assert_employee_provisioning_admin();
 begin
-  if p_auth_user_id is null then
-    raise exception 'Auth user id is required' using errcode = '22023';
+  if p_auth_user_id is null
+     or p_invite_link_envelope is null
+     or length(p_invite_link_envelope) not between 1 and 4096
+     or p_invite_link_envelope not like 'v1.%' then
+    raise exception 'Auth user id and encrypted invite link are required' using errcode = '22023';
   end if;
 
   update private.employee_provisioning_operations op
      set auth_user_id = p_auth_user_id,
+         invite_link_envelope = p_invite_link_envelope,
          phase = 'auth_created',
          auth_created_at = now(),
          updated_at = now()
@@ -245,6 +252,36 @@ begin
   return found;
 end;
 $$;
+
+create or replace function public.admin_get_employee_provisioning_operation(
+  p_operation_id uuid
+)
+returns table (
+  operation_id uuid,
+  status text,
+  phase text,
+  auth_user_id uuid,
+  email_envelope text,
+  invite_link_envelope text,
+  email_provider_message_id text,
+  failure_code text
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $
+declare actor_id uuid := private.assert_employee_provisioning_admin();
+begin
+  return query
+  select op.id, op.status, op.phase, op.auth_user_id,
+         op.email_envelope, op.invite_link_envelope,
+         op.email_provider_message_id, op.failure_code
+    from private.employee_provisioning_operations op
+   where op.id = p_operation_id
+     and op.actor_user_id = actor_id;
+end;
+$;
 
 create or replace function public.admin_commit_employee_provisioning(
   p_operation_id uuid,
@@ -480,7 +517,9 @@ revoke all on function public.admin_claim_employee_provisioning(text,text,text)
   from public, anon, authenticated, service_role;
 revoke all on function public.admin_mark_employee_auth_creation_started(uuid,uuid)
   from public, anon, authenticated, service_role;
-revoke all on function public.admin_persist_employee_auth_user_id(uuid,uuid,uuid)
+revoke all on function public.admin_persist_employee_auth_user_id(uuid,uuid,uuid,text)
+  from public, anon, authenticated, service_role;
+revoke all on function public.admin_get_employee_provisioning_operation(uuid)
   from public, anon, authenticated, service_role;
 revoke all on function public.admin_commit_employee_provisioning(uuid,uuid,uuid,text,uuid)
   from public, anon, authenticated, service_role;
@@ -497,7 +536,8 @@ revoke all on function public.admin_mark_employee_provisioning_manual_reconcilia
 
 grant execute on function public.admin_claim_employee_provisioning(text,text,text) to authenticated;
 grant execute on function public.admin_mark_employee_auth_creation_started(uuid,uuid) to authenticated;
-grant execute on function public.admin_persist_employee_auth_user_id(uuid,uuid,uuid) to authenticated;
+grant execute on function public.admin_persist_employee_auth_user_id(uuid,uuid,uuid,text) to authenticated;
+grant execute on function public.admin_get_employee_provisioning_operation(uuid) to authenticated;
 grant execute on function public.admin_commit_employee_provisioning(uuid,uuid,uuid,text,uuid) to authenticated;
 grant execute on function public.admin_mark_employee_compensation_pending(uuid,uuid) to authenticated;
 grant execute on function public.admin_mark_employee_compensated(uuid,uuid) to authenticated;

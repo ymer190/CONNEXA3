@@ -487,11 +487,41 @@ $;
 -- Privileged recovery for a lost HTTP response. Only the original actor may
 -- retrieve the encrypted envelope, and only the server-side service role may
 -- call this RPC. The application decrypts the envelope after this check.
-create or replace function public.admin_get_employee_provisioning_invite_link(
+-- Server-only reissue context: never return link tokens or decrypted PII.
+create or replace function public.admin_get_employee_provisioning_reissue_context(
   p_operation_id uuid,
   p_actor_user_id uuid
 )
-returns table (invite_link_envelope text)
+returns table (auth_user_id uuid, email_envelope text)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
+    raise exception 'Service role required' using errcode = '42501';
+  end if;
+
+  return query
+  select op.auth_user_id, op.email_envelope
+    from private.employee_provisioning_operations op
+   where op.id = p_operation_id
+     and op.actor_user_id = p_actor_user_id
+     and op.status = 'completed'
+     and op.phase = 'completed'
+     and op.auth_user_id is not null
+     and op.invite_link_envelope is not null;
+end;
+$$;
+
+-- Replace only the bearer envelope after the server has confirmed the same
+-- Auth identity is still unconfirmed and belongs to this operation.
+create or replace function public.admin_replace_employee_invite_link(
+  p_operation_id uuid,
+  p_actor_user_id uuid,
+  p_invite_link_envelope text
+)
+returns boolean
 language plpgsql
 security definer
 set search_path = ''
@@ -504,8 +534,10 @@ begin
     raise exception 'Service role required' using errcode = '42501';
   end if;
 
-  if p_actor_user_id is null then
-    return;
+  if p_invite_link_envelope is null
+     or length(p_invite_link_envelope) not between 1 and 4096
+     or p_invite_link_envelope not like 'v1.%' then
+    raise exception 'Encrypted invite link is required' using errcode = '22023';
   end if;
 
   select op.*
@@ -515,10 +547,11 @@ begin
      and op.actor_user_id = p_actor_user_id
      and op.status = 'completed'
      and op.phase = 'completed'
-     and op.invite_link_envelope is not null;
+     and op.auth_user_id is not null
+   for update;
 
   if not found then
-    return;
+    return false;
   end if;
 
   select om.organization_id
@@ -530,6 +563,18 @@ begin
   if organization_id is null then
     raise exception 'Provisioned employee membership is unavailable'
       using errcode = '55000';
+  end if;
+
+  update private.employee_provisioning_operations op
+     set invite_link_envelope = p_invite_link_envelope,
+         updated_at = now()
+   where op.id = p_operation_id
+     and op.actor_user_id = p_actor_user_id
+     and op.status = 'completed'
+     and op.phase = 'completed';
+
+  if not found then
+    return false;
   end if;
 
   insert into public.administrative_audit_logs (
@@ -550,7 +595,7 @@ begin
     operation_row.auth_user_id,
     operation_row.auth_user_id,
     organization_id,
-    'Link de primeiro acesso recuperado pelo administrador que iniciou o provisionamento.',
+    'Novo link de primeiro acesso gerado para a identidade existente ainda não confirmada.',
     jsonb_build_object(
       'provisioning_operation_id', p_operation_id,
       'delivery_channel', 'manual'
@@ -558,8 +603,7 @@ begin
     'allowed'
   );
 
-  return query
-  select operation_row.invite_link_envelope;
+  return true;
 end;
 $$;
 
@@ -685,7 +729,9 @@ revoke all on function public.admin_commit_employee_provisioning(uuid,uuid,uuid,
   from public, anon, authenticated, service_role;
 revoke all on function public.admin_persist_employee_invite_link(uuid,uuid,text)
   from public, anon, authenticated, service_role;
-revoke all on function public.admin_get_employee_provisioning_invite_link(uuid,uuid)
+revoke all on function public.admin_get_employee_provisioning_reissue_context(uuid,uuid)
+  from public, anon, authenticated, service_role;
+revoke all on function public.admin_replace_employee_invite_link(uuid,uuid,text)
   from public, anon, authenticated, service_role;
 revoke all on function public.admin_mark_employee_compensation_pending(uuid,uuid)
   from public, anon, authenticated, service_role;
@@ -702,7 +748,8 @@ grant execute on function public.admin_persist_employee_auth_user_id(uuid,uuid,u
 grant execute on function public.admin_get_employee_provisioning_operation(uuid) to authenticated;
 grant execute on function public.admin_commit_employee_provisioning(uuid,uuid,uuid,text,uuid) to authenticated;
 grant execute on function public.admin_persist_employee_invite_link(uuid,uuid,text) to authenticated;
-grant execute on function public.admin_get_employee_provisioning_invite_link(uuid,uuid) to service_role;
+grant execute on function public.admin_get_employee_provisioning_reissue_context(uuid,uuid) to service_role;
+grant execute on function public.admin_replace_employee_invite_link(uuid,uuid,text) to service_role;
 grant execute on function public.admin_mark_employee_compensation_pending(uuid,uuid) to authenticated;
 grant execute on function public.admin_mark_employee_compensated(uuid,uuid) to authenticated;
 grant execute on function public.admin_complete_employee_provisioning(uuid,uuid) to authenticated;

@@ -18,7 +18,7 @@ const gatedMigration = fs.readFileSync(
 );
 
 test("device approval frontend matches the two-argument DEV RPC contract", () => {
-  assert.match(frontend, /supabase\\.rpc\\(action, args\\)/);
+  assert.ok(frontend.includes('supabase.rpc(action, args)'));
   assert.match(
     frontend,
     /p_device_id:\\s*target,\\s*p_justification:\\s*justification/s,

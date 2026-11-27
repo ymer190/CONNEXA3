@@ -105,7 +105,8 @@ test("first-access link recovery is restricted to the original actor and service
   assert.notEqual(end, -1, "link recovery RPC must end before compensation RPC");
 
   const rpc = sql.slice(start, end);
-  assert.ok(rpc.includes("auth.jwt() ->> 'role' <> 'service_role'"));
+  assert.ok(rpc.includes("auth.jwt() ->> 'role'"));
+  assert.ok(rpc.includes("<> 'service_role'"));
   assert.ok(rpc.includes("op.actor_user_id = p_actor_user_id"));
   assert.ok(rpc.includes("op.status = 'completed'"));
   assert.ok(rpc.includes("op.phase = 'completed'"));

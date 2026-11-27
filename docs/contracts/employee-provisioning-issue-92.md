@@ -33,7 +33,7 @@ A tabela operacional `employee_provisioning_operations` deverá ser separada da 
 - identificador do ator que iniciou a operação;
 - `auth_user_id`, inicialmente nulo;
 - contador de tentativas e timestamps;
-- lease/claim de execução com identificador e expiração, se necessário ao mecanismo de recuperação;
+- identificador de claim imutável para bloquear uma segunda execução concorrente; sem retomada automática de claims interrompidos;
 - código de erro sanitizado, sem credenciais, tokens, senha ou e-mail em texto puro.
 
 O e-mail, quando indispensável à reconciliação, deve permanecer cifrado pelo mecanismo AES-256-GCM já implementado; não duplicar PII em logs ou mensagens de erro.
@@ -48,11 +48,11 @@ A implementação persistente deverá garantir:
 2. Duas requisições simultâneas com a mesma chave não podem ambas adquirir o direito de chamar Supabase Auth.
 3. Mesma chave + mesmo hash: devolver estado/resultado existente sem repetir o convite.
 4. Mesma chave + hash diferente: recusar com conflito, sem alterar a operação original.
-5. Uma operação em andamento só pode ser retomada por claim/lease atômico válido; atualização deve conferir estado, tentativa e proprietário do claim.
+5. Claims não expiram automaticamente nesta entrega básica. Uma operação interrompida permanece em andamento/reconciliação manual; nenhuma requisição pode assumir o claim nem repetir Auth por conta própria.
 6. Operação terminal não pode voltar a executar.
-7. Toda retomada deve ser segura após timeout ou interrupção, sem inferir que uma chamada externa falhou apenas porque a resposta não chegou.
+7. Timeout ou interrupção após o início da chamada Auth exige reconciliação manual; não inferir falha nem repetir a chamada externa sem prova do estado.
 
-A escolha entre `INSERT ... ON CONFLICT`, lock transacional ou atualização condicional deverá ser validada com testes de concorrência no projeto SQA isolado. Não considerar helper em memória como garantia de exclusão mútua.
+A implementação usa `INSERT ... ON CONFLICT` e bloqueio transacional para impedir claims duplicados. A validação deve ocorrer em CI automatizado e no Supabase DEV, sem exigir projeto SQA adicional. Não considerar helper em memória como garantia de exclusão mútua.
 
 ## 5. Sequência Auth/PostgreSQL e compensação
 

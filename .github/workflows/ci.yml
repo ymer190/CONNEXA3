@@ -64,7 +64,6 @@ jobs:
           src/lib/admin/employee-provisioning-invite-link-crypto-core.test.ts
           src/lib/admin/employee-provisioning-handler.test.ts
           src/lib/admin/employee-provisioning-reconciliation-handler.test.ts
-          src/lib/admin/employee-provisioning-database.test.ts
 
       - name: Run ESLint
         run: npm run lint

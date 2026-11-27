@@ -482,7 +482,7 @@ begin
 
   return true;
 end;
-$;
+$$;
 
 -- Privileged recovery for a lost HTTP response. Only the original actor may
 -- retrieve the encrypted envelope, and only the server-side service role may

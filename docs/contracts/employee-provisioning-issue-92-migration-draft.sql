@@ -466,7 +466,6 @@ begin
   update private.employee_provisioning_operations op
      set phase = 'completed',
          status = 'completed',
-         email_sent_at = now(),
          completed_at = now(),
          updated_at = now()
    where op.id = p_operation_id

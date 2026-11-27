@@ -71,8 +71,10 @@ export type EmployeeProvisioningDependencies = {
    * Creates the Auth identity server-side with app_metadata.first_access_pending=true,
    * without sending email. Do not use inviteUserByEmail here.
    */
+  markAuthCreationStarted: (claim: ProvisioningClaim) => Promise<boolean>;
   createAuthIdentityWithFirstAccessPending: (
     payload: EmployeeProvisioningPayload,
+    claim: ProvisioningClaim,
   ) => Promise<AuthIdentityCreationResult>;
   persistAuthUserId: (
     claim: ProvisioningClaim,
@@ -148,9 +150,22 @@ export async function runEmployeeProvisioning(
   }
 
   const { claim } = claimResult;
+  let authCreationStarted = false;
+  try {
+    authCreationStarted = await dependencies.markAuthCreationStarted(claim);
+  } catch {
+    authCreationStarted = false;
+  }
+  if (!authCreationStarted) {
+    if (!(await requireManualReconciliation(dependencies, claim, "auth_creation_claim_failed"))) {
+      return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    }
+    return { kind: "manual_reconciliation_required" };
+  }
+
   let invite: AuthIdentityCreationResult;
   try {
-    invite = await dependencies.createAuthIdentityWithFirstAccessPending(payload);
+    invite = await dependencies.createAuthIdentityWithFirstAccessPending(payload, claim);
   } catch {
     if (!(await requireManualReconciliation(dependencies, claim, "invite_outcome_unknown"))) {
       return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };

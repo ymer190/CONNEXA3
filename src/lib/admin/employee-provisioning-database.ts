@@ -167,6 +167,17 @@ export function createEmployeeProvisioningDatabase(client: RpcClient) {
       });
     },
 
+    markInviteEmailSent(
+      claim: ProvisioningClaim,
+      providerMessageId: string,
+    ): Promise<boolean> {
+      return callBooleanRpc(client, "admin_mark_employee_invite_email_sent", {
+        p_operation_id: claim.operationId,
+        p_claim_id: claim.claimId,
+        p_provider_message_id: providerMessageId,
+      });
+    },
+
     completeOperation(claim: ProvisioningClaim): Promise<boolean> {
       return callBooleanRpc(client, "admin_complete_employee_provisioning", {
         p_operation_id: claim.operationId,

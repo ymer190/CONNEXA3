@@ -155,7 +155,7 @@ test("does not retry an invite whose external outcome is unknown", async () => {
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "manual_reconciliation_required" },
+    { kind: "manual_reconciliation_required", operationId: "operation-1" },
   );
   assert.deepEqual(events, ["claim", "mark-auth-creation-started", "create-auth-identity", "manual-reconciliation"]);
 });
@@ -174,7 +174,7 @@ test("does not compensate an Auth identity whose ownership is unproven", async (
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "manual_reconciliation_required" },
+    { kind: "manual_reconciliation_required", operationId: "operation-1" },
   );
   assert.deepEqual(events, ["claim", "mark-auth-creation-started", "create-auth-identity", "persist-auth-id", "manual-reconciliation"]);
 });
@@ -213,7 +213,7 @@ test("does not compensate when the PostgreSQL transaction outcome is ambiguous",
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "manual_reconciliation_required" },
+    { kind: "manual_reconciliation_required", operationId: "operation-1" },
   );
   assert.deepEqual(events, [
     "claim",
@@ -239,7 +239,7 @@ test("requires manual reconciliation when Auth compensation fails", async () => 
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "manual_reconciliation_required" },
+    { kind: "manual_reconciliation_required", operationId: "operation-1" },
   );
   assert.deepEqual(events.slice(-2), [
     "delete-auth-identity",
@@ -315,11 +315,11 @@ test("does not run side effects while another request owns the persistent claim"
   const { dependencies: deps, events } = dependencies({
     claimOperation: async () => {
       events.push("claim");
-      return { kind: "in_progress" };
+      return { kind: "in_progress", operationId: "operation-1" };
     },
   });
 
-  assert.deepEqual(await runEmployeeProvisioning(payload, deps), { kind: "in_progress" });
+  assert.deepEqual(await runEmployeeProvisioning(payload, deps), { kind: "in_progress", operationId: "operation-1" });
   assert.deepEqual(events, ["claim"]);
 });
 
@@ -327,13 +327,13 @@ test("does not run side effects when the operation requires manual reconciliatio
   const { dependencies: deps, events } = dependencies({
     claimOperation: async () => {
       events.push("claim");
-      return { kind: "manual_reconciliation_required" };
+      return { kind: "manual_reconciliation_required", operationId: "operation-1" };
     },
   });
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "manual_reconciliation_required" },
+    { kind: "manual_reconciliation_required", operationId: "operation-1" },
   );
   assert.deepEqual(events, ["claim"]);
 });
@@ -367,7 +367,7 @@ test("does not delete an Auth identity when acquiring the compensation claim fai
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "manual_reconciliation_required" },
+    { kind: "manual_reconciliation_required", operationId: "operation-1" },
   );
   assert.deepEqual(events, [
     "claim",
@@ -394,7 +394,7 @@ test("requires manual reconciliation when Auth deletion has an unknown outcome",
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "manual_reconciliation_required" },
+    { kind: "manual_reconciliation_required", operationId: "operation-1" },
   );
   assert.deepEqual(events.slice(-2), [
     "delete-auth-identity",
@@ -416,7 +416,7 @@ test("does not report compensation complete when its terminal state cannot be pe
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "manual_reconciliation_required" },
+    { kind: "manual_reconciliation_required", operationId: "operation-1" },
   );
   assert.deepEqual(events.slice(-2), [
     "compensated",
@@ -478,7 +478,7 @@ test("does not compensate committed records when Resend delivery fails", async (
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "manual_reconciliation_required" },
+    { kind: "manual_reconciliation_required", operationId: "operation-1" },
   );
   assert.deepEqual(events, [
     "claim",
@@ -519,7 +519,7 @@ test("does not send email when post-commit invite-link generation is ambiguous",
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "manual_reconciliation_required" },
+    { kind: "manual_reconciliation_required", operationId: "operation-1" },
   );
   assert.deepEqual(events.slice(-2), ["generate-invite-link", "manual-reconciliation"]);
   assert.equal(events.includes("send-invite-email"), false);
@@ -535,7 +535,7 @@ test("persists the encrypted invite link before Resend delivery", async () => {
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "manual_reconciliation_required" },
+    { kind: "manual_reconciliation_required", operationId: "operation-1" },
   );
   assert.deepEqual(events.slice(-3), [
     "generate-invite-link",

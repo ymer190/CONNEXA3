@@ -79,7 +79,8 @@ A branch contém `employee-provisioning-orchestrator-core.ts`, uma orquestraçã
 5. Persistir `auth_user_id` na operação.
 6. Executar perfil, vínculo e auditoria central em uma única transação PostgreSQL.
 7. Entregar o link pelo Resend somente após commit confirmado.
-8. Marcar operação concluída após confirmação de entrega; falha/resultado ambíguo exige reconciliação, sem duplicar identidade.
+8. Persistir o recibo `provider_message_id` do Resend e a fase `email_sent`.
+9. Marcar operação concluída somente depois da persistência do recibo; falha/resultado ambíguo exige reconciliação, sem duplicar identidade.
 9. Em rollback PostgreSQL confirmado, compensar somente identidade comprovadamente criada pela operação e ainda não aceita; resultado ambíguo não autoriza exclusão.
 
 Os testes cobrem replay sem novo convite, conflito de chave, resultado Auth ambíguo, propriedade não comprovada, falha de persistência, rollback/compensação, resultado PostgreSQL ambíguo (sem exclusão), falha ao concluir e a ordem pós-commit do envio. O contrato HTTP está separado em `employee-provisioning-handler.ts`: autoriza antes de processar a entrada, lê `Idempotency-Key` do cabeçalho, deriva ator/hash no servidor e não expõe `auth_user_id` ou dados pessoais. A rota Next.js e a integração dos adapters ainda estão em andamento.

@@ -7,7 +7,12 @@ const operationId = "550e8400-e29b-41d4-a716-446655440000";
 function makeHandler(overrides: {
   authorize?: () => Promise<
     | { authorized: true; actorUserId: string }
-    | { authorized: false; reason: "UNAUTHENTICATED" | "FORBIDDEN" | "AUTHORIZATION_CHECK_FAILED" }
+    | {
+        authorized: false;
+        status: 401 | 403 | 503;
+        code: "UNAUTHENTICATED" | "FORBIDDEN" | "AUTHORIZATION_CHECK_FAILED";
+        message: string;
+      }
   >;
   lookup?: (id: string) => Promise<{
     operationId: string;
@@ -69,7 +74,12 @@ test("rejects invalid operation IDs before lookup", async () => {
 test("does not allow unauthenticated status lookup", async () => {
   let lookupCalls = 0;
   const handler = makeHandler({
-    authorize: async () => ({ authorized: false, reason: "UNAUTHENTICATED" }),
+    authorize: async () => ({
+      authorized: false,
+      status: 401,
+      code: "UNAUTHENTICATED",
+      message: "Não autenticado.",
+    }),
     lookup: async () => {
       lookupCalls += 1;
       return null;

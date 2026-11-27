@@ -38,7 +38,7 @@ function dependencies(overrides: {
       received.push(payload);
       return overrides.provision
         ? await overrides.provision(payload)
-        : { kind: "created", authUserId: "auth-user-1" };
+        : { kind: "created", firstAccessLink: "https://example.test/first-access?token=secret" };
     },
   });
   return { handler, received };
@@ -48,9 +48,10 @@ test("returns 201 only after the injected provisioner confirms creation", async 
   const { handler, received } = dependencies();
   const response = await handler(request());
   assert.equal(response.status, 201);
+  assert.equal(response.headers.get("Cache-Control"), "no-store, max-age=0");
   assert.deepEqual(await response.json(), {
     success: true,
-    data: { status: "created" },
+    data: { status: "created", firstAccessLink: "https://example.test/first-access?token=secret" },
   });
   assert.equal(received.length, 1);
   assert.equal(received[0].actorUserId, actorUserId);
@@ -134,6 +135,7 @@ test("does not expose Auth identifiers or internal errors on success", async () 
   const text = await response.text();
   assert.equal(text.includes("auth-user-1"), false);
   assert.equal(text.includes("maria@example.com"), false);
+  assert.equal(text.includes("secret"), true);
 });
 
 test("maps reconciliation and unknown failures to fail-closed responses", async () => {

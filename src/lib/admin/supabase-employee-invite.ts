@@ -7,65 +7,130 @@ import type {
 } from "./employee-provisioning-orchestrator-core";
 import { sendEmployeeInviteWithResend } from "@/lib/email/resend-employee-invite";
 
+function hasProvisioningMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+  operationId: string,
+): boolean {
+  return metadata?.first_access_pending === true &&
+    metadata?.employee_provisioning_operation_id === operationId;
+}
+
+/**
+ * Creates only the Auth identity. The trusted first-access marker and operation
+ * correlation are set atomically at creation time; no invite link/email is
+ * generated or sent in this phase.
+ */
 export async function createEmployeeAuthIdentity(
   payload: EmployeeProvisioningPayload,
   operationId: string,
 ) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const appUrl = process.env.APP_URL;
-  if (!supabaseUrl || !appUrl || !(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)) {
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)
+  ) {
     return { kind: "not_created" as const };
   }
 
-  let admin;
-  let generated;
   try {
-    admin = createAdminClient();
-    // generateLink(invite) creates the Auth identity and returns the action link,
-    // but does not send an email. Do not call createUser before this operation:
-    // Supabase generateLink handles user creation for the invite type.
-    generated = await admin.auth.admin.generateLink({
-      type: "invite",
+    const admin = createAdminClient();
+    const { data, error } = await admin.auth.admin.createUser({
       email: payload.email,
-    });
-  } catch {
-    // The Auth endpoint may have created the identity before a transport failure.
-    return { kind: "unknown" as const };
-  }
-
-  if (generated.error || !generated.data.user?.id) {
-    return { kind: "not_created" as const };
-  }
-
-  const authUserId = generated.data.user.id;
-  const generatedActionLink = generated.data.properties?.action_link;
-  const adapted = typeof generatedActionLink === "string"
-    ? buildFirstAccessInviteUrl({ actionLink: generatedActionLink, supabaseUrl, appUrl })
-    : { success: false as const, code: "INVALID_AUTH_ACTION_LINK" as const };
-
-  let identityCreatedByOperation = false;
-  try {
-    const { data, error } = await admin.auth.admin.updateUserById(authUserId, {
+      email_confirm: false,
       app_metadata: {
-        ...generated.data.user.app_metadata,
         first_access_pending: true,
         employee_provisioning_operation_id: operationId,
       },
     });
 
-    identityCreatedByOperation = !error &&
-      data.user?.app_metadata?.first_access_pending === true &&
-      data.user?.app_metadata?.employee_provisioning_operation_id === operationId;
-  } catch {
-    identityCreatedByOperation = false;
-  }
+    if (error) {
+      const status = "status" in error && typeof error.status === "number"
+        ? error.status
+        : null;
+      return status !== null && status < 500
+        ? { kind: "not_created" as const }
+        : { kind: "unknown" as const };
+    }
 
-  return {
-    kind: "created" as const,
-    authUserId,
-    actionLink: adapted.success ? adapted.url : "",
-    identityCreatedByOperation,
-  };
+    const user = data.user;
+    if (!user?.id) return { kind: "unknown" as const };
+
+    return {
+      kind: "created" as const,
+      authUserId: user.id,
+      identityCreatedByOperation: hasProvisioningMetadata(
+        user.app_metadata,
+        operationId,
+      ) && user.email_confirmed_at === null,
+    };
+  } catch {
+    // A transport failure can happen after Auth committed the identity.
+    return { kind: "unknown" as const };
+  }
+}
+
+/**
+ * Generates the invite only after the domain/audit transaction has committed.
+ * GoTrue supports generating an invite link for an existing unconfirmed user;
+ * this returns a link but does not send email.
+ */
+export async function generateEmployeeFirstAccessInviteLink(
+  payload: EmployeeProvisioningPayload,
+  operationId: string,
+  authUserId: string,
+) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const appUrl = process.env.APP_URL;
+  if (!supabaseUrl || !appUrl) return { kind: "failed" as const };
+
+  try {
+    const admin = createAdminClient();
+    const { data: current, error: lookupError } =
+      await admin.auth.admin.getUserById(authUserId);
+
+    if (lookupError || !current.user) return { kind: "unknown" as const };
+    if (
+      current.user.email !== payload.email ||
+      current.user.email_confirmed_at !== null ||
+      !hasProvisioningMetadata(current.user.app_metadata, operationId)
+    ) {
+      return { kind: "failed" as const };
+    }
+
+    const { data, error } = await admin.auth.admin.generateLink({
+      type: "invite",
+      email: payload.email,
+    });
+    if (error) {
+      const status = "status" in error && typeof error.status === "number"
+        ? error.status
+        : null;
+      return status !== null && status < 500
+        ? { kind: "failed" as const }
+        : { kind: "unknown" as const };
+    }
+
+    if (
+      data.user?.id !== authUserId ||
+      !hasProvisioningMetadata(data.user.app_metadata, operationId)
+    ) {
+      return { kind: "unknown" as const };
+    }
+
+    const actionLink = data.properties?.action_link;
+    if (typeof actionLink !== "string") return { kind: "unknown" as const };
+
+    const adapted = buildFirstAccessInviteUrl({
+      actionLink,
+      supabaseUrl,
+      appUrl,
+    });
+    return adapted.success
+      ? { kind: "generated" as const, actionLink: adapted.url }
+      : { kind: "failed" as const };
+  } catch {
+    // The invite token may have been generated even if the response was lost.
+    return { kind: "unknown" as const };
+  }
 }
 
 export async function sendEmployeeFirstAccessInvite(

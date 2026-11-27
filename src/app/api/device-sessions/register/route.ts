@@ -26,36 +26,47 @@ export async function POST() {
     id: cookieStore.get("connexa-device-id")?.value ?? "",
     secret: cookieStore.get("connexa-device-secret")?.value ?? "",
   };
-  let isNewDevice = !credentials.id || !credentials.secret;
-  if (isNewDevice) credentials = newDeviceCredentials();
 
-  const register = async () => {
-    const { data, error } = await supabase.rpc("register_device_session", {
-      p_device_id: credentials.id,
-      p_device_secret: credentials.secret,
-      p_label: "Navegador",
-      p_user_agent: requestHeaders.get("user-agent")?.slice(0, 500) ?? null,
-    });
-    return { data, error };
-  };
-
-  let result = await register();
-  if (
-    result.error &&
-    !isNewDevice &&
-    (result.error.message.includes("Revoked device") ||
-      result.error.message.includes("Device credential is invalid"))
-  ) {
+  if (!credentials.id || !credentials.secret) {
     credentials = newDeviceCredentials();
-    isNewDevice = true;
-    result = await register();
   }
 
-  if (result.error || (result.data !== "approved" && result.data !== "pending")) {
+  const { data, error } = await supabase.rpc("register_device_session", {
+    p_device_id: credentials.id,
+    p_device_secret: credentials.secret,
+    p_label: "Navegador",
+    p_user_agent: requestHeaders.get("user-agent")?.slice(0, 500) ?? null,
+  });
+
+  if (
+    error &&
+    (error.message.includes("Revoked device") ||
+      error.message.includes("Revoked device or session") ||
+      error.message.includes("Device credential is invalid"))
+  ) {
+    // A device/session already bound to this Supabase session cannot be silently
+    // replaced: device_sessions.session_id is unique. Require a fresh login.
+    const response = NextResponse.json(
+      { error: "DEVICE_REENROLLMENT_REQUIRED" },
+      { status: 409 },
+    );
+    const clearOptions = {
+      httpOnly: true,
+      secure,
+      sameSite: "strict" as const,
+      path: "/",
+      maxAge: 0,
+    };
+    response.cookies.set("connexa-device-id", "", clearOptions);
+    response.cookies.set("connexa-device-secret", "", clearOptions);
+    return response;
+  }
+
+  if (error || (data !== "approved" && data !== "pending")) {
     return NextResponse.json({ error: "DEVICE_ENROLLMENT_FAILED" }, { status: 503 });
   }
 
-  const response = NextResponse.json({ status: result.data }, { status: 200 });
+  const response = NextResponse.json({ status: data }, { status: 200 });
   const cookieOptions = {
     httpOnly: true,
     secure,

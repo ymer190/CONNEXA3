@@ -95,3 +95,32 @@ export async function sendEmployeeFirstAccessInvite(
     idempotencyKey,
   });
 }
+
+/**
+ * Compensation is permitted only before an invite link has been generated and
+ * only when the Auth metadata proves this identity belongs to this operation.
+ */
+export async function deleteEmployeeAuthIdentityIfUnaccepted(
+  authUserId: string,
+  operationId: string,
+): Promise<{ kind: "deleted" | "not_safe" | "unknown" }> {
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin.auth.admin.getUserById(authUserId);
+    if (error || !data.user) return { kind: "unknown" };
+
+    const user = data.user;
+    if (
+      user.app_metadata?.first_access_pending !== true ||
+      user.app_metadata?.employee_provisioning_operation_id !== operationId ||
+      user.email_confirmed_at !== null
+    ) {
+      return { kind: "not_safe" };
+    }
+
+    const { error: deleteError } = await admin.auth.admin.deleteUser(authUserId);
+    return deleteError ? { kind: "unknown" } : { kind: "deleted" };
+  } catch {
+    return { kind: "unknown" };
+  }
+}

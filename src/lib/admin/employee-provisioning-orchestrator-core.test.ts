@@ -53,6 +53,10 @@ function dependencies(overrides: Partial<EmployeeProvisioningDependencies> = {})
       events.push("send-invite-email");
       return { kind: "sent" as const, providerMessageId: "email-1" };
     },
+    markInviteEmailSent: async () => {
+      events.push("mark-email-sent");
+      return true;
+    },
     completeOperation: async () => {
       events.push("complete");
       return true;
@@ -89,6 +93,7 @@ test("runs the complete sequence and only reports success after domain audit and
     "persist-auth-id",
     "persist-domain-and-audit",
     "send-invite-email",
+    "mark-email-sent",
     "complete",
   ]);
 });
@@ -274,6 +279,7 @@ test("does not delete Auth identity when the completion state cannot be confirme
     "persist-auth-id",
     "persist-domain-and-audit",
     "send-invite-email",
+    "mark-email-sent",
     "complete",
     "manual-reconciliation",
   ]);

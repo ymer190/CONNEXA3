@@ -24,7 +24,6 @@ type ClaimRow = {
   status?: unknown;
   phase?: unknown;
   has_invite_link?: unknown;
-  has_provider_receipt?: unknown;
   failure_code?: unknown;
 };
 
@@ -193,17 +192,6 @@ export function createEmployeeProvisioningDatabase(client: EmployeeProvisioningR
       });
     },
 
-    markInviteEmailSent(
-      claim: ProvisioningClaim,
-      providerMessageId: string,
-    ): Promise<boolean> {
-      return callBooleanRpc(client, "admin_mark_employee_invite_email_sent", {
-        p_operation_id: claim.operationId,
-        p_claim_id: claim.claimId,
-        p_provider_message_id: providerMessageId,
-      });
-    },
-
     completeOperation(claim: ProvisioningClaim): Promise<boolean> {
       return callBooleanRpc(client, "admin_complete_employee_provisioning", {
         p_operation_id: claim.operationId,
@@ -224,7 +212,6 @@ export function createEmployeeProvisioningDatabase(client: EmployeeProvisioningR
         typeof row.status !== "string" ||
         typeof row.phase !== "string" ||
         typeof row.has_invite_link !== "boolean" ||
-        typeof row.has_provider_receipt !== "boolean"
       ) {
         throw new Error("Provisioning reconciliation status is incomplete.");
       }
@@ -234,7 +221,6 @@ export function createEmployeeProvisioningDatabase(client: EmployeeProvisioningR
         status: row.status,
         phase: row.phase,
         hasInviteLink: row.has_invite_link,
-        hasProviderReceipt: row.has_provider_receipt,
         failureCode: typeof row.failure_code === "string" ? row.failure_code : null,
       };
     },

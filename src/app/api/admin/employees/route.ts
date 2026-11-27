@@ -15,14 +15,14 @@ function provisioningEnvironmentReady(): boolean {
   const required = [
     "NEXT_PUBLIC_SUPABASE_URL",
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
-    "SUPABASE_SECRET_KEY",
     "RESEND_API_KEY",
     "EMAIL_FROM",
     "APP_URL",
     "EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_KEYS",
     "EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_CURRENT_KEY_ID",
   ];
-  return required.every((name) => Boolean(process.env[name]));
+  return required.every((name) => Boolean(process.env[name])) &&
+    Boolean(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
 const handlePost = createEmployeeProvisioningPostHandler({

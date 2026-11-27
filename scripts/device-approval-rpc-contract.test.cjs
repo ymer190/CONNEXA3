@@ -17,13 +17,14 @@ const gatedMigration = fs.readFileSync(
   "utf8",
 );
 
-test("device approval frontend sends the three named RPC arguments", () => {
-  assert.match(frontend, /supabase\.rpc\(action, args\)/);
+test("device approval frontend matches the two-argument DEV RPC contract", () => {
+  assert.match(frontend, /supabase\\.rpc\\(action, args\\)/);
   assert.match(
     frontend,
-    /p_device_id:\s*target,\s*p_justification:\s*justification,\s*p_ticket_reference:\s*ticketReference/s,
+    /p_device_id:\\s*target,\\s*p_justification:\\s*justification/s,
   );
-  assert.match(frontend, /action === "admin_approve_device" && !ticketReference/);
+  assert.doesNotMatch(frontend, /p_ticket_reference|ticketReference/);
+  assert.doesNotMatch(frontend, /ticket_reference/);
 });
 
 test("initial DEV migration exposes the incompatible two-argument function", () => {

@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { cookies, headers } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +9,11 @@ function newDeviceCredentials() {
   return { id: randomUUID(), secret: randomBytes(32).toString("base64url") };
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const origin = request.headers.get("origin");
+  if (!origin || origin !== request.nextUrl.origin) {
+    return NextResponse.json({ error: "INVALID_ORIGIN" }, { status: 403 });
+  }
   const supabase = await createClient();
   const {
     data: { user },

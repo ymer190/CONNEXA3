@@ -360,4 +360,3 @@ export async function runEmployeeProvisioning(
 
   return { kind: "created", firstAccessLink: inviteLinkResult.actionLink };
 }
-}

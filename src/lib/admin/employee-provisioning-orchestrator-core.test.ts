@@ -189,7 +189,7 @@ test("compensates a proven Auth identity after the atomic domain transaction fai
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "failed", code: "DOMAIN_TRANSACTION_FAILED" },
+    { kind: "failed", code: "DOMAIN_TRANSACTION_FAILED", operationId: "operation-1" },
   );
   assert.deepEqual(events, [
     "claim",
@@ -257,7 +257,7 @@ test("does not continue to domain writes when Auth identity persistence fails", 
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "failed", code: "AUTH_ID_PERSISTENCE_FAILED" },
+    { kind: "failed", code: "AUTH_ID_PERSISTENCE_FAILED", operationId: "operation-1" },
   );
   assert.deepEqual(events, [
     "claim",
@@ -278,7 +278,7 @@ test("does not delete Auth identity when the completion state cannot be confirme
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "failed", code: "COMPLETION_FAILED" },
+    { kind: "failed", code: "COMPLETION_FAILED", operationId: "operation-1" },
   );
   assert.deepEqual(events, [
     "claim",
@@ -348,7 +348,7 @@ test("does not persist domain records when invite creation is rejected", async (
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "failed", code: "AUTH_IDENTITY_NOT_CREATED" },
+    { kind: "failed", code: "AUTH_IDENTITY_NOT_CREATED", operationId: "operation-1" },
   );
   assert.deepEqual(events, ["claim", "mark-auth-creation-started", "create-auth-identity", "manual-reconciliation"]);
 });
@@ -438,7 +438,7 @@ test("does not claim reconciliation was recorded when its persistence fails", as
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" },
+    { kind: "failed", code: "RECONCILIATION_MARKER_FAILED", operationId: "operation-1" },
   );
   assert.deepEqual(events, ["claim", "mark-auth-creation-started", "create-auth-identity", "manual-reconciliation"]);
 });
@@ -454,7 +454,7 @@ test("does not send the invite until the domain transaction has committed", asyn
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "failed", code: "DOMAIN_TRANSACTION_FAILED" },
+    { kind: "failed", code: "DOMAIN_TRANSACTION_FAILED", operationId: "operation-1" },
   );
   assert.deepEqual(events, [
     "claim",
@@ -503,7 +503,7 @@ test("generates the invite link only after the domain and audit transaction comm
 
   assert.deepEqual(
     await runEmployeeProvisioning(payload, deps),
-    { kind: "failed", code: "DOMAIN_TRANSACTION_FAILED" },
+    { kind: "failed", code: "DOMAIN_TRANSACTION_FAILED", operationId: "operation-1" },
   );
   assert.equal(events.includes("generate-invite-link"), false);
   assert.equal(events.includes("send-invite-email"), false);

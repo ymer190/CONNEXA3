@@ -1,7 +1,7 @@
 # Dispositivos, sessões e auditoria — Issue #97
 
-**Ambiente de desenvolvimento:** Supabase `connexa-dev` (migrations 10200/10300 não aplicadas).
-**Ambiente para revalidação:** projeto Supabase SQA independente, ainda não provisionado.
+**Ambiente de desenvolvimento:** Supabase `connexa-dev`.
+**Escopo acadêmico simplificado:** não será criado um projeto Supabase SQA independente nesta entrega. Os controles avançados de chamados, bootstrap protegido e revalidação em massa de dispositivos legados ficam adiados. Os testes dinâmicos que dependem de SQA são pendentes, não aprovados.
 
 **Migrations already applied in DEV:** the four original #97 migrations plus the function-only migrations `20261126025656_issue_97_fix_device_enrollment_session_id.sql` and the current proof-of-possession fix.
 **Migrations prepared for isolated SQA review only:** `20261126010200_issue_97_sqa_gates.sql`, `20261126010300_issue_97_revalidate_legacy_devices.sql`.
@@ -20,7 +20,7 @@
 | Operação | RPC | Autorização |
 |---|---|---|
 | Consultar dispositivos/sessões | `admin_list_device_sessions` | `platform_admin`, sessão/dispositivo autorizado |
-| Liberar dispositivo | `admin_approve_device` | `platform_admin` em dispositivo de outro usuário; ticket ativo da organização e alvo; justificativa obrigatória |
+| Liberar dispositivo | `admin_approve_device` | `platform_admin`, sessão/dispositivo autorizado e justificativa obrigatória |
 | Revogar dispositivo ou sessão | `admin_revoke_device`, `admin_revoke_session` | `platform_admin`; justificativa obrigatória |
 | Atribuir/remover suporte de TI | `admin_assign_it_support`, `admin_revoke_it_support` | `platform_admin`; escopo de organização |
 | Abrir/encerrar chamado | `admin_open_it_support_ticket`, `admin_close_it_support_ticket` | `platform_admin` ou agente designado para encerrar |
@@ -39,17 +39,15 @@ Aplicar a retenção de cinco anos aprovada para trilhas administrativas e de se
 
 As RPCs administrativas de departamentos também verificam o vínculo dispositivo/sessão e escrevem os eventos de administração na trilha central. As políticas restritivas RLS aplicam a mesma verificação às tabelas de perfil, organização, vínculo e papel da plataforma. O gate distingue estado global Auth (`banned_until`, `deleted_at`) do vínculo por organização: exige vínculo ativo para colaborador; permite platform_admin sem vínculo organizacional; rejeita platform_admin que possua vínculo organizacional suspenso. O esquema atual mantém `organization_members.user_id` globalmente único, então um usuário não tem vínculos simultâneos em múltiplas organizações. O modelo global final de bloqueio/desativação e a neutralização atômica de todas as sessões dependem da #94, ainda aberta; a checagem de Auth existente é apenas a defesa disponível até a integração.
 
-## Gate SQA para sessões legadas
+## Funcionalidades avançadas adiadas
 
-A migration `20261126010200_issue_97_sqa_gates.sql` corrige as RPCs e o gate, mas não deve ser aplicada ao DEV antes da revisão formal do fluxo e dos testes com JWT real. Ela oferece `bootstrap_approve_admin_device`, RPC exclusiva de `service_role`, serializada e disponível apenas quando não há sessão aprovada de administrador. A referência nula ou vazia do operador é rejeitada explicitamente. O operador não é informado pelo chamador SQL: a trilha registra ator `NULL` e ação de sistema, correlacionada com a execução do workflow e sua identidade/revisão externas.
+As migrations `20261126010200_issue_97_sqa_gates.sql` e `20261126010300_issue_97_revalidate_legacy_devices.sql` permanecem fora da execução no DEV e Production. Elas concentram regras avançadas de ticket, bootstrap de administrador e revalidação em massa de dispositivos legados, adiadas para depois da entrega acadêmica.
 
-O workflow `.github/workflows/device-session-break-glass.yml` só roda em `main` e usa o ambiente GitHub `device-session-break-glass`; esse ambiente deve ter reviewer(s) obrigatórios, prevenção de autoaprovação e secrets exclusivamente do projeto DEV configurados antes de qualquer uso. Esse estado de configuração ainda requer evidência do administrador do repositório. O workflow `.github/workflows/supabase-dev.yml` mantém as variáveis de controle dentro do `env` do job e falha fechado antes de `supabase db push` sempre que as migrations `10200`/`10300` estiverem no repositório. As variáveis de release e referência SQA não liberam essas migrations para `connexa-dev`: por decisão do usuário, continuam exclusivas do SQA. Isso protege o DEV, mas também interrompe esse deploy enquanto os arquivos existirem; é necessário um fluxo explícito de exclusão/seleção de migrations antes de retomar deploys de schema no DEV.
+A tela administrativa foi alinhada ao contrato atualmente instalado no DEV: `admin_approve_device(p_device_id, p_justification)`. A liberação exige perfil `platform_admin`, sessão/dispositivo autorizado e justificativa; o banco registra a operação na auditoria. A referência de chamado e a validação de ticket da migration SQA não são exigidas no fluxo básico atual.
 
-A migration `20261126010300_issue_97_revalidate_legacy_devices.sql` preserva IDs e linhas, altera pares aprovados para `pending`, compara exatamente pares selecionados, dispositivos/sessões atualizados e eventos auditados, e aborta a transação em divergência. O evento por dispositivo guarda os valores históricos de `approved_at`, `approved_by` e `requested_at` antes de limpar os campos de aprovação ativos; não trata o `approved_at` automático como aprovação humana.
+O workflow `.github/workflows/supabase-dev.yml` continua falhando fechado quando encontra as migrations `10200`/`10300` no diretório executável. A documentação oficial do Supabase descreve `db push` como aplicação de todas as migrations locais ainda pendentes; não foi identificado um parâmetro suportado para excluir arquivos individuais. Por isso, não removemos nem movemos migrations e não alteramos o workflow para contornar o gate. O deploy automático de schema DEV fica temporariamente bloqueado até que as migrations adiadas sejam tratadas de forma consistente com o histórico remoto. Nenhuma migration foi aplicada nesta revisão.
 
-O workflow `CI` executa `npm ci`, guard sintético, ESLint, TypeScript, build e smoke da rota protegida sem depender do SQA. O workflow separado `Issue 97 SQA evidence` usa o GitHub Environment `issue-97-sqa`, a variável `ISSUE97_SQA_PROJECT_REF` e os secrets `AUTH_TEST_SUPABASE_URL`, `AUTH_TEST_SUPABASE_DB_URL`, `AUTH_TEST_SUPABASE_PUBLISHABLE_KEY`, `AUTH_TEST_SUPABASE_SERVICE_ROLE_KEY` e credenciais isoladas de usuário/admin. O guard compara allowlist, URL e DB, rejeitando explicitamente DEV e Production antes de qualquer push. Sem configuração completa, o resumo marca **PENDENTE — testes não executados, sem aprovação SQA**; não converte testes ignorados em aprovação. Com SQA configurado, valida a proveniência de 272 pares e zero eventos antes das migrations em atraso e confirma eventos/timestamps depois. A migration smoke usa somente o DB SQA. As migrations `10200`/`10300` permanecem fora do `connexa-dev`; o workflow isolado não as promove para DEV.
-
-O projeto SQA dedicado ainda não foi criado: a organização está no limite de dois projetos ativos gratuitos. A tentativa de criação retornou custo estimado de `$0/mês`, mas foi bloqueada pelo limite do plano; nenhum projeto existente foi pausado/excluído, e nenhum custo/plano foi contratado. Até provisionar o projeto e configurar o GitHub Environment/secrets, validação remota de migrations/JWT/browser está bloqueada.
+O workflow `CI` e o workflow separado `Issue 97 SQA evidence` permanecem no repositório. Como não haverá projeto SQA independente nesta etapa, os testes dinâmicos que dependem desse ambiente ficam **PENDENTES / NÃO EXECUTADOS**; isso não representa aprovação SQA. A validação estática do contrato RPC pode rodar no CI comum, mas não substitui testes autenticados reais.
 
 ## Revisão de permissões e RLS
 
@@ -72,12 +70,12 @@ Essas justificativas não substituem os testes de execução exigidos pelo Tech 
 
 **Diferença identificada:** `src/app/admin/dispositivos/actions.ts` chama `admin_approve_device` com `p_device_id`, `p_justification` e `p_ticket_reference`. A migration inicial `20261126005001` instalada em `connexa-dev` define apenas `(p_device_id uuid, p_justification text)`. O PostgREST seleciona RPCs pela combinação de nomes/assinaturas; portanto, a chamada de três argumentos não corresponde ao contrato disponível no DEV e a aprovação pela interface falha até uma migration compatível ser aplicada.
 
-**Correção preparada no repositório:** a migration já existente `20261126010200_issue_97_sqa_gates.sql` remove a assinatura de dois argumentos e cria a versão de três argumentos. Ela exige ticket ativo pertencente à organização e ao usuário do dispositivo, impede autoaprovação, mantém justificativa e autorização server-side e concede execução somente a `authenticated`. A implementação do Front-end já envia esses três campos; não foi adicionada sobrecarga de dois argumentos nem fallback permissivo.
+**Correção aplicada no código da branch:** a action e a interface agora enviam somente `p_device_id` e `p_justification`, compatíveis com a RPC de dois argumentos atualmente instalada no DEV. A autorização server-side existente exige usuário autenticado, dispositivo/sessão autorizados e papel `platform_admin`; a justificativa é obrigatória e auditada. O requisito avançado de ticket permanece adiado com a migration SQA.
 
-**Teste de contrato preparado:** `node --test scripts/device-approval-rpc-contract.test.cjs` verifica os nomes dos argumentos enviados pelo Front-end, demonstra a assinatura legada da migration inicial e garante que a migration gated introduz apenas o contrato de três argumentos com validação de ticket e grant correspondente. O teste é estático; não substitui teste PostgREST autenticado.
+**Teste de contrato atualizado:** `node --test scripts/device-approval-rpc-contract.test.cjs` verifica que o Front-end envia os dois argumentos compatíveis com a migration inicial do DEV e não depende do campo de ticket. O teste é estático; não substitui teste PostgREST autenticado.
 
-**Concluído:** análise Front-end/migration, correção de schema já presente e coberta por teste estático; nenhuma mudança de comportamento do banco foi executada nesta tarefa.
+**Concluído nesta revisão:** alinhamento da interface e da server action com a assinatura RPC ativa no DEV; removida a dependência de ticket do fluxo básico. Nenhuma mudança de comportamento do banco foi executada.
 
-**Aguardando infraestrutura sob responsabilidade do solicitante:** configuração do projeto/secrets SQA e execução de CI/CD e validação dinâmica com JWT/PostgREST. Não alterei workflows nem secrets.
+**Pendente:** execução do CI após os commits desta revisão e teste dinâmico autenticado no DEV. Não é necessário provisionar projeto SQA nesta etapa. Não alterei secrets.
 
-**Dependente de decisão/alinhamento técnico antes de release:** aprovar aplicação de 10200 no `connexa-dev` após apresentação e testes; confirmar janela/ordem junto à #94 e ao Tech Lead. Até essa decisão, DEV continua na assinatura de dois argumentos e a tela de aprovação permanece incompatível. Não aplicar em DEV ou Production; 10200/10300 seguem restritas ao SQA.
+**Dependente de etapa futura:** se o fluxo de ticket e a revalidação de dispositivos legados forem retomados, revisar as migrations `10200`/`10300` em separado e planejar sua aplicação com histórico consistente. Por ora, a tela básica está alinhada ao DEV. Não aplicar essas migrations em DEV ou Production.

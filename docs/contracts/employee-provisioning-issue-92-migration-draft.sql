@@ -503,7 +503,7 @@ begin
 
   return found;
 end;
-$;
+$$;
 
 create or replace function public.admin_complete_employee_provisioning(
   p_operation_id uuid,

@@ -16,6 +16,14 @@ const gatedMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20261126010200_issue_97_sqa_gates.sql"),
   "utf8",
 );
+const enrollmentRoute = fs.readFileSync(
+  path.join(root, "src/app/api/device-sessions/register/route.ts"),
+  "utf8",
+);
+const loginForm = fs.readFileSync(
+  path.join(root, "src/app/login/login-form.tsx"),
+  "utf8",
+);
 
 test("device approval frontend matches the two-argument DEV RPC contract", () => {
   assert.ok(frontend.includes('supabase.rpc(action, args)'));
@@ -44,4 +52,20 @@ test("gated SQA migration replaces it with the required three-argument contract"
   assert.match(gatedMigration, /t\.ticket_reference = btrim\(p_ticket_reference\)/);
   assert.match(gatedMigration, /grant execute on function public\.admin_approve_device\(uuid, text, text\) to authenticated/);
   assert.doesNotMatch(gatedMigration, /grant execute on function public\.admin_approve_device\(uuid, text\)\s+to authenticated/);
+});
+
+
+test("device enrollment rejects cross-origin requests", () => {
+  assert.match(enrollmentRoute, /request\.headers\.get\("origin"\)/);
+  assert.match(enrollmentRoute, /origin !== request\.nextUrl\.origin/);
+  assert.match(enrollmentRoute, /status: 403/);
+});
+
+test("revoked or invalid device credentials require a fresh login", () => {
+  assert.match(enrollmentRoute, /DEVICE_REENROLLMENT_REQUIRED/);
+  assert.match(enrollmentRoute, /status: 409/);
+  assert.match(enrollmentRoute, /maxAge: 0/);
+  assert.doesNotMatch(enrollmentRoute, /result = await register\(\)/);
+  assert.match(loginForm, /enrollment\.status === 409/);
+  assert.match(loginForm, /Entre novamente para cadastrá-lo como um novo dispositivo/);
 });

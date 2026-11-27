@@ -14,8 +14,8 @@ export function buildRegisterDeviceSessionArgs(input: {
 
 export function buildDeviceSessionAdminArgs(
   action: "admin_approve_device",
-  input: { target: string; justification: string; ticketReference: string },
-): { p_device_id: string; p_justification: string; p_ticket_reference: string };
+  input: { target: string; justification: string },
+): { p_device_id: string; p_justification: string };
 export function buildDeviceSessionAdminArgs(
   action: "admin_revoke_device",
   input: { target: string; justification: string },
@@ -26,8 +26,8 @@ export function buildDeviceSessionAdminArgs(
 ): { p_session_id: string; p_justification: string };
 export function buildDeviceSessionAdminArgs(
   action: DeviceSessionAdminRpc,
-  input: { target: string; justification: string; ticketReference?: string },
-): { p_device_id: string; p_justification: string; p_ticket_reference: string }
+  input: { target: string; justification: string },
+): { p_device_id: string; p_justification: string }
   | { p_device_id: string; p_justification: string }
   | { p_session_id: string; p_justification: string };
 

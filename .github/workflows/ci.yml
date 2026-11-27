@@ -2,12 +2,13 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feature/97-device-session-audit]
   push:
     branches:
       - main
       - feature/57-initialize-web-app
       - feature/issue-91-auth-platform-admin
+      - feature/106-auth-session-hardening
 
 permissions:
   contents: read

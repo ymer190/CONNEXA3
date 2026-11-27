@@ -2,7 +2,7 @@
 
 **Status:** proposta operacional; não executar em produção nem no Supabase DEV.
 **Escopo:** orientar a futura operação manual quando a integração Auth/PostgreSQL não puder determinar com segurança o resultado do provisionamento.
-**Pré-requisitos para uso:** revisão Tech Lead do SQL draft, migration gerada e aprovada, RPCs aplicadas no Supabase DEV, caminho privilegiado server-side de recuperação implementado e validado, variáveis de criptografia/Resend configuradas e CI verde. O projeto SQA adicional não é requisito para continuar o desenvolvimento.
+**Pré-requisitos para uso:** revisão Tech Lead do SQL draft, migration gerada e aprovada, RPCs aplicadas no Supabase DEV, caminho privilegiado server-side de recuperação implementado e validado, variáveis de criptografia configuradas e CI verde. O projeto SQA adicional não é requisito para continuar o desenvolvimento.
 
 > Este documento não autoriza convites, exclusões de usuários, alterações de dados ou aplicação de migrations. Os adapters e a rota estão versionados na PR #152, mas a persistência ainda está somente em SQL draft; portanto, os passos abaixo continuam não executáveis.
 
@@ -41,12 +41,12 @@ O futuro adapter deverá permitir consultar, sem expor PII desnecessária:
 - ator administrativo que iniciou a operação;
 - auth_user_id, quando já persistido, somente em ferramenta interna server-side privilegiada;
 - resultado conhecido da chamada Auth e da RPC PostgreSQL, somente em ferramenta interna server-side privilegiada;
-- `email_provider_message_id` retornado pelo Resend, quando a entrega foi confirmada, somente em ferramenta interna server-side privilegiada;
+- confirmação de geração/persistência do link, sem revelar o link ou token em ferramentas de status;
 - estado de aceite do convite;
 - prova de que a identidade Auth foi criada por aquela operação;
 - existência de perfil, vínculo organizacional e evento de auditoria correspondentes.
 
-O e-mail e o link de convite usados para reconciliação devem permanecer cifrados com AES-256-GCM, com AADs distintos. A RPC/rota de status acessível ao administrador retorna somente status, fase, indicadores booleanos e código sanitizado; nunca retorna Auth ID, envelopes cifrados ou recibo do provedor. Uma eventual recuperação dos envelopes deve ocorrer exclusivamente por caminho backend privilegiado, sem RPC acessível a `authenticated` e sem exposição via PostgREST. A descriptografia ocorre exclusivamente no servidor. Logs e comentários de incidentes não devem conter e-mail em texto puro, tokens, links de convite, chaves ou credenciais.
+O e-mail e o link de primeiro acesso usados para reconciliação devem permanecer cifrados com AES-256-GCM, com AADs distintos. A RPC/rota de status acessível ao administrador retorna somente status, fase, indicadores booleanos e código sanitizado; nunca retorna Auth ID, envelopes cifrados ou recibo do provedor. Uma eventual recuperação dos envelopes deve ocorrer exclusivamente por caminho backend privilegiado, sem RPC acessível a `authenticated` e sem exposição via PostgREST. A descriptografia ocorre exclusivamente no servidor. Logs e comentários de incidentes não devem conter e-mail em texto puro, tokens, links de convite, chaves ou credenciais.
 
 ## 4. Sequência de decisão manual
 
@@ -63,7 +63,7 @@ O e-mail e o link de convite usados para reconciliação devem permanecer cifrad
 
 Uma operação só pode sair de reconciliação quando houver uma destas conclusões comprovadas:
 
-- **Concluída:** identidade e convite válidos, perfil e vínculo corretos, auditoria confirmada e estado operacional completed.
+- **Concluída:** identidade e link de primeiro acesso válidos, perfil e vínculo corretos, auditoria confirmada e estado operacional completed.
 - **Compensada:** rollback confirmado, identidade criada pela própria operação, convite não aceito, exclusão confirmada e estado compensated.
 - **Pendente de decisão:** qualquer evidência ausente, ambígua ou contraditória. Manter manual_reconciliation_required e não permitir retry automático.
 
@@ -80,7 +80,7 @@ Uma operação só pode sair de reconciliação quando houver uma destas conclus
 - Duas requisições concorrentes com a mesma chave e payload.
 - Repetição da reconciliação sem duplicar convite, vínculo ou evento de auditoria.
 
-**Gate de liberação:** este runbook só passa a ser operacional após revisão do Tech Lead, migration funcional versionada e aprovada, RPCs aplicadas no Supabase DEV em janela autorizada, caminho privilegiado server-side implementado e validado, configuração das variáveis Resend/criptografia e CI geral verde. Projeto SQA adicional não é requisito do escopo básico aprovado. Não aplicar no Supabase Production.
+**Gate de liberação:** este runbook só passa a ser operacional após revisão do Tech Lead, migration funcional versionada e aprovada, RPCs aplicadas no Supabase DEV em janela autorizada, caminho privilegiado server-side implementado e validado, configuração das variáveis de criptografia e CI geral verde. Projeto SQA adicional não é requisito do escopo básico aprovado. Não aplicar no Supabase Production.
 
 
 ## 7. Estado atual

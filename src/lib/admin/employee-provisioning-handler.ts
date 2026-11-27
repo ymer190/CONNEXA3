@@ -81,7 +81,7 @@ function responseForResult(result: EmployeeProvisioningResult): Response {
     );
   }
 
-  const status = result.code === "INVITE_NOT_CREATED" ||
+  const status = result.code === "AUTH_IDENTITY_NOT_CREATED" ||
     result.code === "DOMAIN_TRANSACTION_FAILED"
     ? 502
     : 503;

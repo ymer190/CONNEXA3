@@ -445,7 +445,7 @@ returns table (invite_link_envelope text)
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 begin
   if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
     raise exception 'Service role required' using errcode = '42501';
@@ -464,7 +464,7 @@ begin
      and op.phase = 'completed'
      and op.invite_link_envelope is not null;
 end;
-$;
+$$;
 
 create or replace function public.admin_mark_employee_compensation_pending(
   p_operation_id uuid,

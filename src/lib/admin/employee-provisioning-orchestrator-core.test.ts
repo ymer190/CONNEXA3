@@ -83,9 +83,11 @@ test("runs the complete sequence and only reports success after domain audit and
   assert.deepEqual(result, { kind: "created", authUserId: "auth-user-1" });
   assert.deepEqual(events, [
     "claim",
-    "invite",
+    "create-auth-identity",
     "persist-auth-id",
     "persist-domain-and-audit",
+    "generate-invite-link",
+    "send-invite-email",
     "complete",
   ]);
 });
@@ -140,7 +142,7 @@ test("does not retry an invite whose external outcome is unknown", async () => {
     await runEmployeeProvisioning(payload, deps),
     { kind: "manual_reconciliation_required" },
   );
-  assert.deepEqual(events, ["claim", "invite", "manual-reconciliation"]);
+  assert.deepEqual(events, ["claim", "create-auth-identity", "manual-reconciliation"]);
 });
 
 test("does not compensate an Auth identity whose ownership is unproven", async () => {
@@ -159,7 +161,7 @@ test("does not compensate an Auth identity whose ownership is unproven", async (
     await runEmployeeProvisioning(payload, deps),
     { kind: "manual_reconciliation_required" },
   );
-  assert.deepEqual(events, ["claim", "invite", "manual-reconciliation"]);
+  assert.deepEqual(events, ["claim", "create-auth-identity", "manual-reconciliation"]);
 });
 
 test("compensates a proven Auth identity after the atomic domain transaction fails", async () => {
@@ -176,7 +178,7 @@ test("compensates a proven Auth identity after the atomic domain transaction fai
   );
   assert.deepEqual(events, [
     "claim",
-    "invite",
+    "create-auth-identity",
     "persist-auth-id",
     "persist-domain-and-audit",
     "compensation-pending",
@@ -199,7 +201,7 @@ test("does not compensate when the PostgreSQL transaction outcome is ambiguous",
   );
   assert.deepEqual(events, [
     "claim",
-    "invite",
+    "create-auth-identity",
     "persist-auth-id",
     "persist-domain-and-audit",
     "manual-reconciliation",
@@ -242,7 +244,7 @@ test("does not continue to domain writes when Auth identity persistence fails", 
   );
   assert.deepEqual(events, [
     "claim",
-    "invite",
+    "create-auth-identity",
     "persist-auth-id",
     "manual-reconciliation",
   ]);
@@ -262,9 +264,11 @@ test("does not delete Auth identity when the completion state cannot be confirme
   );
   assert.deepEqual(events, [
     "claim",
-    "invite",
+    "create-auth-identity",
     "persist-auth-id",
     "persist-domain-and-audit",
+    "generate-invite-link",
+    "send-invite-email",
     "complete",
     "manual-reconciliation",
   ]);
@@ -325,7 +329,7 @@ test("does not persist domain records when invite creation is rejected", async (
     await runEmployeeProvisioning(payload, deps),
     { kind: "failed", code: "INVITE_NOT_CREATED" },
   );
-  assert.deepEqual(events, ["claim", "invite", "manual-reconciliation"]);
+  assert.deepEqual(events, ["claim", "create-auth-identity", "manual-reconciliation"]);
 });
 
 test("does not delete an Auth identity when acquiring the compensation claim fails", async () => {
@@ -346,7 +350,7 @@ test("does not delete an Auth identity when acquiring the compensation claim fai
   );
   assert.deepEqual(events, [
     "claim",
-    "invite",
+    "create-auth-identity",
     "persist-auth-id",
     "persist-domain-and-audit",
     "compensation-pending",
@@ -414,7 +418,7 @@ test("does not claim reconciliation was recorded when its persistence fails", as
     await runEmployeeProvisioning(payload, deps),
     { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" },
   );
-  assert.deepEqual(events, ["claim", "invite", "manual-reconciliation"]);
+  assert.deepEqual(events, ["claim", "create-auth-identity", "manual-reconciliation"]);
 });
 
 

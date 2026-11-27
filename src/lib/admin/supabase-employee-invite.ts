@@ -9,6 +9,7 @@ import { sendEmployeeInviteWithResend } from "@/lib/email/resend-employee-invite
 
 export async function createEmployeeAuthIdentity(
   payload: EmployeeProvisioningPayload,
+  operationId: string,
 ) {
   if (!process.env.SUPABASE_SECRET_KEY) {
     return { kind: "not_created" as const };
@@ -19,7 +20,10 @@ export async function createEmployeeAuthIdentity(
     const { data, error } = await admin.auth.admin.createUser({
       email: payload.email,
       email_confirm: false,
-      app_metadata: { first_access_pending: true },
+      app_metadata: {
+        first_access_pending: true,
+        employee_provisioning_operation_id: operationId,
+      },
     });
 
     if (error) return { kind: "not_created" as const };
@@ -29,7 +33,8 @@ export async function createEmployeeAuthIdentity(
       kind: "created" as const,
       authUserId: data.user.id,
       identityCreatedByOperation:
-        data.user.app_metadata?.first_access_pending === true,
+        data.user.app_metadata?.first_access_pending === true &&
+        data.user.app_metadata?.employee_provisioning_operation_id === operationId,
     };
   } catch {
     // A transport exception may happen after Auth committed the identity.

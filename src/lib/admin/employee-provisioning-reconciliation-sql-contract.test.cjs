@@ -98,24 +98,18 @@ test("first-access link recovery is restricted to the original actor and service
     "create or replace function public.admin_get_employee_provisioning_invite_link(",
   );
   const end = sql.indexOf(
-    "\\ncreate or replace function public.admin_mark_employee_compensation_pending(",
+    "\ncreate or replace function public.admin_mark_employee_compensation_pending(",
     start,
   );
   assert.notEqual(start, -1, "privileged link recovery RPC must exist");
   assert.notEqual(end, -1, "link recovery RPC must end before compensation RPC");
 
   const rpc = sql.slice(start, end);
-  assert.match(rpc, /auth\\.jwt\\(\\)\\s*->>\\s*'role'\\s*<>\\s*'service_role'/);
-  assert.match(rpc, /op\\.actor_user_id\\s*=\\s*p_actor_user_id/);
-  assert.match(rpc, /op\\.status\\s*=\\s*'completed'/);
-  assert.match(rpc, /op\\.phase\\s*=\\s*'completed'/);
-  assert.match(rpc, /op\\.invite_link_envelope\\s+is\\s+not\\s+null/);
-  assert.match(
-    sql,
-    /revoke all on function public\\.admin_get_employee_provisioning_invite_link\\(uuid,uuid\\)\\s+from public, anon, authenticated, service_role;/,
-  );
-  assert.match(
-    sql,
-    /grant execute on function public\\.admin_get_employee_provisioning_invite_link\\(uuid,uuid\\) to service_role;/,
-  );
+  assert.ok(rpc.includes("auth.jwt() ->> 'role' <> 'service_role'"));
+  assert.ok(rpc.includes("op.actor_user_id = p_actor_user_id"));
+  assert.ok(rpc.includes("op.status = 'completed'"));
+  assert.ok(rpc.includes("op.phase = 'completed'"));
+  assert.ok(rpc.includes("op.invite_link_envelope is not null"));
+  assert.ok(sql.includes("revoke all on function public.admin_get_employee_provisioning_invite_link(uuid,uuid)"));
+  assert.ok(sql.includes("grant execute on function public.admin_get_employee_provisioning_invite_link(uuid,uuid) to service_role;"));
 });

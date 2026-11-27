@@ -75,6 +75,13 @@ const handlePost = createEmployeeProvisioningPostHandler({
 });
 
 export async function POST(request: Request): Promise<Response> {
+  const origin = request.headers.get("origin");
+  if (!origin || origin !== new URL(request.url).origin) {
+    return Response.json(
+      { success: false, error: { code: "INVALID_ORIGIN" } },
+      { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } },
+    );
+  }
   return handlePost(request);
 }
 

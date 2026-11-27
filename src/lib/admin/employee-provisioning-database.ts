@@ -221,8 +221,8 @@ export function createEmployeeProvisioningDatabase(client: EmployeeProvisioningR
       if (error) throw new Error("Provisioning reconciliation lookup is unavailable.");
 
       const row = firstRow(data);
+      if (!row) return null;
       if (
-        !row ||
         typeof row.status !== "string" ||
         typeof row.phase !== "string" ||
         typeof row.email_envelope !== "string" ||

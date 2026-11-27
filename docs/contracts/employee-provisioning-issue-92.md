@@ -70,20 +70,21 @@ O estado operacional não pode ser marcado como concluído antes do commit da RP
 
 ## 6. Orquestração isolada e testável
 
-A branch contém `employee-provisioning-orchestrator-core.ts`, uma orquestração pura com dependências injetadas. Ela define a sequência e os limites sem executar chamadas reais ao Supabase:
+A branch contém `employee-provisioning-orchestrator-core.ts`, uma orquestração pura com dependências injetadas. A sequência é:
 
 1. Adquirir claim persistente e exclusivo.
 2. Marcar a fase `auth_creation_started` antes do efeito externo.
-3. Usar `generateLink({ type: 'invite' })` para criar a identidade e obter o link sem enviá-lo; atualizar `app_metadata.first_access_pending=true` e `employee_provisioning_operation_id` via Auth Admin.
-4. Persistir `auth_user_id` na operação.
-5. Executar perfil, vínculo e auditoria central em uma única transação PostgreSQL.
-6. Entregar o link pelo Resend somente após commit confirmado.
-6. Marcar operação concluída após confirmação de entrega; falha de entrega segue para reconciliação/reenvio, sem duplicar identidade.
-7. Em rollback PostgreSQL confirmado, compensar somente identidade comprovadamente criada pela operação e ainda não convidada/aceita; resultado ambíguo segue para reconciliação manual.
+3. Usar `generateLink({ type: 'invite' })` para criar a identidade e obter o link sem enviá-lo.
+4. Atualizar `app_metadata.first_access_pending=true` e `employee_provisioning_operation_id` via Auth Admin.
+5. Persistir `auth_user_id` na operação.
+6. Executar perfil, vínculo e auditoria central em uma única transação PostgreSQL.
+7. Entregar o link pelo Resend somente após commit confirmado.
+8. Marcar operação concluída após confirmação de entrega; falha/resultado ambíguo exige reconciliação, sem duplicar identidade.
+9. Em rollback PostgreSQL confirmado, compensar somente identidade comprovadamente criada pela operação e ainda não aceita; resultado ambíguo não autoriza exclusão.
 
-Os testes cobrem replay sem novo convite, conflito de chave, resultado Auth ambíguo, propriedade não comprovada, falha de persistência, rollback/compensação, resultado PostgreSQL ambíguo (sem exclusão) e falha ao concluir. O contrato HTTP foi separado em `employee-provisioning-handler.ts`: autoriza antes de processar a entrada, lê `Idempotency-Key` do cabeçalho, deriva ator/hash no servidor, mapeia replay/conflito/em andamento/falha para respostas HTTP estáveis e não expõe `auth_user_id` ou dados pessoais. Seus testes usam provisionador injetado; a rota Next.js real ainda depende dos adapters concretos.
+Os testes cobrem replay sem novo convite, conflito de chave, resultado Auth ambíguo, propriedade não comprovada, falha de persistência, rollback/compensação, resultado PostgreSQL ambíguo (sem exclusão), falha ao concluir e a ordem pós-commit do envio. O contrato HTTP está separado em `employee-provisioning-handler.ts`: autoriza antes de processar a entrada, lê `Idempotency-Key` do cabeçalho, deriva ator/hash no servidor e não expõe `auth_user_id` ou dados pessoais. A rota Next.js e a integração dos adapters ainda estão em andamento.
 
-A documentação oficial do Supabase confirma que `generateLink` cria o usuário para os tipos `signup`, `invite` e `magiclink`, além de gerar o link sem enviá-lo. Por isso, a implementação usa `generateLink({ type: 'invite' })` uma única vez e atualiza `app_metadata` com Auth Admin antes da transação; o link permanece no backend e só é entregue pelo Resend após o commit. Essa sequência evita criar o usuário duas vezes. A RPC depende da extensão mínima do tipo de alvo da auditoria central.
+A documentação oficial do Supabase confirma que `generateLink` cria o usuário para os tipos `signup`, `invite` e `magiclink`, além de gerar o link sem enviá-lo. Portanto, não combinar `createUser()` com `generateLink({ type: 'invite' })` para o mesmo e-mail. A implementação usa uma única chamada `generateLink({ type: 'invite' })`, atualiza `app_metadata` por Auth Admin e mantém o link no servidor até o commit PostgreSQL.
 
 ## 7. Estados e transições
 

@@ -138,7 +138,7 @@ A RPC de provisionamento deve inserir esse evento na mesma transação de `profi
 - **#95:** preservar a unicidade de `organization_members.user_id`; não criar vínculo em segunda organização.
 - **#97:** escopo básico de consumo da auditoria central aprovado. PR #153 permanece aberta e fora da `main`; não aplicar migrations SQA-only 10200/10300. A RPC #92 deve usar a tabela central já presente no DEV e requer ajuste mínimo da constraint para `target_type='profile'`.
 - **#93:** PR #154 foi integrada à `main`; a integração da #92 ainda precisa implementar o adaptador que estabelece o marcador antes do envio do convite e validar o fluxo ponta a ponta.
-- **SQA:** não exigir projeto adicional para continuar o desenvolvimento. Manter testes unitários, CI e validação integrada controlada no DEV após revisão da migration e autorização de execução.
+- **SQA:** não exigir projeto adicional para continuar o desenvolvimento. Manter testes unitários, CI e validação integrada controlada no DEV após revisão da migration e autorização de execução. A validação não deve depender da criação de um terceiro projeto Supabase.
 - **Ambientes:** DEV online é o único alvo de validação autorizado; Production permanece intocado. Não aplicar as migrations SQA-only 10200/10300.
 
 ## 10. Critérios para retirar este documento de proposta
@@ -147,7 +147,7 @@ O documento só poderá ser convertido em implementação quando:
 - Tech Lead aprovar o contrato de tabela/claim e recuperação;
 - Tech Lead/SQA aprovarem a extensão da auditoria central #97;
 - #93 integrada à `main` e adaptador de convite da #92 validado ponta a ponta;
-- existir ambiente SQA isolado e gates de CI comprovados.
+- Tech Lead revisar a migration gerada e o contrato das RPCs; executar os testes de CI e validação controlada no DEV após autorização explícita. Não é requisito criar projeto SQA adicional.
 
 Até lá, manter a PR #152 Draft e limitar as alterações a código puro, testes unitários e documentação.
 
@@ -155,3 +155,14 @@ Até lá, manter a PR #152 Draft e limitar as alterações a código puro, teste
 ### Correção da sequência Auth — documentação oficial
 
 A referência atual do `supabase-js` declara que `generateLink()` trata a criação do usuário para `signup`, `invite` e `magiclink`, e que sua finalidade é gerar links/OTPs para um provedor de e-mail customizado. Logo, a combinação `createUser()` seguida de `generateLink({ type: 'invite' })` não é válida para a mesma identidade. A implementação foi corrigida para usar uma única chamada `generateLink({ type: 'invite' })`, atualizar `app_metadata` por `updateUserById`, persistir o Auth ID e manter o `action_link` somente no servidor até o commit PostgreSQL. A entrega continua pós-commit via Resend.
+
+
+## 11. Estado da implementação online (27/11/2026)
+
+- Adicionado `src/lib/admin/employee-provisioning-database.ts` com adapters para os contratos RPC do rascunho.
+- Adicionada rota `POST /api/admin/employees`, com autorização server-side, pré-validação de variáveis obrigatórias e fail-closed se o ambiente não estiver configurado.
+- A criação Auth usa `generateLink({ type: 'invite' })` uma única vez, atualiza `app_metadata` e guarda o link somente no backend até o commit.
+- Adicionado identificador `employee_provisioning_operation_id` em `app_metadata` para provar propriedade da identidade antes de eventual compensação.
+- Corrigida a assertion de teste que esperava o código antigo `INVITE_NOT_CREATED`.
+- O SQL continua em rascunho documental; nenhuma migration foi aplicada e as RPCs ainda não existem na branch `main`.
+- O endpoint deve permanecer indisponível para provisionamento real até o SQL ser revisado/aprovado, a migration ser gerada/aplicada no DEV e as variáveis Resend/criptografia serem configuradas.

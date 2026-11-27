@@ -24,6 +24,10 @@ type ClaimRow = {
   claim_id?: unknown;
   status?: unknown;
   auth_user_id?: unknown;
+  email_envelope?: unknown;
+  invite_link_envelope?: unknown;
+  email_provider_message_id?: unknown;
+  failure_code?: unknown;
 };
 
 const VALID_STATUSES = new Set<ProvisioningStatus>([

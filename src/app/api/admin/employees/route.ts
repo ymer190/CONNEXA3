@@ -7,7 +7,6 @@ import {
   createEmployeeAuthIdentity,
   generateEmployeeFirstAccessInviteLink,
   deleteEmployeeAuthIdentityIfUnaccepted,
-  sendEmployeeFirstAccessInvite,
 } from "@/lib/admin/supabase-employee-invite";
 import { createClient } from "@/lib/supabase/server";
 
@@ -17,8 +16,6 @@ function provisioningEnvironmentReady(): boolean {
   const required = [
     "NEXT_PUBLIC_SUPABASE_URL",
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
-    "RESEND_API_KEY",
-    "EMAIL_FROM",
     "APP_URL",
     "EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_KEYS",
     "EMPLOYEE_PROVISIONING_EMAIL_ENCRYPTION_CURRENT_KEY_ID",
@@ -54,7 +51,6 @@ const handlePost = createEmployeeProvisioningPostHandler({
 
   provision: async (payload) => {
     // Fail closed before claiming an operation or creating an Auth identity.
-    // The actual email sender/domain must also be verified in the Resend account.
     if (!provisioningEnvironmentReady()) {
       return { kind: "failed", code: "CLAIM_FAILED" };
     }
@@ -70,7 +66,6 @@ const handlePost = createEmployeeProvisioningPostHandler({
         createEmployeeAuthIdentity(input, claim.operationId),
       generateInviteLink: (input, claim, authUserId) =>
         generateEmployeeFirstAccessInviteLink(input, claim.operationId, authUserId),
-      sendInviteEmail: sendEmployeeFirstAccessInvite,
       deleteUnacceptedAuthIdentityCreatedByOperation: (authUserId, claim) =>
         deleteEmployeeAuthIdentityIfUnaccepted(authUserId, claim.operationId),
     };

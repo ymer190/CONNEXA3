@@ -1,0 +1,470 @@
+-- DRAFT ONLY — Issue #92 employee provisioning persistence.
+-- This file is a review artifact, NOT an executable migration.
+-- Do not apply to connexa-dev or Production until Tech Lead review and an
+-- ordered Supabase migration has been generated through the approved workflow.
+--
+-- Dependency: Issue #97 foundation migration 20261126005001 and its audit
+-- access hardening migration 20261126005334 must be present first.
+-- SQA-only migrations 20261126010200 and 20261126010300 are NOT dependencies.
+
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated, service_role;
+
+create table private.employee_provisioning_operations (
+  id uuid primary key default gen_random_uuid(),
+  actor_user_id uuid not null references auth.users(id) on delete restrict,
+  idempotency_key_hash bytea not null,
+  payload_hash text not null
+    check (payload_hash ~ '^sha256:[a-f0-9]{64}$'),
+  email_envelope text not null
+    check (length(email_envelope) between 1 and 4096 and email_envelope like 'v1.%'),
+  status text not null default 'pending'
+    check (status in ('pending', 'completed', 'compensation_pending', 'compensated', 'manual_reconciliation_required')),
+  phase text not null default 'claimed'
+    check (phase in (
+      'claimed',
+      'auth_creation_started',
+      'auth_created',
+      'domain_committed',
+      'completed',
+      'compensation_pending',
+      'compensated',
+      'manual_reconciliation_required'
+    )),
+  auth_user_id uuid null references auth.users(id) on delete set null,
+  claim_id uuid not null default gen_random_uuid(),
+  attempts integer not null default 1 check (attempts > 0),
+  failure_code text null check (failure_code is null or failure_code ~ '^[a-z0-9_]{1,80}$'),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  auth_created_at timestamptz null,
+  domain_committed_at timestamptz null,
+  email_sent_at timestamptz null,
+  completed_at timestamptz null,
+  unique (actor_user_id, idempotency_key_hash),
+  unique (auth_user_id)
+);
+
+create index employee_provisioning_operations_status_idx
+  on private.employee_provisioning_operations(status, updated_at desc);
+
+alter table private.employee_provisioning_operations enable row level security;
+revoke all on table private.employee_provisioning_operations
+  from public, anon, authenticated, service_role;
+
+-- The #97 append-only audit table is reused. No parallel audit object is created.
+alter table public.administrative_audit_logs
+  drop constraint if exists administrative_audit_logs_target_type_check;
+alter table public.administrative_audit_logs
+  add constraint administrative_audit_logs_target_type_check
+  check (target_type in (
+    'device',
+    'session',
+    'support_ticket',
+    'it_support_assignment',
+    'department',
+    'organization',
+    'profile'
+  ));
+
+create or replace function private.assert_employee_provisioning_admin()
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  actor_id uuid := auth.uid();
+begin
+  if actor_id is null then
+    raise exception 'Authentication required' using errcode = '28000';
+  end if;
+
+  if not public.device_session_is_authorized() then
+    raise exception 'Authorized device required' using errcode = '42501';
+  end if;
+
+  if not exists (
+    select 1
+      from public.platform_users pu
+     where pu.user_id = actor_id
+       and pu.role = 'platform_admin'
+  ) then
+    raise exception 'Platform administrator role required' using errcode = '42501';
+  end if;
+
+  return actor_id;
+end;
+$$;
+revoke all on function private.assert_employee_provisioning_admin()
+  from public, anon, authenticated, service_role;
+
+create or replace function public.admin_claim_employee_provisioning(
+  p_idempotency_key text,
+  p_payload_hash text,
+  p_email_envelope text
+)
+returns table (
+  result text,
+  operation_id uuid,
+  claim_id uuid,
+  status text,
+  auth_user_id uuid
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  actor_id uuid := private.assert_employee_provisioning_admin();
+  key_hash bytea;
+  operation_row private.employee_provisioning_operations%rowtype;
+  inserted boolean := false;
+begin
+  if p_idempotency_key is null
+     or length(p_idempotency_key) not between 1 and 128
+     or p_idempotency_key !~ '^[!-~]+$'
+     or p_payload_hash is null
+     or p_payload_hash !~ '^sha256:[a-f0-9]{64}$'
+     or p_email_envelope is null
+     or length(p_email_envelope) not between 1 and 4096
+     or p_email_envelope not like 'v1.%' then
+    raise exception 'Valid provisioning idempotency data is required'
+      using errcode = '22023';
+  end if;
+
+  key_hash := extensions.digest(p_idempotency_key, 'sha256');
+
+  insert into private.employee_provisioning_operations (
+    actor_user_id, idempotency_key_hash, payload_hash, email_envelope
+  )
+  values (actor_id, key_hash, p_payload_hash, p_email_envelope)
+  on conflict (actor_user_id, idempotency_key_hash) do nothing;
+
+  get diagnostics inserted = row_count;
+
+  select op.*
+    into operation_row
+    from private.employee_provisioning_operations op
+   where op.actor_user_id = actor_id
+     and op.idempotency_key_hash = key_hash
+   for update;
+
+  if not found then
+    raise exception 'Provisioning operation could not be claimed'
+      using errcode = '40001';
+  end if;
+
+  if operation_row.payload_hash <> p_payload_hash then
+    return query select 'conflict', operation_row.id, operation_row.claim_id,
+                        operation_row.status, operation_row.auth_user_id;
+    return;
+  end if;
+
+  if operation_row.status in ('completed', 'compensated') then
+    return query select 'replay', operation_row.id, operation_row.claim_id,
+                        operation_row.status, operation_row.auth_user_id;
+    return;
+  end if;
+
+  if operation_row.status = 'manual_reconciliation_required' then
+    return query select 'manual_reconciliation_required', operation_row.id,
+                        operation_row.claim_id, operation_row.status,
+                        operation_row.auth_user_id;
+    return;
+  end if;
+
+  if not inserted then
+    -- No automatic takeover: an interrupted Auth call has an ambiguous outcome.
+    return query select 'in_progress', operation_row.id, operation_row.claim_id,
+                        operation_row.status, operation_row.auth_user_id;
+    return;
+  end if;
+
+  return query select 'claimed', operation_row.id, operation_row.claim_id,
+                      operation_row.status, operation_row.auth_user_id;
+end;
+$$;
+
+create or replace function public.admin_mark_employee_auth_creation_started(
+  p_operation_id uuid,
+  p_claim_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare actor_id uuid := private.assert_employee_provisioning_admin();
+begin
+  update private.employee_provisioning_operations op
+     set phase = 'auth_creation_started',
+         updated_at = now()
+   where op.id = p_operation_id
+     and op.actor_user_id = actor_id
+     and op.claim_id = p_claim_id
+     and op.status = 'pending'
+     and op.phase = 'claimed';
+
+  return found;
+end;
+$$;
+
+create or replace function public.admin_persist_employee_auth_user_id(
+  p_operation_id uuid,
+  p_claim_id uuid,
+  p_auth_user_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare actor_id uuid := private.assert_employee_provisioning_admin();
+begin
+  if p_auth_user_id is null then
+    raise exception 'Auth user id is required' using errcode = '22023';
+  end if;
+
+  update private.employee_provisioning_operations op
+     set auth_user_id = p_auth_user_id,
+         phase = 'auth_created',
+         auth_created_at = now(),
+         updated_at = now()
+   where op.id = p_operation_id
+     and op.actor_user_id = actor_id
+     and op.claim_id = p_claim_id
+     and op.status = 'pending'
+     and op.phase = 'auth_creation_started';
+
+  return found;
+end;
+$$;
+
+create or replace function public.admin_commit_employee_provisioning(
+  p_operation_id uuid,
+  p_claim_id uuid,
+  p_auth_user_id uuid,
+  p_full_name text,
+  p_organization_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  actor_id uuid := private.assert_employee_provisioning_admin();
+  operation_row private.employee_provisioning_operations%rowtype;
+  profile_id uuid;
+begin
+  if p_auth_user_id is null
+     or p_organization_id is null
+     or p_full_name is null
+     or length(btrim(p_full_name)) not between 1 and 120 then
+    raise exception 'Valid employee and organization data are required'
+      using errcode = '22023';
+  end if;
+
+  select op.*
+    into operation_row
+    from private.employee_provisioning_operations op
+   where op.id = p_operation_id
+     and op.actor_user_id = actor_id
+     and op.claim_id = p_claim_id
+   for update;
+
+  if not found
+     or operation_row.status <> 'pending'
+     or operation_row.phase <> 'auth_created'
+     or operation_row.auth_user_id <> p_auth_user_id then
+    raise exception 'Provisioning operation is not ready for domain commit'
+      using errcode = '55000';
+  end if;
+
+  if not exists (
+    select 1 from public.organizations org where org.id = p_organization_id
+  ) then
+    raise exception 'Organization not found' using errcode = '23503';
+  end if;
+
+  insert into public.profiles(id, full_name)
+  values (p_auth_user_id, btrim(p_full_name))
+  returning id into profile_id;
+
+  insert into public.organization_members(organization_id, user_id, role, status)
+  values (p_organization_id, profile_id, 'member', 'active');
+
+  insert into public.administrative_audit_logs (
+    actor_user_id,
+    action,
+    target_type,
+    target_id,
+    target_user_id,
+    organization_id,
+    justification,
+    outcome
+  )
+  values (
+    actor_id,
+    'employee.created',
+    'profile',
+    profile_id::text,
+    p_auth_user_id,
+    p_organization_id,
+    null,
+    'allowed'
+  );
+
+  update private.employee_provisioning_operations
+     set phase = 'domain_committed',
+         domain_committed_at = now(),
+         updated_at = now()
+   where id = p_operation_id
+     and actor_user_id = actor_id
+     and claim_id = p_claim_id;
+
+  return true;
+end;
+$$;
+
+create or replace function public.admin_mark_employee_compensation_pending(
+  p_operation_id uuid,
+  p_claim_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare actor_id uuid := private.assert_employee_provisioning_admin();
+begin
+  update private.employee_provisioning_operations op
+     set phase = 'compensation_pending',
+         status = 'compensation_pending',
+         updated_at = now()
+   where op.id = p_operation_id
+     and op.actor_user_id = actor_id
+     and op.claim_id = p_claim_id
+     and op.status = 'pending'
+     and op.phase = 'auth_created';
+
+  return found;
+end;
+$$;
+
+create or replace function public.admin_mark_employee_compensated(
+  p_operation_id uuid,
+  p_claim_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare actor_id uuid := private.assert_employee_provisioning_admin();
+begin
+  update private.employee_provisioning_operations op
+     set phase = 'compensated',
+         status = 'compensated',
+         updated_at = now()
+   where op.id = p_operation_id
+     and op.actor_user_id = actor_id
+     and op.claim_id = p_claim_id
+     and op.status = 'compensation_pending'
+     and op.phase = 'compensation_pending';
+
+  return found;
+end;
+$$;
+
+create or replace function public.admin_complete_employee_provisioning(
+  p_operation_id uuid,
+  p_claim_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare actor_id uuid := private.assert_employee_provisioning_admin();
+begin
+  update private.employee_provisioning_operations op
+     set phase = 'completed',
+         status = 'completed',
+         email_sent_at = now(),
+         completed_at = now(),
+         updated_at = now()
+   where op.id = p_operation_id
+     and op.actor_user_id = actor_id
+     and op.claim_id = p_claim_id
+     and op.status = 'pending'
+     and op.phase = 'domain_committed';
+
+  return found;
+end;
+$$;
+
+create or replace function public.admin_mark_employee_provisioning_manual_reconciliation(
+  p_operation_id uuid,
+  p_claim_id uuid,
+  p_failure_code text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare actor_id uuid := private.assert_employee_provisioning_admin();
+begin
+  if p_failure_code is null or p_failure_code !~ '^[a-z0-9_]{1,80}$' then
+    raise exception 'Valid reconciliation reason is required'
+      using errcode = '22023';
+  end if;
+
+  update private.employee_provisioning_operations op
+     set phase = 'manual_reconciliation_required',
+         status = 'manual_reconciliation_required',
+         failure_code = p_failure_code,
+         updated_at = now()
+   where op.id = p_operation_id
+     and op.actor_user_id = actor_id
+     and op.claim_id = p_claim_id
+     and op.status in ('pending', 'compensation_pending');
+
+  return found;
+end;
+$$;
+
+-- SECURITY DEFINER RPCs are explicitly closed to PUBLIC/anon and granted only
+-- to authenticated callers. Every function rechecks platform admin + device.
+revoke all on function public.admin_claim_employee_provisioning(text,text,text)
+  from public, anon, authenticated, service_role;
+revoke all on function public.admin_mark_employee_auth_creation_started(uuid,uuid)
+  from public, anon, authenticated, service_role;
+revoke all on function public.admin_persist_employee_auth_user_id(uuid,uuid,uuid)
+  from public, anon, authenticated, service_role;
+revoke all on function public.admin_commit_employee_provisioning(uuid,uuid,uuid,text,uuid)
+  from public, anon, authenticated, service_role;
+revoke all on function public.admin_mark_employee_compensation_pending(uuid,uuid)
+  from public, anon, authenticated, service_role;
+revoke all on function public.admin_mark_employee_compensated(uuid,uuid)
+  from public, anon, authenticated, service_role;
+revoke all on function public.admin_complete_employee_provisioning(uuid,uuid)
+  from public, anon, authenticated, service_role;
+revoke all on function public.admin_mark_employee_provisioning_manual_reconciliation(uuid,uuid,text)
+  from public, anon, authenticated, service_role;
+
+grant execute on function public.admin_claim_employee_provisioning(text,text,text) to authenticated;
+grant execute on function public.admin_mark_employee_auth_creation_started(uuid,uuid) to authenticated;
+grant execute on function public.admin_persist_employee_auth_user_id(uuid,uuid,uuid) to authenticated;
+grant execute on function public.admin_commit_employee_provisioning(uuid,uuid,uuid,text,uuid) to authenticated;
+grant execute on function public.admin_mark_employee_compensation_pending(uuid,uuid) to authenticated;
+grant execute on function public.admin_mark_employee_compensated(uuid,uuid) to authenticated;
+grant execute on function public.admin_complete_employee_provisioning(uuid,uuid) to authenticated;
+grant execute on function public.admin_mark_employee_provisioning_manual_reconciliation(uuid,uuid,text) to authenticated;
+
+comment on table private.employee_provisioning_operations is
+  'Issue #92 operational idempotency/reconciliation state only; not an audit log. Email is AES-256-GCM encrypted by the server.';
+comment on function public.admin_commit_employee_provisioning(uuid,uuid,uuid,text,uuid) is
+  'Issue #92: atomically create profile, single organization membership and employee.created central audit event.';

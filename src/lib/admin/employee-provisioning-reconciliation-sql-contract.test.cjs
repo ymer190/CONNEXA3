@@ -62,3 +62,19 @@ test("authenticated reconciliation adapter never decrypts operational secrets", 
   assert.match(adapter, /has_invite_link/);
   assert.match(adapter, /has_provider_receipt/);
 });
+
+test("claim replay does not disclose the Auth user ID", () => {
+  const start = sql.indexOf(
+    "create or replace function public.admin_claim_employee_provisioning(",
+  );
+  const end = sql.indexOf(
+    "\ncreate or replace function public.admin_mark_employee_auth_creation_started(",
+    start,
+  );
+
+  assert.notEqual(start, -1, "claim RPC must exist in the SQL draft");
+  assert.notEqual(end, -1, "claim RPC must end before the Auth phase RPC");
+
+  const rpc = sql.slice(start, end);
+  assert.doesNotMatch(rpc, /auth_user_id/i);
+});

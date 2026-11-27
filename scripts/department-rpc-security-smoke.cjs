@@ -172,6 +172,9 @@ async function main() {
   if (!serviceKey) {
     throw new Error("SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY) is required to create and clean temporary approved device/session fixtures.");
   }
+  if (/dzsacdtolxrqgwlekzdg|uwrzrwwzkurjdhxituwq/.test(baseUrl)) {
+    throw new Error("Refusing to run department RPC and device-session tests against shared DEV or PROD Supabase projects.");
+  }
 
   const userToken = await signIn(required("AUTH_TEST_USER_EMAIL"), required("AUTH_TEST_USER_PASSWORD"), "Regular-user");
   const adminToken = await signIn(required("AUTH_TEST_ADMIN_EMAIL"), required("AUTH_TEST_ADMIN_PASSWORD"), "Platform-admin");

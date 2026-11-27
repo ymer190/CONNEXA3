@@ -8,6 +8,7 @@ on:
       - main
       - feature/57-initialize-web-app
       - feature/issue-91-auth-platform-admin
+      - feature/issue-92-admin-account-provisioning
 
 permissions:
   contents: read
@@ -17,11 +18,12 @@ jobs:
     name: Validate application
     runs-on: ubuntu-latest
     env:
-      NEXT_PUBLIC_SUPABASE_URL: https://dzsacdtolxrqgwlekzdg.supabase.co
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_VxDDuEIFkXx4OrkVdg4xbg_7RAzlmR9
-      HAS_AUTH_TEST_SECRETS: ${{ secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' }}
-      HAS_AUTH_ADMIN_TEST_SECRETS: ${{ secrets.AUTH_TEST_ADMIN_EMAIL != '' && secrets.AUTH_TEST_ADMIN_PASSWORD != '' }}
-      HAS_DEPARTMENT_RPC_TEST_SECRETS: ${{ secrets.AUTH_TEST_USER_EMAIL != '' && secrets.AUTH_TEST_USER_PASSWORD != '' && secrets.AUTH_TEST_ADMIN_EMAIL != '' && secrets.AUTH_TEST_ADMIN_PASSWORD != '' }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_CI_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_CI_PUBLISHABLE_KEY }}
+      HAS_AUTH_TEST_SECRETS: ${{ secrets.SUPABASE_CI_URL != '' && secrets.SUPABASE_CI_PUBLISHABLE_KEY != '' && secrets.AUTH_CI_USER_EMAIL != '' && secrets.AUTH_CI_USER_PASSWORD != '' }}
+      HAS_AUTH_ADMIN_TEST_SECRETS: ${{ secrets.SUPABASE_CI_URL != '' && secrets.SUPABASE_CI_PUBLISHABLE_KEY != '' && secrets.AUTH_CI_ADMIN_EMAIL != '' && secrets.AUTH_CI_ADMIN_PASSWORD != '' && (secrets.SUPABASE_SECRET_KEY != '' || secrets.SUPABASE_SERVICE_ROLE_KEY != '') }}
+      HAS_DEPARTMENT_RPC_TEST_SECRETS: ${{ secrets.SUPABASE_CI_URL != '' && secrets.SUPABASE_CI_PUBLISHABLE_KEY != '' && secrets.AUTH_CI_USER_EMAIL != '' && secrets.AUTH_CI_USER_PASSWORD != '' && secrets.AUTH_CI_ADMIN_EMAIL != '' && secrets.AUTH_CI_ADMIN_PASSWORD != '' && (secrets.SUPABASE_SECRET_KEY != '' || secrets.SUPABASE_SERVICE_ROLE_KEY != '') }}
+      HAS_ISSUE_92_AUTH_FLOW_TEST_SECRETS: ${{ secrets.SUPABASE_CI_URL != '' && (secrets.SUPABASE_SECRET_KEY != '' || secrets.SUPABASE_SERVICE_ROLE_KEY != '') }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,16 +36,64 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Reject shared or production Supabase targets
+        if: env.NEXT_PUBLIC_SUPABASE_URL != ''
+        shell: bash
+        run: |
+          case "$NEXT_PUBLIC_SUPABASE_URL" in
+            *dzsacdtolxrqgwlekzdg*|*uwrzrwwzkurjdhxituwq*)
+              echo "Refusing to build authenticated CI tests against DEV or PROD."
+              exit 1
+              ;;
+          esac
+          echo "Supabase CI target is not the shared DEV or PROD project."
+
+      - name: Verify issue 92 Auth identity reuse against isolated Supabase CI
+        if: env.HAS_ISSUE_92_AUTH_FLOW_TEST_SECRETS == 'true'
+        env:
+          SUPABASE_CI_URL: ${{ secrets.SUPABASE_CI_URL }}
+          SUPABASE_CI_ADMIN_KEY: ${{ secrets.SUPABASE_SECRET_KEY != '' && secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/issue-92-auth-identity-flow-smoke.cjs
+
+      - name: Explain skipped issue 92 Auth identity integration test
+        if: env.HAS_ISSUE_92_AUTH_FLOW_TEST_SECRETS != 'true'
+        run: echo "Issue 92 Auth identity integration test skipped: dedicated isolated Supabase CI URL and admin key are required."
+
+      - name: Test issue 92 employee input and organization lookup
+        run: >-
+          node --experimental-strip-types --test
+          src/lib/admin/employee-input.test.ts
+          src/lib/admin/email-duplicate-core.test.ts
+          src/lib/admin/employee-registration-validation-core.test.ts
+          src/lib/admin/employee-validation-handler.test.ts
+          src/lib/admin/list-organizations-core.test.ts
+          src/lib/admin/organizations-handler.test.ts
+          src/lib/admin/employee-provisioning-core.test.ts
+          src/lib/admin/employee-provisioning-email-crypto.test.ts
+          src/lib/admin/employee-provisioning-orchestrator-core.test.ts
+          src/lib/admin/employee-provisioning-request-core.test.ts
+          src/lib/admin/employee-invite-link-core.test.ts
+          src/lib/admin/employee-provisioning-invite-link-crypto-core.test.ts
+          src/lib/admin/employee-provisioning-handler.test.ts
+          src/lib/admin/employee-provisioning-reconciliation-handler.test.ts
+          src/lib/admin/employee-provisioning-reconciliation-sql-contract.test.cjs
+
       - name: Run ESLint
         run: npm run lint
 
       - name: Check TypeScript
         run: npm run typecheck
 
-      - name: Build Next.js application
+      - name: Build Next.js application with dedicated CI Supabase configuration
+        if: env.NEXT_PUBLIC_SUPABASE_URL != ''
         run: npm run build
 
+      - name: Explain skipped authenticated application build
+        if: env.NEXT_PUBLIC_SUPABASE_URL == ''
+        run: echo "Authenticated application build skipped because the dedicated CI Supabase project is not configured."
+
       - name: Smoke test protected admin route without a session
+        if: env.NEXT_PUBLIC_SUPABASE_URL != ''
         shell: bash
         run: |
           setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-next.log 2>&1 &
@@ -108,8 +158,6 @@ jobs:
 
           echo "PASS: first-access route redirects without session, malformed invite is rejected, and cross-origin password update is blocked."
 
-      # NEXT_PUBLIC_* values are inlined into Next.js middleware at build time.
-      # Build a separate artifact without them to exercise the fail-closed branch.
       - name: Build Next.js application without Supabase configuration
         shell: bash
         run: |
@@ -119,7 +167,6 @@ jobs:
       - name: Smoke test admin route fails closed when Supabase configuration is missing
         shell: bash
         run: |
-          # Use a dedicated port so a previous Next.js process cannot answer this request.
           env -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY setsid npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/connexa-no-supabase-config.log 2>&1 &
           server_pid=$!
           trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
@@ -155,24 +202,31 @@ jobs:
 
           echo "PASS: /admin fails closed without Supabase configuration and /login remains public."
 
-      # Restore the normal build for authenticated browser tests.
-      - name: Build Next.js application with Supabase configuration
-        run: npm run build
 
       - name: Test department RPC authorization through PostgREST with real JWTs
         if: env.HAS_DEPARTMENT_RPC_TEST_SECRETS == 'true'
         env:
-          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
-          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
-          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
-          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_CI_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_CI_PUBLISHABLE_KEY }}
+          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_CI_USER_EMAIL }}
+          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_CI_USER_PASSWORD }}
+          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_CI_ADMIN_EMAIL }}
+          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_CI_ADMIN_PASSWORD }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node scripts/department-rpc-security-smoke.cjs
+        run: |
+          case "$NEXT_PUBLIC_SUPABASE_URL" in
+            *dzsacdtolxrqgwlekzdg*|*uwrzrwwzkurjdhxituwq*)
+              echo "Refusing to run department RPC tests against DEV or PROD."
+              exit 1
+              ;;
+          esac
+          node scripts/department-rpc-security-smoke.cjs
 
       - name: Explain skipped department RPC PostgREST test
         if: env.HAS_DEPARTMENT_RPC_TEST_SECRETS != 'true'
-        run: echo "Department RPC PostgREST test skipped because regular-user and platform-admin GitHub Actions secrets are required."
+        run: |
+          echo "Department RPC PostgREST test skipped: dedicated online CI Supabase URL/key and synthetic CI user/admin credentials are required."
 
       - name: Install browser test dependencies
         if: env.HAS_AUTH_TEST_SECRETS == 'true'
@@ -181,8 +235,8 @@ jobs:
       - name: Test regular user login and admin denial
         if: env.HAS_AUTH_TEST_SECRETS == 'true'
         env:
-          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_TEST_USER_EMAIL }}
-          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_TEST_USER_PASSWORD }}
+          AUTH_TEST_USER_EMAIL: ${{ secrets.AUTH_CI_USER_EMAIL }}
+          AUTH_TEST_USER_PASSWORD: ${{ secrets.AUTH_CI_USER_PASSWORD }}
         shell: bash
         run: |
           setsid npm run start -- --hostname 127.0.0.1 > /tmp/connexa-auth-test.log 2>&1 &
@@ -201,8 +255,8 @@ jobs:
       - name: Test platform administrator login, access, and logout
         if: env.HAS_AUTH_ADMIN_TEST_SECRETS == 'true'
         env:
-          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_TEST_ADMIN_EMAIL }}
-          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_TEST_ADMIN_PASSWORD }}
+          AUTH_TEST_ADMIN_EMAIL: ${{ secrets.AUTH_CI_ADMIN_EMAIL }}
+          AUTH_TEST_ADMIN_PASSWORD: ${{ secrets.AUTH_CI_ADMIN_PASSWORD }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         shell: bash
@@ -227,3 +281,36 @@ jobs:
       - name: Explain skipped authenticated browser test
         if: env.HAS_AUTH_TEST_SECRETS != 'true'
         run: echo "Authenticated browser test skipped because its GitHub Actions secrets are not configured."
+
+  validate-issue-92-postgres-draft:
+    name: Validate issue 92 SQL draft in disposable PostgreSQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Create isolated schema fixture and compile SQL draft
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql --host 127.0.0.1 --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+            --file scripts/issue-92-postgres-syntax-fixture.sql
+          psql --host 127.0.0.1 --username postgres --dbname postgres --set ON_ERROR_STOP=1 \
+            --file docs/contracts/employee-provisioning-issue-92-migration-draft.sql

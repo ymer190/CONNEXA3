@@ -5,7 +5,6 @@ export type EmployeeProvisioningReconciliationRecord = {
   status: string;
   phase: string;
   hasInviteLink: boolean;
-  hasProviderReceipt: boolean;
   failureCode: string | null;
 };
 
@@ -88,7 +87,6 @@ export function createEmployeeProvisioningReconciliationGetHandler(
             status: operation.status,
             phase: operation.phase,
             hasInviteLink: operation.hasInviteLink,
-            hasProviderReceipt: operation.hasProviderReceipt,
             failureCode: operation.failureCode,
           },
         },

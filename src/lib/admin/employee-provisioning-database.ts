@@ -9,7 +9,7 @@ import type {
 } from "./employee-provisioning-orchestrator-core";
 import type { ProvisioningStatus } from "./employee-provisioning-core";
 
-type RpcClient = {
+export type EmployeeProvisioningRpcClient = {
   rpc: (name: string, args: Record<string, unknown>) => Promise<{
     data: unknown;
     error: { code?: string; message?: string } | null;
@@ -52,7 +52,7 @@ function isBooleanSuccess(value: unknown): boolean {
 }
 
 async function callBooleanRpc(
-  client: RpcClient,
+  client: EmployeeProvisioningRpcClient,
   name: string,
   args: Record<string, unknown>,
 ): Promise<boolean> {

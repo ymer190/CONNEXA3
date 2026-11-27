@@ -61,6 +61,7 @@ jobs:
           src/lib/admin/employee-provisioning-orchestrator-core.test.ts
           src/lib/admin/employee-provisioning-request-core.test.ts
           src/lib/admin/employee-invite-link-core.test.ts
+          src/lib/admin/employee-provisioning-invite-link-crypto-core.test.ts
           src/lib/admin/employee-provisioning-handler.test.ts
 
       - name: Run ESLint

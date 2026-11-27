@@ -411,7 +411,10 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare actor_id uuid := private.assert_employee_provisioning_admin();
+declare
+  actor_id uuid := private.assert_employee_provisioning_admin();
+  employee_id uuid;
+  organization_id uuid;
 begin
   if p_invite_link_envelope is null
      or length(p_invite_link_envelope) not between 1 and 4096
@@ -430,9 +433,56 @@ begin
      and op.status = 'pending'
      and op.phase = 'domain_committed';
 
-  return found;
+  if not found then
+    return false;
+  end if;
+
+  select op.auth_user_id
+    into employee_id
+    from private.employee_provisioning_operations op
+   where op.id = p_operation_id
+     and op.actor_user_id = actor_id;
+
+  select om.organization_id
+    into organization_id
+    from public.organization_members om
+   where om.user_id = employee_id
+     and om.status = 'active';
+
+  if employee_id is null or organization_id is null then
+    raise exception 'Provisioned employee membership is unavailable'
+      using errcode = '55000';
+  end if;
+
+  insert into public.administrative_audit_logs (
+    actor_user_id,
+    action,
+    target_type,
+    target_id,
+    target_user_id,
+    organization_id,
+    justification,
+    metadata,
+    outcome
+  )
+  values (
+    actor_id,
+    'employee.first_access_link_generated',
+    'profile',
+    employee_id,
+    employee_id,
+    organization_id,
+    'Link de primeiro acesso gerado para compartilhamento manual.',
+    jsonb_build_object(
+      'provisioning_operation_id', p_operation_id,
+      'delivery_channel', 'manual'
+    ),
+    'allowed'
+  );
+
+  return true;
 end;
-$$;
+$;
 
 -- Privileged recovery for a lost HTTP response. Only the original actor may
 -- retrieve the encrypted envelope, and only the server-side service role may

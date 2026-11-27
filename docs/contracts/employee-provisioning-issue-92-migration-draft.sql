@@ -373,7 +373,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare actor_id uuid := private.assert_employee_provisioning_admin();
 begin
   if p_invite_link_envelope is null
@@ -395,7 +395,7 @@ begin
 
   return found;
 end;
-$;
+$$;
 
 create or replace function public.admin_mark_employee_compensation_pending(
   p_operation_id uuid,

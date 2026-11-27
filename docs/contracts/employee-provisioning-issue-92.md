@@ -163,6 +163,7 @@ A referência atual do `supabase-js` declara que `generateLink()` trata a criaç
 - Adicionada rota `POST /api/admin/employees`, com autorização server-side, pré-validação de variáveis obrigatórias e fail-closed se o ambiente não estiver configurado.
 - A criação Auth usa `generateLink({ type: 'invite' })` uma única vez, atualiza `app_metadata` e guarda o link somente no backend até o commit.
 - Adicionado identificador `employee_provisioning_operation_id` em `app_metadata` para provar propriedade da identidade antes de eventual compensação.
+- Link de primeiro acesso e e-mail passam a ser persistidos apenas como envelopes AES-256-GCM na tabela operacional, para permitir reconciliação sem expor token.
 - Corrigida a assertion de teste que esperava o código antigo `INVITE_NOT_CREATED`.
 - O SQL continua em rascunho documental; nenhuma migration foi aplicada e as RPCs ainda não existem na branch `main`.
 - O endpoint deve permanecer indisponível para provisionamento real até o SQL ser revisado/aprovado, a migration ser gerada/aplicada no DEV e as variáveis Resend/criptografia serem configuradas.

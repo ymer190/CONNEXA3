@@ -19,10 +19,12 @@ async function main() {
   page.on("response", async (response) => {
     if (new URL(response.url()).pathname === "/api/device-sessions/register") {
       const body = await response.text().catch(() => "<unreadable>");
+      enrollmentResponse = { status: response.status(), body: body.slice(0, 300) };
       console.log(`Device enrollment response: HTTP ${response.status()} ${body.slice(0, 300)}`);
     }
   });
   let deviceId;
+  let enrollmentResponse = null;
   let deviceCookieWasAbsentBeforeTest = false;
 
   async function assertDenied(stage) {
@@ -35,7 +37,7 @@ async function main() {
       const currentUrl = page.url();
       const visibleText = await page.locator("body").innerText().catch(() => "");
       throw new Error(
-        `${stage}: expected a denied route, but remained at ${currentUrl}. Visible page text: ${visibleText.slice(0, 500)}`,
+        `${stage}: expected a denied route, but remained at ${currentUrl}. Enrollment: ${JSON.stringify(enrollmentResponse)}. Visible page text: ${visibleText.slice(0, 500)}`,
       );
     }
     const path = new URL(page.url()).pathname;

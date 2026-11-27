@@ -56,14 +56,6 @@ function dependencies(overrides: Partial<EmployeeProvisioningDependencies> = {})
       events.push("persist-invite-link");
       return true;
     },
-    sendInviteEmail: async () => {
-      events.push("send-invite-email");
-      return { kind: "sent" as const, providerMessageId: "email-1" };
-    },
-    markInviteEmailSent: async () => {
-      events.push("mark-email-sent");
-      return true;
-    },
     completeOperation: async () => {
       events.push("complete");
       return true;
@@ -92,7 +84,7 @@ test("runs the complete sequence and only reports success after domain audit and
   const { dependencies: deps, events } = dependencies();
   const result = await runEmployeeProvisioning(payload, deps);
 
-  assert.deepEqual(result, { kind: "created", authUserId: "auth-user-1" });
+  assert.deepEqual(result, { kind: "created", firstAccessLink: "https://example.test/invite" });
   assert.deepEqual(events, [
     "claim",
     "mark-auth-creation-started",
@@ -101,8 +93,6 @@ test("runs the complete sequence and only reports success after domain audit and
     "persist-domain-and-audit",
     "generate-invite-link",
     "persist-invite-link",
-    "send-invite-email",
-    "mark-email-sent",
     "complete",
   ]);
 });
@@ -288,8 +278,6 @@ test("does not delete Auth identity when the completion state cannot be confirme
     "persist-domain-and-audit",
     "generate-invite-link",
     "persist-invite-link",
-    "send-invite-email",
-    "mark-email-sent",
     "complete",
     "manual-reconciliation",
   ]);
@@ -465,31 +453,6 @@ test("does not send the invite until the domain transaction has committed", asyn
     "compensation-pending",
     "delete-auth-identity",
     "compensated",
-  ]);
-});
-
-test("does not compensate committed records when Resend delivery fails", async () => {
-  const { dependencies: deps, events } = dependencies({
-    sendInviteEmail: async () => {
-      events.push("send-invite-email");
-      return { kind: "failed" as const };
-    },
-  });
-
-  assert.deepEqual(
-    await runEmployeeProvisioning(payload, deps),
-    { kind: "manual_reconciliation_required", operationId: "operation-1" },
-  );
-  assert.deepEqual(events, [
-    "claim",
-    "mark-auth-creation-started",
-    "create-auth-identity",
-    "persist-auth-id",
-    "persist-domain-and-audit",
-    "generate-invite-link",
-    "persist-invite-link",
-    "send-invite-email",
-    "manual-reconciliation",
   ]);
 });
 

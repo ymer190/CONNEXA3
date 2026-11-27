@@ -58,8 +58,7 @@ A escolha entre `INSERT ... ON CONFLICT`, lock transacional ou atualização con
 
 1. Validar ator, dispositivo, organização, e-mail e chave de idempotência.
 2. Obter claim persistente e exclusivo da operação.
-3. Consultar duplicidade Auth; falha na consulta deve falhar fechada.
-4. Antes da chamada externa, marcar persistentemente a fase `auth_creation_started` para impedir que outra requisição repita a criação em caso de interrupção.
+3. Marcar persistentemente a fase `auth_creation_started` antes da chamada externa para impedir que outra requisição repita a criação em caso de interrupção. A própria resposta de `generateLink({ type: 'invite' })` deve ser tratada como erro definitivo se o Auth informar que o e-mail já existe; timeout/resultado sem confirmação exige reconciliação, nunca retry cego.
 5. Criar a identidade e obter o link sem enviar e-mail usando `auth.admin.generateLink({ type: 'invite', email })`. A documentação atual do Supabase confirma que `generateLink` também cria a identidade para o tipo `invite`; portanto, não chamar `createUser` antes, pois isso pode gerar conflito de usuário existente. A chamada retorna `action_link` e usuário, sem entregar o e-mail.
 6. Atualizar a identidade retornada via `auth.admin.updateUserById`, definindo `app_metadata.first_access_pending=true` e `app_metadata.employee_provisioning_operation_id=<operation_id>`. Confirmar o marcador e persistir imediatamente o `auth_user_id` associado à operação. O link fica apenas em memória no backend.
 7. Executar uma RPC transacional que cria `profiles`, `organization_members` com papel fixo `member` e o evento na tabela central `administrative_audit_logs`.

@@ -379,7 +379,7 @@ begin
     profile_id::text,
     p_auth_user_id,
     p_organization_id,
-    null,
+    'Provisionamento administrativo de colaborador',
     'allowed'
   );
 

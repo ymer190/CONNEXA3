@@ -82,8 +82,8 @@ export async function sendEmployeeFirstAccessInvite(
 }
 
 /**
- * Compensation is permitted only before an invite link has been generated and
- * only when the Auth metadata proves this identity belongs to this operation.
+ * Compensation is permitted only while the invite has not been delivered and
+ * only when Auth metadata proves this identity belongs to this operation.
  */
 export async function deleteEmployeeAuthIdentityIfUnaccepted(
   authUserId: string,

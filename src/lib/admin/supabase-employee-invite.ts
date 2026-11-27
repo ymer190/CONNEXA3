@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { decryptProvisioningInviteLink } from "./employee-provisioning-invite-link-crypto";
 import { buildFirstAccessInviteUrl } from "./employee-invite-link-core";
 import type {
   EmployeeProvisioningPayload,
@@ -159,4 +160,37 @@ export async function deleteEmployeeAuthIdentityIfUnaccepted(
   } catch {
     return { kind: "unknown" };
   }
+}
+
+/**
+ * Recover a previously generated first-access link after a lost HTTP response.
+ * The database RPC permits only the service role and the original initiating
+ * administrator; the encrypted envelope is decrypted only in this server module.
+ */
+export async function recoverEmployeeFirstAccessLink(
+  operationId: string,
+  actorUserId: string,
+): Promise<string | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc(
+    "admin_get_employee_provisioning_invite_link",
+    {
+      p_operation_id: operationId,
+      p_actor_user_id: actorUserId,
+    },
+  );
+  if (error) throw new Error("First-access link recovery is unavailable.");
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (
+    typeof row !== "object" ||
+    row === null ||
+    typeof (row as { invite_link_envelope?: unknown }).invite_link_envelope !== "string"
+  ) {
+    return null;
+  }
+
+  return decryptProvisioningInviteLink(
+    (row as { invite_link_envelope: string }).invite_link_envelope,
+  );
 }

@@ -23,8 +23,17 @@ type Dependencies = {
 function responseForResult(result: EmployeeProvisioningResult): Response {
   if (result.kind === "created") {
     return Response.json(
-      { success: true, data: { status: "created" } },
-      { status: 201 },
+      {
+        success: true,
+        data: {
+          status: "created",
+          firstAccessLink: result.firstAccessLink,
+        },
+      },
+      {
+        status: 201,
+        headers: { "Cache-Control": "no-store, max-age=0" },
+      },
     );
   }
 

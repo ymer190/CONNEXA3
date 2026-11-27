@@ -206,7 +206,7 @@ export function createEmployeeProvisioningDatabase(client: EmployeeProvisioningR
         typeof row.status !== "string" ||
         typeof row.phase !== "string" ||
         typeof row.email_envelope !== "string" ||
-        typeof row.invite_link_envelope !== "string"
+        (row.invite_link_envelope !== null && typeof row.invite_link_envelope !== "string")
       ) {
         throw new Error("Provisioning reconciliation record is incomplete.");
       }
@@ -217,7 +217,9 @@ export function createEmployeeProvisioningDatabase(client: EmployeeProvisioningR
         phase: row.phase,
         authUserId: typeof row.auth_user_id === "string" ? row.auth_user_id : null,
         email: decryptProvisioningEmail(row.email_envelope),
-        actionLink: decryptProvisioningInviteLink(row.invite_link_envelope),
+        actionLink: typeof row.invite_link_envelope === "string"
+          ? decryptProvisioningInviteLink(row.invite_link_envelope)
+          : null,
         providerMessageId:
           typeof row.email_provider_message_id === "string"
             ? row.email_provider_message_id

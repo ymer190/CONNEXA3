@@ -184,8 +184,8 @@ export async function runEmployeeProvisioning(
     return { kind: "failed", code: "AUTH_IDENTITY_NOT_CREATED" };
   }
 
-  if (!invite.authUserId || !invite.identityCreatedByOperation) {
-    if (!(await requireManualReconciliation(dependencies, claim, "auth_identity_ownership_unproven"))) {
+  if (!invite.authUserId) {
+    if (!(await requireManualReconciliation(dependencies, claim, "auth_identity_id_missing"))) {
       return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     }
     return { kind: "manual_reconciliation_required" };
@@ -203,6 +203,13 @@ export async function runEmployeeProvisioning(
       return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
     }
     return { kind: "failed", code: "AUTH_ID_PERSISTENCE_FAILED" };
+  }
+
+  if (!invite.identityCreatedByOperation) {
+    if (!(await requireManualReconciliation(dependencies, claim, "auth_identity_ownership_unproven"))) {
+      return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED" };
+    }
+    return { kind: "manual_reconciliation_required" };
   }
 
   let domainResult: DomainTransactionResult;

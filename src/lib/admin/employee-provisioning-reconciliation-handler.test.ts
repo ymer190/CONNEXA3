@@ -19,7 +19,6 @@ function makeHandler(overrides: {
     status: string;
     phase: string;
     hasInviteLink: boolean;
-    hasProviderReceipt: boolean;
     failureCode: string | null;
   } | null>;
 } = {}) {
@@ -33,8 +32,7 @@ function makeHandler(overrides: {
       status: "manual_reconciliation_required",
       phase: "manual_reconciliation_required",
       hasInviteLink: true,
-      hasProviderReceipt: true,
-      failureCode: "invite_email_delivery_outcome_unknown",
+      failureCode: "invite_link_persistence_failed",
     })),
   });
   return handler;
@@ -49,7 +47,6 @@ test("returns only safe reconciliation metadata and never exposes PII, Auth IDs,
   const body = await response.text();
   assert.match(body, /manual_reconciliation_required/);
   assert.match(body, /hasInviteLink/);
-  assert.match(body, /hasProviderReceipt/);
   assert.equal(body.includes("token_hash"), false);
   assert.equal(body.includes("secret"), false);
   assert.equal(body.includes("authUserId"), false);

@@ -55,6 +55,11 @@ async function main() {
       "generateLink(invite) must reuse the exact Auth identity created by createUser",
     );
     assert.equal(
+      generated.user?.email_confirmed_at,
+      null,
+      "the invite identity must remain unconfirmed until the first-access flow is accepted",
+    );
+    assert.equal(
       generated.user?.app_metadata?.first_access_pending,
       true,
       "the first-access pending marker must survive invite link generation",

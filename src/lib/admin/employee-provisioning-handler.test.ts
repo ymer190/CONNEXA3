@@ -209,7 +209,7 @@ test("rejects a forbidden administrator before reading the request body", async 
     }),
     provision: async () => {
       provisionCalls += 1;
-      return { kind: "created", authUserId: "auth-user-1" };
+      return { kind: "created", firstAccessLink: "https://example.test/first-access?token=secret" };
     },
   });
   const malformed = new Request("https://connexa.test/api/admin/employees", {

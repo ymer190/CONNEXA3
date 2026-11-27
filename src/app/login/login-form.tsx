@@ -36,10 +36,15 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       });
       const enrollmentResult = (await enrollment.json()) as {
         status?: "approved" | "pending";
+        error?: string;
       };
       if (!enrollment.ok || !enrollmentResult.status) {
         await supabase.auth.signOut();
-        setErrorMessage("Não foi possível validar este dispositivo. Tente novamente.");
+        setErrorMessage(
+          enrollment.status === 409
+            ? "Este dispositivo foi revogado ou perdeu sua credencial. Entre novamente para cadastrá-lo como um novo dispositivo."
+            : "Não foi possível validar este dispositivo. Tente novamente.",
+        );
         return;
       }
 

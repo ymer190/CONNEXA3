@@ -7,7 +7,7 @@ import {
   createEmployeeAuthIdentity,
   generateEmployeeFirstAccessInviteLink,
   deleteEmployeeAuthIdentityIfUnaccepted,
-  recoverEmployeeFirstAccessLink,
+  reissueEmployeeFirstAccessLink,
 } from "@/lib/admin/supabase-employee-invite";
 import { createClient } from "@/lib/supabase/server";
 
@@ -109,7 +109,7 @@ const handleGet = createEmployeeProvisioningReconciliationGetHandler({
 
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  if (url.searchParams.get("action") !== "recover-first-access-link") {
+  if (url.searchParams.get("action") !== "reissue-first-access-link") {
     return handleGet(request);
   }
 
@@ -153,7 +153,7 @@ export async function GET(request: Request): Promise<Response> {
     );
     if (!firstAccessLink) {
       return Response.json(
-        { success: false, error: { code: "LINK_NOT_AVAILABLE" } },
+        { success: false, error: { code: "LINK_REISSUE_NOT_AVAILABLE" } },
         { status: 404, headers: { "Cache-Control": "no-store, max-age=0" } },
       );
     }
@@ -163,7 +163,7 @@ export async function GET(request: Request): Promise<Response> {
     );
   } catch {
     return Response.json(
-      { success: false, error: { code: "LINK_RECOVERY_UNAVAILABLE" } },
+      { success: false, error: { code: "LINK_REISSUE_UNAVAILABLE" } },
       { status: 503, headers: { "Cache-Control": "no-store, max-age=0" } },
     );
   }

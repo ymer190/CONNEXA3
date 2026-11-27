@@ -81,3 +81,94 @@ const handlePost = createEmployeeProvisioningPostHandler({
 export async function POST(request: Request): Promise<Response> {
   return handlePost(request);
 }
+
+
+/**
+ * Read-only status lookup for the authenticated administrator who initiated
+ * the operation. Encrypted PII/action links are decrypted server-side and are
+ * never returned to the browser.
+ */
+export async function GET(request: Request): Promise<Response> {
+  const authorization = await requirePlatformAdmin();
+  if (!authorization.authorized) {
+    const status = authorization.reason === "UNAUTHENTICATED"
+      ? 401
+      : authorization.reason === "FORBIDDEN"
+        ? 403
+        : 503;
+    return Response.json(
+      {
+        success: false,
+        error: {
+          code: authorization.reason,
+          message: "Não foi possível consultar a operação administrativa.",
+        },
+      },
+      { status, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  const operationId = new URL(request.url).searchParams.get("operationId");
+  if (
+    !operationId ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(operationId)
+  ) {
+    return Response.json(
+      {
+        success: false,
+        error: {
+          code: "INVALID_OPERATION_ID",
+          message: "Informe um identificador de operação válido.",
+        },
+      },
+      { status: 400, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  try {
+    const supabase = await createClient();
+    const persistence = createEmployeeProvisioningDatabase(
+      supabase as unknown as EmployeeProvisioningRpcClient,
+    );
+    const operation = await persistence.getOperationForReconciliation(operationId);
+
+    if (!operation) {
+      return Response.json(
+        {
+          success: false,
+          error: {
+            code: "OPERATION_NOT_FOUND",
+            message: "Operação não encontrada ou sem acesso.",
+          },
+        },
+        { status: 404, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    return Response.json(
+      {
+        success: true,
+        data: {
+          operationId: operation.operationId,
+          status: operation.status,
+          phase: operation.phase,
+          hasInviteLink: Boolean(operation.actionLink),
+          hasProviderReceipt: Boolean(operation.providerMessageId),
+          failureCode: operation.failureCode,
+        },
+      },
+      { status: 200, headers: { "Cache-Control": "no-store" } },
+    );
+  } catch {
+    return Response.json(
+      {
+        success: false,
+        error: {
+          code: "RECONCILIATION_LOOKUP_UNAVAILABLE",
+          message: "Não foi possível consultar o estado da operação.",
+        },
+      },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+}

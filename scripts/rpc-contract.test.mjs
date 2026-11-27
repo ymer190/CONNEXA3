@@ -50,11 +50,15 @@ test("device/session administration payloads match the #153 RPC signatures", () 
     userId: null,
     justification: "revisão solicitada",
   }));
-  assertRpcArgsMatch("admin_approve_device", buildDeviceSessionAdminArgs("admin_approve_device", {
+  const approvalArgs = buildDeviceSessionAdminArgs("admin_approve_device", {
     target: "00000000-0000-4000-8000-000000000001",
-    ticketReference: "SUP-106",
     justification: "Validação do chamado",
-  }));
+  });
+  assert.deepEqual(
+    Object.keys(approvalArgs).sort(),
+    ["p_device_id", "p_justification"],
+    "admin_approve_device must retain the two-argument signature currently installed in connexa-dev",
+  );
   assertRpcArgsMatch("admin_revoke_device", buildDeviceSessionAdminArgs("admin_revoke_device", {
     target: "00000000-0000-4000-8000-000000000001",
     justification: "Solicitação de segurança",

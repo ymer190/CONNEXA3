@@ -139,7 +139,7 @@ test("does not expose Auth identifiers or internal errors on success", async () 
 test("maps reconciliation and unknown failures to fail-closed responses", async () => {
   const cases = [
     [{ kind: "manual_reconciliation_required", operationId: "operation-1" }, 503, "MANUAL_RECONCILIATION_REQUIRED"],
-    [{ kind: "failed", code: "RECONCILIATION_MARKER_FAILED" }, 503, "RECONCILIATION_MARKER_FAILED"],
+    [{ kind: "failed", code: "RECONCILIATION_MARKER_FAILED", operationId: "operation-1" }, 503, "RECONCILIATION_MARKER_FAILED"],
     [{ kind: "failed", code: "DOMAIN_TRANSACTION_FAILED" }, 502, "DOMAIN_TRANSACTION_FAILED"],
   ] as const;
   for (const [result, status, code] of cases) {
@@ -148,7 +148,7 @@ test("maps reconciliation and unknown failures to fail-closed responses", async 
     assert.equal(response.status, status);
     const json = await response.json();
     assert.equal(json.error.code, code);
-    if (code === "MANUAL_RECONCILIATION_REQUIRED") {
+    if (code === "MANUAL_RECONCILIATION_REQUIRED" || code === "RECONCILIATION_MARKER_FAILED") {
       assert.equal(json.error.operationId, "operation-1");
     }
   }

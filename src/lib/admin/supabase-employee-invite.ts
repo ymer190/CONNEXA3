@@ -1,7 +1,8 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { decryptProvisioningInviteLink } from "./employee-provisioning-invite-link-crypto";
+import { encryptProvisioningInviteLink } from "./employee-provisioning-invite-link-crypto";
+import { decryptProvisioningEmail } from "./employee-provisioning-email-crypto";
 import { buildFirstAccessInviteUrl } from "./employee-invite-link-core";
 import type {
   EmployeeProvisioningPayload,
@@ -163,34 +164,84 @@ export async function deleteEmployeeAuthIdentityIfUnaccepted(
 }
 
 /**
- * Recover a previously generated first-access link after a lost HTTP response.
- * The database RPC permits only the service role and the original initiating
- * administrator; the encrypted envelope is decrypted only in this server module.
+ * Controlled reissue for the original administrator. It never creates another
+ * Auth identity or membership and refuses identities that are already accepted.
  */
-export async function recoverEmployeeFirstAccessLink(
+export async function reissueEmployeeFirstAccessLink(
   operationId: string,
   actorUserId: string,
 ): Promise<string | null> {
   const admin = createAdminClient();
-  const { data, error } = await admin.rpc(
-    "admin_get_employee_provisioning_invite_link",
+  const { data: contextData, error: contextError } = await admin.rpc(
+    "admin_get_employee_provisioning_reissue_context",
     {
       p_operation_id: operationId,
       p_actor_user_id: actorUserId,
     },
   );
-  if (error) throw new Error("First-access link recovery is unavailable.");
+  if (contextError) throw new Error("First-access link reissue is unavailable.");
 
-  const row = Array.isArray(data) ? data[0] : data;
+  const contextRow = Array.isArray(contextData) ? contextData[0] : contextData;
   if (
-    typeof row !== "object" ||
-    row === null ||
-    typeof (row as { invite_link_envelope?: unknown }).invite_link_envelope !== "string"
+    typeof contextRow !== "object" ||
+    contextRow === null ||
+    typeof (contextRow as { auth_user_id?: unknown }).auth_user_id !== "string" ||
+    typeof (contextRow as { email_envelope?: unknown }).email_envelope !== "string"
   ) {
     return null;
   }
 
-  return decryptProvisioningInviteLink(
-    (row as { invite_link_envelope: string }).invite_link_envelope,
+  const authUserId = (contextRow as { auth_user_id: string }).auth_user_id;
+  const email = decryptProvisioningEmail(
+    (contextRow as { email_envelope: string }).email_envelope,
   );
+  const { data: current, error: lookupError } =
+    await admin.auth.admin.getUserById(authUserId);
+  if (lookupError || !current.user) return null;
+  if (
+    current.user.email !== email ||
+    current.user.email_confirmed_at !== null ||
+    !hasProvisioningMetadata(current.user.app_metadata, operationId)
+  ) {
+    return null;
+  }
+
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: "invite",
+    email,
+  });
+  if (error) throw new Error("Supabase Auth could not reissue the invite link.");
+  if (
+    data.user?.id !== authUserId ||
+    !hasProvisioningMetadata(data.user.app_metadata, operationId)
+  ) {
+    throw new Error("Supabase Auth returned an unexpected identity.");
+  }
+
+  const actionLink = data.properties?.action_link;
+  if (typeof actionLink !== "string") {
+    throw new Error("Supabase Auth did not return an invite link.");
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const appUrl = process.env.APP_URL;
+  if (!supabaseUrl || !appUrl) {
+    throw new Error("First-access link configuration is unavailable.");
+  }
+  const adapted = buildFirstAccessInviteUrl({ actionLink, supabaseUrl, appUrl });
+  if (!adapted.success) throw new Error("First-access link is invalid.");
+
+  const { data: persisted, error: persistError } = await admin.rpc(
+    "admin_replace_employee_invite_link",
+    {
+      p_operation_id: operationId,
+      p_actor_user_id: actorUserId,
+      p_invite_link_envelope: encryptProvisioningInviteLink(adapted.url),
+    },
+  );
+  if (persistError || !(persisted === true || (Array.isArray(persisted) && persisted[0] === true))) {
+    throw new Error("First-access link reissue could not be persisted.");
+  }
+
+  return adapted.url;
 }

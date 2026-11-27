@@ -8,11 +8,13 @@ export async function middleware(request: NextRequest) {
     pathname === "/admin" || pathname.startsWith("/admin/");
   const workspacePaths = ["/", "/conversas", "/grupos", "/colaboradores", "/departamentos", "/arquivos"];
   const isWorkspaceRoute = workspacePaths.some((path) =>
-    pathname === path || (path !== "/" && pathname.startsWith(`${path}/`))
+    pathname === path ||
+    (path !== "/" && pathname.startsWith(`${path}/`))
   );
   const isProtectedRoute = isAdminRoute || isWorkspaceRoute;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const supabasePublishableKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!supabaseUrl || !supabasePublishableKey) {
     if (isProtectedRoute) {
@@ -21,36 +23,51 @@ export async function middleware(request: NextRequest) {
       forbiddenUrl.search = "";
       return NextResponse.redirect(forbiddenUrl);
     }
+
     return response;
   }
 
-  const supabase = createServerClient(supabaseUrl, supabasePublishableKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet, headers) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-        Object.entries(headers ?? {}).forEach(([key, value]) => response.headers.set(key, value));
+  const supabase = createServerClient(
+    supabaseUrl,
+    supabasePublishableKey,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet, headers) {
+          cookiesToSet.forEach(({ name, value }) => {
+            request.cookies.set(name, value);
+          });
+
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+          Object.entries(headers ?? {}).forEach(([key, value]) => {
+            response.headers.set(key, value);
+          });
+        },
       },
     },
-  });
+  );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  // Preserve Issue #93 first-access restrictions before applying the #97 device gate.
-  const isFirstAccessPending = user?.app_metadata?.first_access_pending === true;
-  const firstAccessAllowedPaths = [
+  // Keep this block text aligned with main so PR merge does not duplicate it.
+  const isFirstAccessPending =
+    user?.app_metadata?.first_access_pending === true;
+  const isFirstAccessAllowedPath = [
     "/primeiro-acesso",
     "/confirmar-convite",
     "/api/auth/first-access/password",
     "/api/auth/accept-invite",
     "/auth/logout",
-  ];
-  const isFirstAccessAllowedPath = firstAccessAllowedPaths.some((path) =>
-    pathname === path || pathname.startsWith(`${path}/`)
+  ].some((path) =>
+    request.nextUrl.pathname === path ||
+    request.nextUrl.pathname.startsWith(`${path}/`)
   );
 
   if (isFirstAccessPending && !isFirstAccessAllowedPath) {
@@ -60,7 +77,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(firstAccessUrl);
   }
 
-  if (pathname === "/primeiro-acesso" && !user) {
+  if (request.nextUrl.pathname === "/primeiro-acesso" && !user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.search = "";
@@ -68,7 +85,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Issue #97: an authenticated user must have an approved device/session.
+  // Issue #97: every authenticated protected route requires an approved device.
   if (isProtectedRoute && user) {
     const { data: authorizedDevice, error: deviceError } = await supabase.rpc(
       "device_session_is_authorized",
@@ -84,7 +101,7 @@ export async function middleware(request: NextRequest) {
   if (isWorkspaceRoute && !user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
-    loginUrl.searchParams.set("next", pathname);
+    loginUrl.searchParams.set("next", request.nextUrl.pathname);
     const hasAuthCookie = request.cookies.getAll().some((cookie) =>
       cookie.name.startsWith("sb-") && cookie.name.includes("auth-token")
     );
@@ -96,7 +113,7 @@ export async function middleware(request: NextRequest) {
     if (!user) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/login";
-      loginUrl.searchParams.set("next", pathname);
+      loginUrl.searchParams.set("next", request.nextUrl.pathname);
       return NextResponse.redirect(loginUrl);
     }
 

@@ -44,12 +44,8 @@ export type InviteLinkGenerationResult =
   | { kind: "generated"; actionLink: string }
   | { kind: "failed" | "unknown" };
 
-export type InviteEmailDeliveryResult =
-  | { kind: "sent"; providerMessageId: string }
-  | { kind: "failed" | "unknown" };
-
 export type EmployeeProvisioningResult =
-  | { kind: "created"; authUserId: string }
+  | { kind: "created"; firstAccessLink: string }
   | { kind: "replayed"; status: ProvisioningStatus; authUserId: string | null }
   | { kind: "conflict" }
   | { kind: "in_progress"; operationId: string }
@@ -95,18 +91,11 @@ export type EmployeeProvisioningDependencies = {
     claim: ProvisioningClaim,
     authUserId: string,
   ) => Promise<InviteLinkGenerationResult>;
-  /** Persist the generated link encrypted before delivering it. */
+  /** Persist the generated link encrypted before returning it to the initiating administrator. */
   persistInviteLink: (
     claim: ProvisioningClaim,
     actionLink: string,
   ) => Promise<boolean>;
-  /** Deliver the generated link through the configured email provider after commit. */
-  sendInviteEmail: (
-    payload: EmployeeProvisioningPayload,
-    actionLink: string,
-    idempotencyKey: string,
-  ) => Promise<InviteEmailDeliveryResult>;
-  markInviteEmailSent: (claim: ProvisioningClaim, providerMessageId: string) => Promise<boolean>;
   completeOperation: (claim: ProvisioningClaim) => Promise<boolean>;
   markCompensationPending: (claim: ProvisioningClaim) => Promise<boolean>;
   /** Must verify the identity is still unaccepted and belongs to this operation before deletion. */
@@ -353,54 +342,8 @@ export async function runEmployeeProvisioning(
     return { kind: "manual_reconciliation_required", operationId: claim.operationId };
   }
 
-  let deliveryResult: InviteEmailDeliveryResult;
-  try {
-    deliveryResult = await dependencies.sendInviteEmail(
-      payload,
-      inviteLinkResult.actionLink,
-      `employee-provisioning/${claim.operationId}`,
-    );
-  } catch {
-    deliveryResult = { kind: "unknown" };
-  }
-
-  if (deliveryResult.kind !== "sent") {
-    if (!(await requireManualReconciliation(
-      dependencies,
-      claim,
-      deliveryResult.kind === "failed"
-        ? "invite_email_delivery_failed"
-        : "invite_email_delivery_outcome_unknown",
-    ))) return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED", operationId: claim.operationId };
-    // Domain records are already committed: never compensate/delete the Auth identity.
-    return { kind: "manual_reconciliation_required", operationId: claim.operationId };
-  }
-
-  const providerMessageId = deliveryResult.providerMessageId;
-  if (!providerMessageId) {
-    if (!(await requireManualReconciliation(dependencies, claim, "email_provider_receipt_missing"))) {
-      return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED", operationId: claim.operationId };
-    }
-    return { kind: "manual_reconciliation_required", operationId: claim.operationId };
-  }
-
-  let emailSentStatePersisted = false;
-  try {
-    emailSentStatePersisted = await dependencies.markInviteEmailSent(
-      claim,
-      providerMessageId,
-    );
-  } catch {
-    emailSentStatePersisted = false;
-  }
-
-  if (!emailSentStatePersisted) {
-    if (!(await requireManualReconciliation(dependencies, claim, "email_delivery_state_persistence_failed"))) {
-      return { kind: "failed", code: "RECONCILIATION_MARKER_FAILED", operationId: claim.operationId };
-    }
-    return { kind: "manual_reconciliation_required", operationId: claim.operationId };
-  }
-
+  // No email provider is used. The bearer link is returned only to the
+  // already-authorized administrator who initiated this request.
   let completed = false;
   try {
     completed = await dependencies.completeOperation(claim);
@@ -415,5 +358,6 @@ export async function runEmployeeProvisioning(
     return { kind: "failed", code: "COMPLETION_FAILED", operationId: claim.operationId };
   }
 
-  return { kind: "created", authUserId: invite.authUserId };
+  return { kind: "created", firstAccessLink: inviteLinkResult.actionLink };
+}
 }

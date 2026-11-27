@@ -37,7 +37,6 @@ function dependencies(overrides: Partial<EmployeeProvisioningDependencies> = {})
       return {
         kind: "created" as const,
         authUserId: "auth-user-1",
-        actionLink: "https://example.test/invite",
         identityCreatedByOperation: true,
       };
     },
@@ -48,6 +47,14 @@ function dependencies(overrides: Partial<EmployeeProvisioningDependencies> = {})
     persistProfileMembershipAndAuditAtomically: async () => {
       events.push("persist-domain-and-audit");
       return { kind: "committed" as const };
+    },
+    generateInviteLink: async () => {
+      events.push("generate-invite-link");
+      return { kind: "generated" as const, actionLink: "https://example.test/invite" };
+    },
+    persistInviteLink: async () => {
+      events.push("persist-invite-link");
+      return true;
     },
     sendInviteEmail: async () => {
       events.push("send-invite-email");
@@ -92,6 +99,8 @@ test("runs the complete sequence and only reports success after domain audit and
     "create-auth-identity",
     "persist-auth-id",
     "persist-domain-and-audit",
+    "generate-invite-link",
+    "persist-invite-link",
     "send-invite-email",
     "mark-email-sent",
     "complete",
@@ -158,7 +167,6 @@ test("does not compensate an Auth identity whose ownership is unproven", async (
       return {
         kind: "created",
         authUserId: "auth-user-1",
-        actionLink: "https://example.test/invite",
         identityCreatedByOperation: false,
       };
     },
@@ -278,6 +286,8 @@ test("does not delete Auth identity when the completion state cannot be confirme
     "create-auth-identity",
     "persist-auth-id",
     "persist-domain-and-audit",
+    "generate-invite-link",
+    "persist-invite-link",
     "send-invite-email",
     "mark-email-sent",
     "complete",
@@ -476,7 +486,61 @@ test("does not compensate committed records when Resend delivery fails", async (
     "create-auth-identity",
     "persist-auth-id",
     "persist-domain-and-audit",
+    "generate-invite-link",
+    "persist-invite-link",
     "send-invite-email",
     "manual-reconciliation",
   ]);
+});
+
+test("generates the invite link only after the domain and audit transaction commits", async () => {
+  const { dependencies: deps, events } = dependencies({
+    persistProfileMembershipAndAuditAtomically: async () => {
+      events.push("persist-domain-and-audit");
+      return { kind: "rolled_back" as const };
+    },
+  });
+
+  assert.deepEqual(
+    await runEmployeeProvisioning(payload, deps),
+    { kind: "failed", code: "DOMAIN_TRANSACTION_FAILED" },
+  );
+  assert.equal(events.includes("generate-invite-link"), false);
+  assert.equal(events.includes("send-invite-email"), false);
+});
+
+test("does not send email when post-commit invite-link generation is ambiguous", async () => {
+  const { dependencies: deps, events } = dependencies({
+    generateInviteLink: async () => {
+      events.push("generate-invite-link");
+      return { kind: "unknown" as const };
+    },
+  });
+
+  assert.deepEqual(
+    await runEmployeeProvisioning(payload, deps),
+    { kind: "manual_reconciliation_required" },
+  );
+  assert.deepEqual(events.slice(-2), ["generate-invite-link", "manual-reconciliation"]);
+  assert.equal(events.includes("send-invite-email"), false);
+});
+
+test("persists the encrypted invite link before Resend delivery", async () => {
+  const { dependencies: deps, events } = dependencies({
+    persistInviteLink: async () => {
+      events.push("persist-invite-link");
+      return false;
+    },
+  });
+
+  assert.deepEqual(
+    await runEmployeeProvisioning(payload, deps),
+    { kind: "manual_reconciliation_required" },
+  );
+  assert.deepEqual(events.slice(-3), [
+    "generate-invite-link",
+    "persist-invite-link",
+    "manual-reconciliation",
+  ]);
+  assert.equal(events.includes("send-invite-email"), false);
 });

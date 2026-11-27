@@ -124,8 +124,7 @@ returns table (
   result text,
   operation_id uuid,
   claim_id uuid,
-  status text,
-  auth_user_id uuid
+  status text
 )
 language plpgsql
 security definer
@@ -175,32 +174,31 @@ begin
 
   if operation_row.payload_hash <> p_payload_hash then
     return query select 'conflict', operation_row.id, operation_row.claim_id,
-                        operation_row.status, operation_row.auth_user_id;
+                        operation_row.status;
     return;
   end if;
 
   if operation_row.status in ('completed', 'compensated') then
     return query select 'replay', operation_row.id, operation_row.claim_id,
-                        operation_row.status, operation_row.auth_user_id;
+                        operation_row.status;
     return;
   end if;
 
   if operation_row.status = 'manual_reconciliation_required' then
     return query select 'manual_reconciliation_required', operation_row.id,
-                        operation_row.claim_id, operation_row.status,
-                        operation_row.auth_user_id;
+                        operation_row.claim_id, operation_row.status;
     return;
   end if;
 
   if not inserted then
     -- No automatic takeover: an interrupted Auth call has an ambiguous outcome.
     return query select 'in_progress', operation_row.id, operation_row.claim_id,
-                        operation_row.status, operation_row.auth_user_id;
+                        operation_row.status;
     return;
   end if;
 
   return query select 'claimed', operation_row.id, operation_row.claim_id,
-                      operation_row.status, operation_row.auth_user_id;
+                      operation_row.status;
 end;
 $$;
 

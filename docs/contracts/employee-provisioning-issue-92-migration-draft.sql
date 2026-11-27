@@ -233,6 +233,18 @@ begin
     raise exception 'Auth user id is required' using errcode = '22023';
   end if;
 
+  if not exists (
+    select 1
+      from auth.users au
+     where au.id = p_auth_user_id
+       and au.email_confirmed_at is null
+       and au.raw_app_meta_data ->> 'first_access_pending' = 'true'
+       and au.raw_app_meta_data ->> 'employee_provisioning_operation_id' = p_operation_id::text
+  ) then
+    raise exception 'Auth identity is not owned by this provisioning operation'
+      using errcode = '42501';
+  end if;
+
   update private.employee_provisioning_operations op
      set auth_user_id = p_auth_user_id,
          phase = 'auth_created',
@@ -316,6 +328,18 @@ begin
      or operation_row.auth_user_id <> p_auth_user_id then
     raise exception 'Provisioning operation is not ready for domain commit'
       using errcode = '55000';
+  end if;
+
+  if not exists (
+    select 1
+      from auth.users au
+     where au.id = p_auth_user_id
+       and au.email_confirmed_at is null
+       and au.raw_app_meta_data ->> 'first_access_pending' = 'true'
+       and au.raw_app_meta_data ->> 'employee_provisioning_operation_id' = p_operation_id::text
+  ) then
+    raise exception 'Auth identity is not pending first access for this operation'
+      using errcode = '42501';
   end if;
 
   if not exists (
@@ -474,11 +498,12 @@ begin
      and op.actor_user_id = actor_id
      and op.claim_id = p_claim_id
      and op.status = 'pending'
-     and op.phase = 'domain_committed';
+     and op.phase = 'domain_committed'
+     and op.invite_link_envelope is not null;
 
   return found;
 end;
-$$;
+$;
 
 create or replace function public.admin_complete_employee_provisioning(
   p_operation_id uuid,

@@ -60,7 +60,7 @@ async function callBooleanRpc(
   return !error && isBooleanSuccess(data);
 }
 
-export function createEmployeeProvisioningDatabase(client: RpcClient) {
+export function createEmployeeProvisioningDatabase(client: EmployeeProvisioningRpcClient) {
   return {
     async claimOperation(
       payload: EmployeeProvisioningPayload,

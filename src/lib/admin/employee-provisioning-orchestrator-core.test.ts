@@ -488,7 +488,7 @@ test("does not send email when post-commit invite-link generation is ambiguous",
   assert.equal(events.includes("send-invite-email"), false);
 });
 
-test("persists the encrypted invite link before Resend delivery", async () => {
+test("persists the encrypted first-access link before returning success", async () => {
   const { dependencies: deps, events } = dependencies({
     persistInviteLink: async () => {
       events.push("persist-invite-link");

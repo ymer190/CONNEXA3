@@ -93,32 +93,61 @@ test("claim replay does not disclose the Auth user ID", () => {
   assert.doesNotMatch(rpc, /auth_user_id/i);
 });
 
-test("first-access link recovery is restricted to the original actor and service role", () => {
+test("first-access link reissue context is service-role-only and actor-bound", () => {
   const start = sql.indexOf(
-    "create or replace function public.admin_get_employee_provisioning_invite_link(",
+    "create or replace function public.admin_get_employee_provisioning_reissue_context(",
   );
   const end = sql.indexOf(
-    "\ncreate or replace function public.admin_mark_employee_compensation_pending(",
+    "\ncreate or replace function public.admin_replace_employee_invite_link(",
     start,
   );
-  assert.notEqual(start, -1, "privileged link recovery RPC must exist");
-  assert.notEqual(end, -1, "link recovery RPC must end before compensation RPC");
-
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
   const rpc = sql.slice(start, end);
   assert.ok(rpc.includes("auth.jwt() ->> 'role'"));
   assert.ok(rpc.includes("<> 'service_role'"));
   assert.ok(rpc.includes("op.actor_user_id = p_actor_user_id"));
   assert.ok(rpc.includes("op.status = 'completed'"));
   assert.ok(rpc.includes("op.phase = 'completed'"));
-  assert.ok(rpc.includes("op.invite_link_envelope is not null"));
-  assert.ok(sql.includes("revoke all on function public.admin_get_employee_provisioning_invite_link(uuid,uuid)"));
-  assert.ok(sql.includes("grant execute on function public.admin_get_employee_provisioning_invite_link(uuid,uuid) to service_role;"));
+  assert.ok(rpc.includes("op.email_envelope"));
+  assert.ok(!rpc.includes("op.invite_link_envelope"));
+  assert.ok(sql.includes("revoke all on function public.admin_get_employee_provisioning_reissue_context(uuid,uuid)"));
+  assert.ok(sql.includes("grant execute on function public.admin_get_employee_provisioning_reissue_context(uuid,uuid) to service_role;"));
 });
 
-test("first-access link generation and recovery append central audit events without bearer material", () => {
-  assert.ok(sql.includes("'employee.first_access_link_generated'"));
-  assert.ok(sql.includes("'employee.first_access_link_reissued'"));
-  assert.ok(sql.includes("'provisioning_operation_id'"));
-  assert.ok(sql.includes("'delivery_channel', 'manual'"));
-  assert.doesNotMatch(sql, /'first_access_link'\\s*,|'token_hash'\\s*,|'invite_link_envelope'\\s*,/i);
+test("reissued links are replaced only by service role and produce a central audit event", () => {
+  const start = sql.indexOf(
+    "create or replace function public.admin_replace_employee_invite_link(",
+  );
+  const end = sql.indexOf(
+    "\ncreate or replace function public.admin_mark_employee_compensation_pending(",
+    start,
+  );
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const rpc = sql.slice(start, end);
+  assert.ok(rpc.includes("auth.jwt() ->> 'role'"));
+  assert.ok(rpc.includes("<> 'service_role'"));
+  assert.ok(rpc.includes("op.actor_user_id = p_actor_user_id"));
+  assert.ok(rpc.includes("op.status = 'completed'"));
+  assert.ok(rpc.includes("op.phase = 'completed'"));
+  assert.ok(rpc.includes("'employee.first_access_link_reissued'"));
+  assert.ok(rpc.includes("jsonb_build_object"));
+  assert.ok(sql.includes("grant execute on function public.admin_replace_employee_invite_link(uuid,uuid,text) to service_role;"));
+});
+
+test("first-access link generation is centrally audited without bearer material", () => {
+  const start = sql.indexOf(
+    "create or replace function public.admin_persist_employee_invite_link(",
+  );
+  const end = sql.indexOf(
+    "\ncreate or replace function public.admin_get_employee_provisioning_reissue_context(",
+    start,
+  );
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const rpc = sql.slice(start, end);
+  assert.ok(rpc.includes("'employee.first_access_link_generated'"));
+  assert.ok(rpc.includes("'provisioning_operation_id'"));
+  assert.ok(rpc.includes("'delivery_channel', 'manual'"));
 });

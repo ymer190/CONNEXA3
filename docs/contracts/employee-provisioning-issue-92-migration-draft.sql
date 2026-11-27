@@ -28,7 +28,6 @@ create table private.employee_provisioning_operations (
       'auth_creation_started',
       'auth_created',
       'domain_committed',
-      'email_sent',
       'completed',
       'compensation_pending',
       'compensated',
@@ -43,8 +42,6 @@ create table private.employee_provisioning_operations (
   updated_at timestamptz not null default now(),
   auth_created_at timestamptz null,
   domain_committed_at timestamptz null,
-  email_sent_at timestamptz null,
-  email_provider_message_id text null check (email_provider_message_id is null or length(email_provider_message_id) <= 200),
   completed_at timestamptz null,
   unique (actor_user_id, idempotency_key_hash),
   unique (auth_user_id)
@@ -277,7 +274,6 @@ returns table (
   status text,
   phase text,
   has_invite_link boolean,
-  has_provider_receipt boolean,
   failure_code text
 )
 language plpgsql
@@ -286,15 +282,14 @@ set search_path = ''
 as $$
 declare actor_id uuid := private.assert_employee_provisioning_admin();
 begin
-  -- Status-only contract: never expose Auth IDs, encrypted PII, invite tokens
-  -- or provider receipts through the authenticated PostgREST surface.
+  -- Status-only contract: never expose Auth IDs, encrypted PII or invite tokens
+  -- through the authenticated PostgREST surface.
   return query
   select
     op.id,
     op.status,
     op.phase,
     (op.invite_link_envelope is not null),
-    (op.email_provider_message_id is not null),
     op.failure_code
   from private.employee_provisioning_operations op
   where op.id = p_operation_id
@@ -489,40 +484,6 @@ begin
 end;
 $$;
 
-create or replace function public.admin_mark_employee_invite_email_sent(
-  p_operation_id uuid,
-  p_claim_id uuid,
-  p_provider_message_id text
-)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare actor_id uuid := private.assert_employee_provisioning_admin();
-begin
-  if p_provider_message_id is null
-     or length(p_provider_message_id) not between 1 and 200 then
-    raise exception 'Valid email provider receipt is required'
-      using errcode = '22023';
-  end if;
-
-  update private.employee_provisioning_operations op
-     set phase = 'email_sent',
-         email_sent_at = now(),
-         email_provider_message_id = p_provider_message_id,
-         updated_at = now()
-   where op.id = p_operation_id
-     and op.actor_user_id = actor_id
-     and op.claim_id = p_claim_id
-     and op.status = 'pending'
-     and op.phase = 'domain_committed'
-     and op.invite_link_envelope is not null;
-
-  return found;
-end;
-$$;
-
 create or replace function public.admin_complete_employee_provisioning(
   p_operation_id uuid,
   p_claim_id uuid
@@ -543,7 +504,8 @@ begin
      and op.actor_user_id = actor_id
      and op.claim_id = p_claim_id
      and op.status = 'pending'
-     and op.phase = 'email_sent';
+     and op.phase = 'domain_committed'
+      and op.invite_link_envelope is not null;
 
   return found;
 end;
@@ -598,8 +560,6 @@ revoke all on function public.admin_mark_employee_compensation_pending(uuid,uuid
   from public, anon, authenticated, service_role;
 revoke all on function public.admin_mark_employee_compensated(uuid,uuid)
   from public, anon, authenticated, service_role;
-revoke all on function public.admin_mark_employee_invite_email_sent(uuid,uuid,text)
-  from public, anon, authenticated, service_role;
 revoke all on function public.admin_complete_employee_provisioning(uuid,uuid)
   from public, anon, authenticated, service_role;
 revoke all on function public.admin_mark_employee_provisioning_manual_reconciliation(uuid,uuid,text)
@@ -613,7 +573,6 @@ grant execute on function public.admin_commit_employee_provisioning(uuid,uuid,uu
 grant execute on function public.admin_persist_employee_invite_link(uuid,uuid,text) to authenticated;
 grant execute on function public.admin_mark_employee_compensation_pending(uuid,uuid) to authenticated;
 grant execute on function public.admin_mark_employee_compensated(uuid,uuid) to authenticated;
-grant execute on function public.admin_mark_employee_invite_email_sent(uuid,uuid,text) to authenticated;
 grant execute on function public.admin_complete_employee_provisioning(uuid,uuid) to authenticated;
 grant execute on function public.admin_mark_employee_provisioning_manual_reconciliation(uuid,uuid,text) to authenticated;
 

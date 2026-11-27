@@ -1,6 +1,8 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { classifyAuthFailure } from "@/lib/auth-flow.mjs";
+import { buildRegisterDeviceSessionArgs } from "@/lib/device-session-rpc.mjs";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -33,17 +35,30 @@ export async function POST(request: NextRequest) {
   if (!originIsValid) {
     return NextResponse.json({ error: "INVALID_ORIGIN" }, { status: 403 });
   }
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-  if (userError || !user) {
+  let supabase: Awaited<ReturnType<typeof createClient>>;
+  let user: { id: string } | null = null;
+  try {
+    supabase = await createClient();
+    const result = await supabase.auth.getUser();
+    if (classifyAuthFailure(result.error) === "unavailable") {
+      return NextResponse.json({ error: "AUTH_SERVICE_UNAVAILABLE" }, { status: 503 });
+    }
+    user = result.data.user;
+  } catch {
+    return NextResponse.json({ error: "AUTH_SERVICE_UNAVAILABLE" }, { status: 503 });
+  }
+  if (!user) {
     return NextResponse.json({ error: "AUTHENTICATION_REQUIRED" }, { status: 401 });
   }
 
-  const cookieStore = await cookies();
-  const requestHeaders = await headers();
+  let cookieStore: Awaited<ReturnType<typeof cookies>>;
+  let requestHeaders: Awaited<ReturnType<typeof headers>>;
+  try {
+    cookieStore = await cookies();
+    requestHeaders = await headers();
+  } catch {
+    return NextResponse.json({ error: "DEVICE_ENROLLMENT_UNAVAILABLE" }, { status: 503 });
+  }
   const secure = process.env.NODE_ENV === "production";
   let credentials = {
     id: cookieStore.get("connexa-device-id")?.value ?? "",
@@ -54,12 +69,20 @@ export async function POST(request: NextRequest) {
     credentials = newDeviceCredentials();
   }
 
-  const { data, error } = await supabase.rpc("register_device_session", {
-    p_device_id: credentials.id,
-    p_device_secret: credentials.secret,
-    p_label: "Navegador",
-    p_user_agent: requestHeaders.get("user-agent")?.slice(0, 500) ?? null,
-  });
+  let data: string | null = null;
+  let error: { message: string } | null = null;
+  try {
+    const result = await supabase.rpc("register_device_session", buildRegisterDeviceSessionArgs({
+      deviceId: credentials.id,
+      deviceSecret: credentials.secret,
+      label: "Navegador",
+      userAgent: requestHeaders.get("user-agent")?.slice(0, 500) ?? null,
+    }));
+    data = result.data;
+    error = result.error;
+  } catch {
+    return NextResponse.json({ error: "DEVICE_ENROLLMENT_UNAVAILABLE" }, { status: 503 });
+  }
 
   if (
     error &&

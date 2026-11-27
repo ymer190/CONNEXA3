@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { getSafeRedirectDestination } from "@/lib/auth-flow.mjs";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = {
@@ -10,24 +11,6 @@ export const metadata: Metadata = {
 type LoginPageProps = {
   searchParams: Promise<{ next?: string; reason?: string }>;
 };
-
-function getSafeRedirectDestination(next?: string) {
-  if (!next?.startsWith("/") || next.startsWith("//")) {
-    return "/";
-  }
-
-  try {
-    const destination = new URL(next, "https://connexa.invalid");
-
-    if (destination.origin !== "https://connexa.invalid") {
-      return "/";
-    }
-
-    return `${destination.pathname}${destination.search}${destination.hash}`;
-  } catch {
-    return "/";
-  }
-}
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const { next, reason } = await searchParams;
@@ -52,6 +35,16 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         {reason === "auth-required" && (
           <p className="auth-notice" role="status">
             Entre na sua conta para acessar o espaço de trabalho.
+          </p>
+        )}
+        {reason === "auth-unavailable" && (
+          <p className="auth-notice" role="status">
+            O serviço de autenticação está temporariamente indisponível. Tente novamente em alguns instantes.
+          </p>
+        )}
+        {reason === "signed-out" && (
+          <p className="auth-notice" role="status">
+            A sessão deste navegador foi encerrada. Suas outras sessões permanecem ativas.
           </p>
         )}
         <LoginForm redirectTo={destination} />

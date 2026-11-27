@@ -1,7 +1,7 @@
 # Contrato técnico — primeiro acesso e definição de senha (#93)
 
-**Status:** contrato inicial para implementação e revisão técnica/SQA.  
-**Branch:** `feature/issue-93-first-access-password`  
+**Status:** contrato inicial para implementação e revisão técnica/SQA.
+**Branch:** `feature/issue-93-first-access-password`
 **Dependências:** #91 (sessão Supabase Auth), #92 (convite por e-mail), #97 (auditoria central).
 
 ## 1. Decisão funcional

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-export function DeviceApprovalRefresh() {
+export function DeviceApprovalRefresh({ redirectTo }: { redirectTo: string }) {
   const [message, setMessage] = useState("");
   const [checking, setChecking] = useState(false);
 
@@ -16,7 +16,7 @@ export function DeviceApprovalRefresh() {
       if (error) {
         setMessage("Não foi possível consultar a autorização agora.");
       } else if (data) {
-        window.location.assign("/");
+        window.location.assign(redirectTo);
         return;
       } else {
         setMessage("A autorização ainda está pendente.");

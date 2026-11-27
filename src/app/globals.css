@@ -813,7 +813,7 @@ body:has(.module-shell) .theme-toggle { right: 68px; }
 .device-session-card dt { color: var(--muted); font-size: 12px; }
 .device-session-card dd { margin: 0; font-size: 13px; }
 .device-session-actions { display: grid; gap: 12px; margin-top: 14px; }
-.device-session-action { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.device-session-action { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
 .device-session-action label { display: grid; flex: 1; gap: 5px; font-size: 12px; }
 .device-session-action input { min-width: 180px; min-height: 40px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--canvas); color: var(--text); }
 .device-session-action button { min-height: 40px; }

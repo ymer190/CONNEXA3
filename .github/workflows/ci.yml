@@ -9,6 +9,7 @@ on:
       - feature/57-initialize-web-app
       - feature/issue-91-auth-platform-admin
       - feature/97-device-session-audit
+      - feature/106-auth-session-hardening
 
 permissions:
   contents: read
@@ -36,8 +37,8 @@ jobs:
       - name: Test isolated Supabase allowlist guard
         run: node scripts/assert-isolated-supabase-smoke.cjs
 
-      - name: Test Issue 97 device approval RPC contract
-        run: node --test scripts/device-approval-rpc-contract.test.cjs
+      - name: Test local authentication and DEV RPC contracts
+        run: npm run test:auth
 
       - name: Run ESLint
         run: npm run lint

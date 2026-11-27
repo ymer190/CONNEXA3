@@ -76,6 +76,7 @@ export type EmployeeProvisioningDependencies = {
   persistAuthUserId: (
     claim: ProvisioningClaim,
     authUserId: string,
+    actionLink: string,
   ) => Promise<boolean>;
   /** One PostgreSQL transaction: profiles + organization_members + central audit. */
   persistProfileMembershipAndAuditAtomically: (
@@ -194,7 +195,11 @@ export async function runEmployeeProvisioning(
 
   let authIdPersisted = false;
   try {
-    authIdPersisted = await dependencies.persistAuthUserId(claim, invite.authUserId);
+    authIdPersisted = await dependencies.persistAuthUserId(
+      claim,
+      invite.authUserId,
+      invite.actionLink,
+    );
   } catch {
     authIdPersisted = false;
   }

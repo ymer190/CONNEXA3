@@ -496,6 +496,9 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  operation_row private.employee_provisioning_operations%rowtype;
+  organization_id uuid;
 begin
   if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
     raise exception 'Service role required' using errcode = '42501';
@@ -505,14 +508,58 @@ begin
     return;
   end if;
 
-  return query
-  select op.invite_link_envelope
+  select op.*
+    into operation_row
     from private.employee_provisioning_operations op
    where op.id = p_operation_id
      and op.actor_user_id = p_actor_user_id
      and op.status = 'completed'
      and op.phase = 'completed'
      and op.invite_link_envelope is not null;
+
+  if not found then
+    return;
+  end if;
+
+  select om.organization_id
+    into organization_id
+    from public.organization_members om
+   where om.user_id = operation_row.auth_user_id
+     and om.status = 'active';
+
+  if organization_id is null then
+    raise exception 'Provisioned employee membership is unavailable'
+      using errcode = '55000';
+  end if;
+
+  insert into public.administrative_audit_logs (
+    actor_user_id,
+    action,
+    target_type,
+    target_id,
+    target_user_id,
+    organization_id,
+    justification,
+    metadata,
+    outcome
+  )
+  values (
+    p_actor_user_id,
+    'employee.first_access_link_reissued',
+    'profile',
+    operation_row.auth_user_id,
+    operation_row.auth_user_id,
+    organization_id,
+    'Link de primeiro acesso recuperado pelo administrador que iniciou o provisionamento.',
+    jsonb_build_object(
+      'provisioning_operation_id', p_operation_id,
+      'delivery_channel', 'manual'
+    ),
+    'allowed'
+  );
+
+  return query
+  select operation_row.invite_link_envelope;
 end;
 $$;
 

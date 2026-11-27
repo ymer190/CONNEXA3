@@ -56,7 +56,6 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Keep this block text aligned with main so PR merge does not duplicate it.
   const isFirstAccessPending =
     user?.app_metadata?.first_access_pending === true;
   const isFirstAccessAllowedPath = [

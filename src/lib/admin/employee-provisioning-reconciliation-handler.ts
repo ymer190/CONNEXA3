@@ -36,20 +36,15 @@ export function createEmployeeProvisioningReconciliationGetHandler(
     }
 
     if (!authorization.authorized) {
-      const status = authorization.reason === "UNAUTHENTICATED"
-        ? 401
-        : authorization.reason === "FORBIDDEN"
-          ? 403
-          : 503;
       return Response.json(
         {
           success: false,
           error: {
-            code: authorization.reason,
-            message: "Não foi possível consultar a operação administrativa.",
+            code: authorization.code,
+            message: authorization.message,
           },
         },
-        { status, headers: { "Cache-Control": "no-store" } },
+        { status: authorization.status, headers: { "Cache-Control": "no-store" } },
       );
     }
 

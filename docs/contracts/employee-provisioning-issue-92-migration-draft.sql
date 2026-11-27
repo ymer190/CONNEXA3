@@ -220,8 +220,7 @@ $$;
 create or replace function public.admin_persist_employee_auth_user_id(
   p_operation_id uuid,
   p_claim_id uuid,
-  p_auth_user_id uuid,
-  p_invite_link_envelope text
+  p_auth_user_id uuid
 )
 returns boolean
 language plpgsql
@@ -230,16 +229,12 @@ set search_path = ''
 as $$
 declare actor_id uuid := private.assert_employee_provisioning_admin();
 begin
-  if p_auth_user_id is null
-     or p_invite_link_envelope is null
-     or length(p_invite_link_envelope) not between 1 and 4096
-     or p_invite_link_envelope not like 'v1.%' then
-    raise exception 'Auth user id and encrypted invite link are required' using errcode = '22023';
+  if p_auth_user_id is null then
+    raise exception 'Auth user id is required' using errcode = '22023';
   end if;
 
   update private.employee_provisioning_operations op
      set auth_user_id = p_auth_user_id,
-         invite_link_envelope = p_invite_link_envelope,
          phase = 'auth_created',
          auth_created_at = now(),
          updated_at = now()
@@ -368,6 +363,39 @@ begin
   return true;
 end;
 $$;
+
+create or replace function public.admin_persist_employee_invite_link(
+  p_operation_id uuid,
+  p_claim_id uuid,
+  p_invite_link_envelope text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare actor_id uuid := private.assert_employee_provisioning_admin();
+begin
+  if p_invite_link_envelope is null
+     or length(p_invite_link_envelope) not between 1 and 4096
+     or p_invite_link_envelope not like 'v1.%' then
+    raise exception 'Encrypted invite link is required' using errcode = '22023';
+  end if;
+
+  update private.employee_provisioning_operations op
+     set invite_link_envelope = p_invite_link_envelope,
+         updated_at = now()
+   where op.id = p_operation_id
+     and op.actor_user_id = actor_id
+     and op.claim_id = p_claim_id
+     and op.auth_user_id is not null
+     and op.invite_link_envelope is null
+     and op.status = 'pending'
+     and op.phase = 'domain_committed';
+
+  return found;
+end;
+$;
 
 create or replace function public.admin_mark_employee_compensation_pending(
   p_operation_id uuid,
@@ -515,11 +543,13 @@ revoke all on function public.admin_claim_employee_provisioning(text,text,text)
   from public, anon, authenticated, service_role;
 revoke all on function public.admin_mark_employee_auth_creation_started(uuid,uuid)
   from public, anon, authenticated, service_role;
-revoke all on function public.admin_persist_employee_auth_user_id(uuid,uuid,uuid,text)
+revoke all on function public.admin_persist_employee_auth_user_id(uuid,uuid,uuid)
   from public, anon, authenticated, service_role;
 revoke all on function public.admin_get_employee_provisioning_operation(uuid)
   from public, anon, authenticated, service_role;
 revoke all on function public.admin_commit_employee_provisioning(uuid,uuid,uuid,text,uuid)
+  from public, anon, authenticated, service_role;
+revoke all on function public.admin_persist_employee_invite_link(uuid,uuid,text)
   from public, anon, authenticated, service_role;
 revoke all on function public.admin_mark_employee_compensation_pending(uuid,uuid)
   from public, anon, authenticated, service_role;
@@ -534,9 +564,10 @@ revoke all on function public.admin_mark_employee_provisioning_manual_reconcilia
 
 grant execute on function public.admin_claim_employee_provisioning(text,text,text) to authenticated;
 grant execute on function public.admin_mark_employee_auth_creation_started(uuid,uuid) to authenticated;
-grant execute on function public.admin_persist_employee_auth_user_id(uuid,uuid,uuid,text) to authenticated;
+grant execute on function public.admin_persist_employee_auth_user_id(uuid,uuid,uuid) to authenticated;
 grant execute on function public.admin_get_employee_provisioning_operation(uuid) to authenticated;
 grant execute on function public.admin_commit_employee_provisioning(uuid,uuid,uuid,text,uuid) to authenticated;
+grant execute on function public.admin_persist_employee_invite_link(uuid,uuid,text) to authenticated;
 grant execute on function public.admin_mark_employee_compensation_pending(uuid,uuid) to authenticated;
 grant execute on function public.admin_mark_employee_compensated(uuid,uuid) to authenticated;
 grant execute on function public.admin_mark_employee_invite_email_sent(uuid,uuid,text) to authenticated;

@@ -434,6 +434,38 @@ begin
 end;
 $$;
 
+-- Privileged recovery for a lost HTTP response. Only the original actor may
+-- retrieve the encrypted envelope, and only the server-side service role may
+-- call this RPC. The application decrypts the envelope after this check.
+create or replace function public.admin_get_employee_provisioning_invite_link(
+  p_operation_id uuid,
+  p_actor_user_id uuid
+)
+returns table (invite_link_envelope text)
+language plpgsql
+security definer
+set search_path = ''
+as $
+begin
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
+    raise exception 'Service role required' using errcode = '42501';
+  end if;
+
+  if p_actor_user_id is null then
+    return;
+  end if;
+
+  return query
+  select op.invite_link_envelope
+    from private.employee_provisioning_operations op
+   where op.id = p_operation_id
+     and op.actor_user_id = p_actor_user_id
+     and op.status = 'completed'
+     and op.phase = 'completed'
+     and op.invite_link_envelope is not null;
+end;
+$;
+
 create or replace function public.admin_mark_employee_compensation_pending(
   p_operation_id uuid,
   p_claim_id uuid
@@ -556,6 +588,8 @@ revoke all on function public.admin_commit_employee_provisioning(uuid,uuid,uuid,
   from public, anon, authenticated, service_role;
 revoke all on function public.admin_persist_employee_invite_link(uuid,uuid,text)
   from public, anon, authenticated, service_role;
+revoke all on function public.admin_get_employee_provisioning_invite_link(uuid,uuid)
+  from public, anon, authenticated, service_role;
 revoke all on function public.admin_mark_employee_compensation_pending(uuid,uuid)
   from public, anon, authenticated, service_role;
 revoke all on function public.admin_mark_employee_compensated(uuid,uuid)
@@ -571,6 +605,7 @@ grant execute on function public.admin_persist_employee_auth_user_id(uuid,uuid,u
 grant execute on function public.admin_get_employee_provisioning_operation(uuid) to authenticated;
 grant execute on function public.admin_commit_employee_provisioning(uuid,uuid,uuid,text,uuid) to authenticated;
 grant execute on function public.admin_persist_employee_invite_link(uuid,uuid,text) to authenticated;
+grant execute on function public.admin_get_employee_provisioning_invite_link(uuid,uuid) to service_role;
 grant execute on function public.admin_mark_employee_compensation_pending(uuid,uuid) to authenticated;
 grant execute on function public.admin_mark_employee_compensated(uuid,uuid) to authenticated;
 grant execute on function public.admin_complete_employee_provisioning(uuid,uuid) to authenticated;

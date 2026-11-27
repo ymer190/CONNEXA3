@@ -147,7 +147,7 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    const firstAccessLink = await recoverEmployeeFirstAccessLink(
+    const firstAccessLink = await reissueEmployeeFirstAccessLink(
       operationId,
       authorization.userId,
     );

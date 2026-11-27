@@ -131,6 +131,12 @@ test("reissued links are replaced only by service role and produce a central aud
   assert.ok(rpc.includes("op.actor_user_id = p_actor_user_id"));
   assert.ok(rpc.includes("op.status = 'completed'"));
   assert.ok(rpc.includes("op.phase = 'completed'"));
+  assert.ok(rpc.includes("from auth.users au"));
+  assert.ok(rpc.includes("au.email_confirmed_at is null"));
+  assert.ok(rpc.includes("au.raw_app_meta_data ->> 'first_access_pending' = 'true'"));
+  assert.ok(rpc.includes("au.raw_app_meta_data ->> 'employee_provisioning_operation_id' = p_operation_id::text"));
+  assert.match(rpc, /from auth\.users au[\s\S]*?for update;/);
+  assert.ok(rpc.includes("Auth identity is no longer pending first access for this operation"));
   assert.ok(rpc.includes("'employee.first_access_link_reissued'"));
   assert.ok(rpc.includes("jsonb_build_object"));
   assert.ok(sql.includes("grant execute on function public.admin_replace_employee_invite_link(uuid,uuid,text) to service_role;"));

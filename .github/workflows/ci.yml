@@ -23,6 +23,7 @@ jobs:
       HAS_AUTH_TEST_SECRETS: ${{ secrets.SUPABASE_CI_URL != '' && secrets.SUPABASE_CI_PUBLISHABLE_KEY != '' && secrets.AUTH_CI_USER_EMAIL != '' && secrets.AUTH_CI_USER_PASSWORD != '' }}
       HAS_AUTH_ADMIN_TEST_SECRETS: ${{ secrets.SUPABASE_CI_URL != '' && secrets.SUPABASE_CI_PUBLISHABLE_KEY != '' && secrets.AUTH_CI_ADMIN_EMAIL != '' && secrets.AUTH_CI_ADMIN_PASSWORD != '' && (secrets.SUPABASE_SECRET_KEY != '' || secrets.SUPABASE_SERVICE_ROLE_KEY != '') }}
       HAS_DEPARTMENT_RPC_TEST_SECRETS: ${{ secrets.SUPABASE_CI_URL != '' && secrets.SUPABASE_CI_PUBLISHABLE_KEY != '' && secrets.AUTH_CI_USER_EMAIL != '' && secrets.AUTH_CI_USER_PASSWORD != '' && secrets.AUTH_CI_ADMIN_EMAIL != '' && secrets.AUTH_CI_ADMIN_PASSWORD != '' && (secrets.SUPABASE_SECRET_KEY != '' || secrets.SUPABASE_SERVICE_ROLE_KEY != '') }}
+      HAS_ISSUE_92_AUTH_FLOW_TEST_SECRETS: ${{ secrets.SUPABASE_CI_URL != '' && (secrets.SUPABASE_SECRET_KEY != '' || secrets.SUPABASE_SERVICE_ROLE_KEY != '') }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -46,6 +47,17 @@ jobs:
               ;;
           esac
           echo "Supabase CI target is not the shared DEV or PROD project."
+
+      - name: Verify issue 92 Auth identity reuse against isolated Supabase CI
+        if: env.HAS_ISSUE_92_AUTH_FLOW_TEST_SECRETS == 'true'
+        env:
+          SUPABASE_CI_URL: ${{ secrets.SUPABASE_CI_URL }}
+          SUPABASE_CI_ADMIN_KEY: ${{ secrets.SUPABASE_SECRET_KEY != '' && secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/issue-92-auth-identity-flow-smoke.cjs
+
+      - name: Explain skipped issue 92 Auth identity integration test
+        if: env.HAS_ISSUE_92_AUTH_FLOW_TEST_SECRETS != 'true'
+        run: echo "Issue 92 Auth identity integration test skipped: dedicated isolated Supabase CI URL and admin key are required."
 
       - name: Test issue 92 employee input and organization lookup
         run: >-

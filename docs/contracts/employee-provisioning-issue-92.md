@@ -1,6 +1,6 @@
 # Contrato proposto — provisionamento administrativo (#92)
 
-**Status:** proposta técnica para revisão; não é migration nem autorização para executar operações.
+**Status:** escopo básico aprovado pelo Gestor de Tecnologia em 27/11/2026; implementação em andamento. Este contrato não autoriza convites reais nem alterações em Production.
 **Branch:** `feature/issue-92-admin-account-provisioning`
 **Dependências:** #93 (primeiro acesso — PR #154 integrada à main), #97 (dispositivo/sessão e auditoria central), #95 (vínculo organizacional único).
 
@@ -8,12 +8,12 @@
 
 Definir as garantias necessárias para tornar o provisionamento idempotente sob concorrência e recuperável após falhas entre Supabase Auth e PostgreSQL.
 
-Esta especificação não cria tabela, RPC, usuário, convite, segredo ou migration. Não autoriza gravações em `connexa-dev` ou produção. Convites reais permanecem bloqueados até a integração e homologação de #93 e dos gates de segurança.
+A implementação básica pode avançar sem projeto SQA adicional. Não aplicar as migrations SQA-only `20261126010200` e `20261126010300`; não alterar Production. Convites reais permanecem bloqueados até a validação ponta a ponta de #93, da entrega de e-mail e da RPC no DEV.
 
 ## 2. Entrada confiável
 
 O servidor deve:
-1. Revalidar o ator como `platform_admin` e validar sessão/dispositivo conforme o contrato aprovado de #97.
+1. Revalidar sessão autenticada e papel `platform_admin` no backend. Não confiar em middleware, payload do navegador ou `user_metadata` como autorização.
 2. Normalizar nome, e-mail e UUID da organização usando o validador existente.
 3. Calcular o hash SHA-256 no servidor por serialização canônica de campos em ordem fixa. O hash enviado pelo cliente, se houver, deve ser ignorado.
 4. Receber uma chave de idempotência opaca, com limite de tamanho e formato definido no endpoint. A chave não substitui autorização nem hash do payload.
@@ -59,12 +59,12 @@ A escolha entre `INSERT ... ON CONFLICT`, lock transacional ou atualização con
 1. Validar ator, dispositivo, organização, e-mail e chave de idempotência.
 2. Obter claim persistente e exclusivo da operação.
 3. Consultar duplicidade Auth; falha na consulta deve falhar fechada.
-4. Enviar convite usando Supabase Auth Admin exclusivamente server-side e sem senha temporária.
-5. Persistir imediatamente o `auth_user_id` associado à operação antes de iniciar a transação de domínio.
-6. Chamar uma RPC específica para criar `profiles`, `organization_members` e evento da auditoria central na mesma transação PostgreSQL. Papel inicial fixo: `member`.
-7. Marcar a operação como concluída somente após confirmação de todas as etapas.
-8. Se PostgreSQL falhar após criação Auth, registrar estado de compensação/reconciliação. Excluir identidade Auth somente quando houver prova inequívoca de que foi criada por esta operação; nunca por igualdade de e-mail.
-9. Se o resultado de Auth for ambíguo, não repetir convite cegamente nem excluir identidade; mover para reconciliação manual.
+4. Criar a identidade sem enviar e-mail usando `auth.admin.createUser`, definindo `app_metadata: { first_access_pending: true }` na própria criação e mantendo e-mail não confirmado. Confirmar que a resposta contém o marcador antes de avançar.
+5. Persistir o `auth_user_id` associado à operação.
+6. Executar uma RPC transacional que cria `profiles`, `organization_members` com papel fixo `member` e o evento na tabela central `administrative_audit_logs`.
+7. Somente após confirmação do commit, gerar o link com `auth.admin.generateLink({ type: 'invite', email })` e entregá-lo por provedor de e-mail server-side. `inviteUserByEmail` não deve ser usado, pois envia o e-mail dentro da chamada.
+8. Marcar a operação como concluída após a entrega confirmada do e-mail. Falha/timeout de entrega após commit não deve apagar perfil/vínculo nem recriar identidade; registrar reconciliação para reenvio seguro.
+9. Se a transação PostgreSQL falhar, compensar a identidade somente com prova de propriedade e convite ainda não entregue/aceito. Resultado ambíguo não autoriza exclusão.
 
 O estado operacional não pode ser marcado como concluído antes do commit da RPC de domínio e auditoria.
 
@@ -73,15 +73,16 @@ O estado operacional não pode ser marcado como concluído antes do commit da RP
 A branch contém `employee-provisioning-orchestrator-core.ts`, uma orquestração pura com dependências injetadas. Ela define a sequência e os limites sem executar chamadas reais ao Supabase:
 
 1. Adquirir claim persistente e exclusivo.
-2. Criar convite somente por adaptador que garanta `app_metadata.first_access_pending` antes da entrega do e-mail.
+2. Criar identidade Auth sem envio de e-mail, já com `app_metadata.first_access_pending=true`.
 3. Persistir `auth_user_id` na operação.
 4. Executar perfil, vínculo e auditoria central em uma única transação PostgreSQL.
-5. Marcar a operação como concluída somente após a confirmação da transação.
-6. Em rollback PostgreSQL confirmado, compensar somente uma identidade comprovadamente criada pela própria operação e ainda não aceita; resultado de transação ou de exclusão ambíguo segue para reconciliação manual, sem exclusão.
+5. Gerar link de convite e enviá-lo somente após commit confirmado, por adaptador de e-mail server-side.
+6. Marcar operação concluída após confirmação de entrega; falha de entrega segue para reconciliação/reenvio, sem duplicar identidade.
+7. Em rollback PostgreSQL confirmado, compensar somente identidade comprovadamente criada pela operação e ainda não convidada/aceita; resultado ambíguo segue para reconciliação manual.
 
 Os testes cobrem replay sem novo convite, conflito de chave, resultado Auth ambíguo, propriedade não comprovada, falha de persistência, rollback/compensação, resultado PostgreSQL ambíguo (sem exclusão) e falha ao concluir. O contrato HTTP foi separado em `employee-provisioning-handler.ts`: autoriza antes de processar a entrada, lê `Idempotency-Key` do cabeçalho, deriva ator/hash no servidor, mapeia replay/conflito/em andamento/falha para respostas HTTP estáveis e não expõe `auth_user_id` ou dados pessoais. Seus testes usam provisionador injetado; a rota Next.js real ainda depende dos adapters concretos.
 
-Os adaptadores concretos permanecem deliberadamente ausentes até aprovação dos contratos #97 e do mecanismo de marcador pré-convite.
+A diretriz técnica para o marcador pré-convite está aprovada. O adapter Auth pode usar `createUser` com `app_metadata` na criação; o adapter de entrega de e-mail ainda depende da escolha/configuração do provedor existente. A RPC depende da extensão mínima do tipo de alvo da auditoria central.
 
 ## 7. Estados e transições
 
@@ -95,21 +96,48 @@ Estados propostos, alinhados aos helpers existentes:
 
 As transições devem ser condicionais e auditáveis. `completed` e `compensated` são terminais. Falhas ambíguas devem exigir reconciliação manual, não repetição automática insegura. Se a própria gravação do marcador de reconciliação falhar, a orquestração deve retornar `RECONCILIATION_MARKER_FAILED`; não pode afirmar que o estado manual foi persistido.
 
-## 8. Contrato pendente da auditoria #97
+## 8. Contrato concreto da auditoria central #97 — conferido no DEV
 
-A migration inicial da #97 define `administrative_audit_logs.target_type` com uma allowlist que não inclui explicitamente `employee` ou `employee_provisioning`. A auditoria central também exige os campos e sanitização definidos no contrato da #97.
+Consulta somente leitura ao Supabase `connexa-dev` confirmou a tabela `public.administrative_audit_logs` com os campos:
 
-Antes de implementar a RPC de provisionamento, o Tech Lead/SQA deve confirmar a extensão compatível do contrato central (tipo de alvo, ação, target_id, ator, organização e resultado) em migration versionada da própria linha #97. Não criar tabela ou log paralelo, nem reutilizar silenciosamente um tipo de alvo semanticamente incorreto.
+- `actor_user_id uuid`
+- `action text`
+- `target_type text`
+- `target_id text`
+- `target_user_id uuid`
+- `organization_id uuid`
+- `ticket_reference text`
+- `justification text`
+- `outcome text`
+- `occurred_at timestamptz default now()`
 
-A auditoria do provisionamento deve ocorrer dentro da mesma transação que grava perfil e vínculo. Se a escrita do evento falhar, toda a transação PostgreSQL deve sofrer rollback.
+Não existe RPC genérica de escrita de auditoria. As RPCs administrativas existentes escrevem diretamente nessa tabela dentro da própria transação. A #92 deve seguir o mesmo padrão: a RPC de provisionamento insere o evento diretamente na tabela central, sem criar RPC/tabela de auditoria paralela.
+
+**Assinatura de leitura existente (não usar para gravar):**
+`admin_list_administrative_audit(p_before timestamptz, p_before_id bigint, p_limit integer)`.
+
+**Incompatibilidade confirmada:** a constraint `administrative_audit_logs_target_type_check` permite somente `device`, `session`, `support_ticket`, `it_support_assignment`, `department` e `organization`. O alvo `profile` solicitado pelo contrato de negócio ainda não é aceito. A tabela também não possui coluna `metadata`; não enviar campo inexistente nem criar coluna paralela nesta etapa.
+
+**Evento requerido para #92:**
+- `actor_user_id`: derivado de `auth.uid()` dentro da RPC;
+- `action`: `employee.created`;
+- `target_type`: `profile` (requer extensão mínima e versionada da constraint);
+- `target_id`: ID do perfil criado;
+- `target_user_id`: ID Auth do colaborador;
+- `organization_id`: organização escolhida;
+- `justification`: justificativa administrativa sanitizada;
+- `outcome`: `allowed`;
+- `occurred_at`: default do banco.
+
+A RPC de provisionamento deve inserir esse evento na mesma transação de `profiles` e `organization_members`. Falha de auditoria reverte toda a transação. A migration de extensão da constraint deve depender da fundação #97 já presente no DEV e ser revisada antes da aplicação; não alterar Production.
 
 ## 9. Dependências e gates
 
 - **#95:** preservar a unicidade de `organization_members.user_id`; não criar vínculo em segunda organização.
-- **#97:** PR #153 continua sem aprovação SQA final (REQUEST CHANGES); autorização de sessão/dispositivo e contrato de auditoria central não estão liberados. Não executar a RPC antes da aprovação.
+- **#97:** escopo básico de consumo da auditoria central aprovado. PR #153 permanece aberta e fora da `main`; não aplicar migrations SQA-only 10200/10300. A RPC #92 deve usar a tabela central já presente no DEV e requer ajuste mínimo da constraint para `target_type='profile'`.
 - **#93:** PR #154 foi integrada à `main`; a integração da #92 ainda precisa implementar o adaptador que estabelece o marcador antes do envio do convite e validar o fluxo ponta a ponta.
-- **SQA:** testes com JWT real, chamadas concorrentes com mesma chave, mesma chave/payload divergente, falhas antes/depois do convite, interrupção após persistir `auth_user_id`, rollback por falha de auditoria, compensação segura e reconciliação manual.
-- **Ambientes:** testes integrados somente em Supabase SQA isolado e explicitamente allowlisted. Não aplicar migrations ou executar gravações no DEV/PROD nesta etapa.
+- **SQA:** não exigir projeto adicional para continuar o desenvolvimento. Manter testes unitários, CI e validação integrada controlada no DEV após revisão da migration e autorização de execução.
+- **Ambientes:** DEV online é o único alvo de validação autorizado; Production permanece intocado. Não aplicar as migrations SQA-only 10200/10300.
 
 ## 10. Critérios para retirar este documento de proposta
 

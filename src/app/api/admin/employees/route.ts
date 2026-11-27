@@ -7,6 +7,7 @@ import {
   createEmployeeAuthIdentity,
   generateEmployeeFirstAccessInviteLink,
   deleteEmployeeAuthIdentityIfUnaccepted,
+  recoverEmployeeFirstAccessLink,
 } from "@/lib/admin/supabase-employee-invite";
 import { createClient } from "@/lib/supabase/server";
 
@@ -107,5 +108,63 @@ const handleGet = createEmployeeProvisioningReconciliationGetHandler({
 });
 
 export async function GET(request: Request): Promise<Response> {
-  return handleGet(request);
+  const url = new URL(request.url);
+  if (url.searchParams.get("action") !== "recover-first-access-link") {
+    return handleGet(request);
+  }
+
+  let authorization;
+  try {
+    authorization = await requirePlatformAdmin();
+  } catch {
+    return Response.json(
+      { success: false, error: { code: "AUTHORIZATION_CHECK_FAILED" } },
+      { status: 503, headers: { "Cache-Control": "no-store, max-age=0" } },
+    );
+  }
+
+  if (!authorization.authorized) {
+    const status = authorization.reason === "UNAUTHENTICATED"
+      ? 401
+      : authorization.reason === "FORBIDDEN"
+        ? 403
+        : 503;
+    return Response.json(
+      { success: false, error: { code: authorization.reason } },
+      { status, headers: { "Cache-Control": "no-store, max-age=0" } },
+    );
+  }
+
+  const operationId = url.searchParams.get("operationId");
+  if (
+    !operationId ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(operationId)
+  ) {
+    return Response.json(
+      { success: false, error: { code: "INVALID_OPERATION_ID" } },
+      { status: 400, headers: { "Cache-Control": "no-store, max-age=0" } },
+    );
+  }
+
+  try {
+    const firstAccessLink = await recoverEmployeeFirstAccessLink(
+      operationId,
+      authorization.userId,
+    );
+    if (!firstAccessLink) {
+      return Response.json(
+        { success: false, error: { code: "LINK_NOT_AVAILABLE" } },
+        { status: 404, headers: { "Cache-Control": "no-store, max-age=0" } },
+      );
+    }
+    return Response.json(
+      { success: true, data: { firstAccessLink } },
+      { status: 200, headers: { "Cache-Control": "no-store, max-age=0" } },
+    );
+  } catch {
+    return Response.json(
+      { success: false, error: { code: "LINK_RECOVERY_UNAVAILABLE" } },
+      { status: 503, headers: { "Cache-Control": "no-store, max-age=0" } },
+    );
+  }
 }

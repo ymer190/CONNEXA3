@@ -1,7 +1,7 @@
 import "server-only";
 
-import { decryptProvisioningEmail, encryptProvisioningEmail } from "./employee-provisioning-email-crypto";
-import { decryptProvisioningInviteLink, encryptProvisioningInviteLink } from "./employee-provisioning-invite-link-crypto";
+import { encryptProvisioningEmail } from "./employee-provisioning-email-crypto";
+import { encryptProvisioningInviteLink } from "./employee-provisioning-invite-link-crypto";
 import type {
   DomainTransactionResult,
   EmployeeProvisioningPayload,
@@ -24,9 +24,8 @@ type ClaimRow = {
   status?: unknown;
   phase?: unknown;
   auth_user_id?: unknown;
-  email_envelope?: unknown;
-  invite_link_envelope?: unknown;
-  email_provider_message_id?: unknown;
+  has_invite_link?: unknown;
+  has_provider_receipt?: unknown;
   failure_code?: unknown;
 };
 
@@ -225,8 +224,8 @@ export function createEmployeeProvisioningDatabase(client: EmployeeProvisioningR
       if (
         typeof row.status !== "string" ||
         typeof row.phase !== "string" ||
-        (row.invite_link_envelope !== null && typeof row.invite_link_envelope !== "string") ||
-        (row.email_provider_message_id !== null && typeof row.email_provider_message_id !== "string")
+        typeof row.has_invite_link !== "boolean" ||
+        typeof row.has_provider_receipt !== "boolean"
       ) {
         throw new Error("Provisioning reconciliation status is incomplete.");
       }
@@ -235,43 +234,8 @@ export function createEmployeeProvisioningDatabase(client: EmployeeProvisioningR
         operationId,
         status: row.status,
         phase: row.phase,
-        hasInviteLink: typeof row.invite_link_envelope === "string",
-        hasProviderReceipt: typeof row.email_provider_message_id === "string",
-        failureCode: typeof row.failure_code === "string" ? row.failure_code : null,
-      };
-    },
-
-    async getOperationForReconciliation(operationId: string) {
-      const { data, error } = await client.rpc(
-        "admin_get_employee_provisioning_operation",
-        { p_operation_id: operationId },
-      );
-      if (error) throw new Error("Provisioning reconciliation lookup is unavailable.");
-
-      const row = firstRow(data);
-      if (!row) return null;
-      if (
-        typeof row.status !== "string" ||
-        typeof row.phase !== "string" ||
-        typeof row.email_envelope !== "string" ||
-        (row.invite_link_envelope !== null && typeof row.invite_link_envelope !== "string")
-      ) {
-        throw new Error("Provisioning reconciliation record is incomplete.");
-      }
-
-      return {
-        operationId,
-        status: row.status,
-        phase: row.phase,
-        authUserId: typeof row.auth_user_id === "string" ? row.auth_user_id : null,
-        email: decryptProvisioningEmail(row.email_envelope),
-        actionLink: typeof row.invite_link_envelope === "string"
-          ? decryptProvisioningInviteLink(row.invite_link_envelope)
-          : null,
-        providerMessageId:
-          typeof row.email_provider_message_id === "string"
-            ? row.email_provider_message_id
-            : null,
+        hasInviteLink: row.has_invite_link,
+        hasProviderReceipt: row.has_provider_receipt,
         failureCode: typeof row.failure_code === "string" ? row.failure_code : null,
       };
     },

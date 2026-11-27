@@ -28,8 +28,8 @@ function dependencies(overrides: Partial<EmployeeProvisioningDependencies> = {})
       events.push("claim");
       return claimed;
     },
-    createInviteWithFirstAccessPending: async () => {
-      events.push("invite");
+    createAuthIdentityWithFirstAccessPending: async () => {
+      events.push("create-auth-identity");
       return {
         kind: "created" as const,
         authUserId: "auth-user-1",
@@ -43,6 +43,14 @@ function dependencies(overrides: Partial<EmployeeProvisioningDependencies> = {})
     persistProfileMembershipAndAuditAtomically: async () => {
       events.push("persist-domain-and-audit");
       return { kind: "committed" as const };
+    },
+    generateInviteLink: async () => {
+      events.push("generate-invite-link");
+      return { kind: "generated" as const, actionLink: "https://example.test/invite" };
+    },
+    sendInviteEmail: async () => {
+      events.push("send-invite-email");
+      return { kind: "sent" as const, providerMessageId: "email-1" };
     },
     completeOperation: async () => {
       events.push("complete");
@@ -122,8 +130,8 @@ test("does not perform side effects when the idempotency key conflicts", async (
 
 test("does not retry an invite whose external outcome is unknown", async () => {
   const { dependencies: deps, events } = dependencies({
-    createInviteWithFirstAccessPending: async () => {
-      events.push("invite");
+    createAuthIdentityWithFirstAccessPending: async () => {
+      events.push("create-auth-identity");
       return { kind: "unknown" };
     },
   });
@@ -137,8 +145,8 @@ test("does not retry an invite whose external outcome is unknown", async () => {
 
 test("does not compensate an Auth identity whose ownership is unproven", async () => {
   const { dependencies: deps, events } = dependencies({
-    createInviteWithFirstAccessPending: async () => {
-      events.push("invite");
+    createAuthIdentityWithFirstAccessPending: async () => {
+      events.push("create-auth-identity");
       return {
         kind: "created",
         authUserId: "auth-user-1",
@@ -307,8 +315,8 @@ test("does not run side effects when the operation requires manual reconciliatio
 
 test("does not persist domain records when invite creation is rejected", async () => {
   const { dependencies: deps, events } = dependencies({
-    createInviteWithFirstAccessPending: async () => {
-      events.push("invite");
+    createAuthIdentityWithFirstAccessPending: async () => {
+      events.push("create-auth-identity");
       return { kind: "not_created" };
     },
   });
@@ -392,8 +400,8 @@ test("does not report compensation complete when its terminal state cannot be pe
 
 test("does not claim reconciliation was recorded when its persistence fails", async () => {
   const { dependencies: deps, events } = dependencies({
-    createInviteWithFirstAccessPending: async () => {
-      events.push("invite");
+    createAuthIdentityWithFirstAccessPending: async () => {
+      events.push("create-auth-identity");
       return { kind: "unknown" };
     },
     markManualReconciliationRequired: async () => {
@@ -409,3 +417,49 @@ test("does not claim reconciliation was recorded when its persistence fails", as
   assert.deepEqual(events, ["claim", "invite", "manual-reconciliation"]);
 });
 
+
+test("does not generate or send the invite until the domain transaction has committed", async () => {
+  const { dependencies: deps, events } = dependencies({
+    persistProfileMembershipAndAuditAtomically: async () => {
+      events.push("persist-domain-and-audit");
+      return { kind: "rolled_back" as const };
+    },
+  });
+
+  assert.deepEqual(
+    await runEmployeeProvisioning(payload, deps),
+    { kind: "failed", code: "DOMAIN_TRANSACTION_FAILED" },
+  );
+  assert.deepEqual(events, [
+    "claim",
+    "create-auth-identity",
+    "persist-auth-id",
+    "persist-domain-and-audit",
+    "compensation-pending",
+    "delete-auth-identity",
+    "compensated",
+  ]);
+});
+
+test("does not compensate committed records when Resend delivery fails", async () => {
+  const { dependencies: deps, events } = dependencies({
+    sendInviteEmail: async () => {
+      events.push("send-invite-email");
+      return { kind: "failed" as const };
+    },
+  });
+
+  assert.deepEqual(
+    await runEmployeeProvisioning(payload, deps),
+    { kind: "manual_reconciliation_required" },
+  );
+  assert.deepEqual(events, [
+    "claim",
+    "create-auth-identity",
+    "persist-auth-id",
+    "persist-domain-and-audit",
+    "generate-invite-link",
+    "send-invite-email",
+    "manual-reconciliation",
+  ]);
+});

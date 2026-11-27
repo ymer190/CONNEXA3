@@ -2,9 +2,9 @@
 
 **Status:** proposta operacional; não executar em produção nem no Supabase DEV.
 **Escopo:** orientar a futura operação manual quando a integração Auth/PostgreSQL não puder determinar com segurança o resultado do provisionamento.
-**Pré-requisitos para uso:** adapters concretos, tabela de operações, RPC transacional e auditoria central aprovados por Tech Lead/SQA; testes no projeto Supabase SQA isolado.
+**Pré-requisitos para uso:** revisão Tech Lead do SQL draft, migration gerada e aprovada, RPCs aplicadas no Supabase DEV, variáveis de criptografia/Resend configuradas e CI verde. O projeto SQA adicional não é requisito para continuar o desenvolvimento.
 
-> Este documento não autoriza convites, exclusões de usuários, alterações de dados ou aplicação de migrations. Enquanto os adapters e a persistência não existirem, os passos abaixo são critérios de projeto, não procedimentos executáveis.
+> Este documento não autoriza convites, exclusões de usuários, alterações de dados ou aplicação de migrations. Os adapters e a rota estão versionados na PR #152, mas a persistência ainda está somente em SQL draft; portanto, os passos abaixo continuam não executáveis.
 
 ## 1. Regras invariáveis
 
@@ -41,6 +41,7 @@ O futuro adapter deverá permitir consultar, sem expor PII desnecessária:
 - ator administrativo que iniciou a operação;
 - auth_user_id, quando já persistido;
 - resultado conhecido da chamada Auth e da RPC PostgreSQL;
+- `email_provider_message_id` retornado pelo Resend, quando a entrega foi confirmada;
 - estado de aceite do convite;
 - prova de que a identidade Auth foi criada por aquela operação;
 - existência de perfil, vínculo organizacional e evento de auditoria correspondentes.
@@ -80,3 +81,8 @@ Uma operação só pode sair de reconciliação quando houver uma destas conclus
 - Repetição da reconciliação sem duplicar convite, vínculo ou evento de auditoria.
 
 **Gate de liberação:** este runbook só passa a ser operacional após revisão Tech Lead/SQA, implementação dos adapters e execução dos testes em projeto Supabase SQA isolado. Não aplicar no projeto DEV compartilhado ou em Production durante a validação.
+
+
+## 7. Estado atual
+
+A implementação da rota e dos adapters está em andamento na PR #152. O SQL da tabela operacional/RPC está em `docs/contracts/employee-provisioning-issue-92-migration-draft.sql`, ainda não é uma migration aplicada. O envio só deve ser habilitado depois de a RPC registrar o recibo do Resend (`email_provider_message_id`) e a operação passar para `completed`. Até lá, não executar provisionamentos reais.

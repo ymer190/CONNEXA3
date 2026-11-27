@@ -59,11 +59,11 @@ A escolha entre `INSERT ... ON CONFLICT`, lock transacional ou atualização con
 1. Validar ator, dispositivo, organização, e-mail e chave de idempotência.
 2. Obter claim persistente e exclusivo da operação.
 3. Consultar duplicidade Auth; falha na consulta deve falhar fechada.
-4. Criar a identidade sem enviar e-mail usando `auth.admin.createUser`, definindo `app_metadata: { first_access_pending: true }` na própria criação e mantendo e-mail não confirmado. Confirmar que a resposta contém o marcador antes de avançar.
-5. Persistir o `auth_user_id` associado à operação.
-6. Executar uma RPC transacional que cria `profiles`, `organization_members` com papel fixo `member` e o evento na tabela central `administrative_audit_logs`.
-7. Somente após confirmação do commit, gerar o link com `auth.admin.generateLink({ type: 'invite', email })` e entregá-lo por provedor de e-mail server-side. `inviteUserByEmail` não deve ser usado, pois envia o e-mail dentro da chamada.
-8. Marcar a operação como concluída após a entrega confirmada do e-mail. Falha/timeout de entrega após commit não deve apagar perfil/vínculo nem recriar identidade; registrar reconciliação para reenvio seguro.
+4. Antes da chamada externa, marcar persistentemente a fase `auth_creation_started` para impedir que outra requisição repita a criação em caso de interrupção.
+5. Criar a identidade e obter o link sem enviar e-mail usando `auth.admin.generateLink({ type: 'invite', email })`. A documentação atual do Supabase confirma que `generateLink` também cria a identidade para o tipo `invite`; portanto, não chamar `createUser` antes, pois isso pode gerar conflito de usuário existente. A chamada retorna `action_link` e usuário, sem entregar o e-mail.
+6. Atualizar a identidade retornada via `auth.admin.updateUserById`, definindo `app_metadata.first_access_pending=true` e `app_metadata.employee_provisioning_operation_id=<operation_id>`. Confirmar o marcador e persistir imediatamente o `auth_user_id` associado à operação. O link fica apenas em memória no backend.
+7. Executar uma RPC transacional que cria `profiles`, `organization_members` com papel fixo `member` e o evento na tabela central `administrative_audit_logs`.
+8. Somente após confirmação do commit, entregar o link previamente gerado pelo Resend. `inviteUserByEmail` não deve ser usado, pois envia o e-mail durante a chamada. Marcar a operação como concluída após confirmação da entrega; falha/timeout após commit não deve apagar perfil/vínculo nem recriar identidade, mas registrar reconciliação para reenvio seguro.
 9. Se a transação PostgreSQL falhar, compensar a identidade somente com prova de propriedade e convite ainda não entregue/aceito. Resultado ambíguo não autoriza exclusão.
 
 O estado operacional não pode ser marcado como concluído antes do commit da RPC de domínio e auditoria.
@@ -73,16 +73,17 @@ O estado operacional não pode ser marcado como concluído antes do commit da RP
 A branch contém `employee-provisioning-orchestrator-core.ts`, uma orquestração pura com dependências injetadas. Ela define a sequência e os limites sem executar chamadas reais ao Supabase:
 
 1. Adquirir claim persistente e exclusivo.
-2. Criar identidade Auth sem envio de e-mail, já com `app_metadata.first_access_pending=true`.
-3. Persistir `auth_user_id` na operação.
-4. Executar perfil, vínculo e auditoria central em uma única transação PostgreSQL.
-5. Gerar link de convite e enviá-lo somente após commit confirmado, por adaptador de e-mail server-side.
+2. Marcar a fase `auth_creation_started` antes do efeito externo.
+3. Usar `generateLink({ type: 'invite' })` para criar a identidade e obter o link sem enviá-lo; atualizar `app_metadata.first_access_pending=true` e `employee_provisioning_operation_id` via Auth Admin.
+4. Persistir `auth_user_id` na operação.
+5. Executar perfil, vínculo e auditoria central em uma única transação PostgreSQL.
+6. Entregar o link pelo Resend somente após commit confirmado.
 6. Marcar operação concluída após confirmação de entrega; falha de entrega segue para reconciliação/reenvio, sem duplicar identidade.
 7. Em rollback PostgreSQL confirmado, compensar somente identidade comprovadamente criada pela operação e ainda não convidada/aceita; resultado ambíguo segue para reconciliação manual.
 
 Os testes cobrem replay sem novo convite, conflito de chave, resultado Auth ambíguo, propriedade não comprovada, falha de persistência, rollback/compensação, resultado PostgreSQL ambíguo (sem exclusão) e falha ao concluir. O contrato HTTP foi separado em `employee-provisioning-handler.ts`: autoriza antes de processar a entrada, lê `Idempotency-Key` do cabeçalho, deriva ator/hash no servidor, mapeia replay/conflito/em andamento/falha para respostas HTTP estáveis e não expõe `auth_user_id` ou dados pessoais. Seus testes usam provisionador injetado; a rota Next.js real ainda depende dos adapters concretos.
 
-A diretriz técnica para o marcador pré-convite está aprovada. O adapter Auth pode usar `createUser` com `app_metadata` na criação; o adapter de entrega de e-mail ainda depende da escolha/configuração do provedor existente. A RPC depende da extensão mínima do tipo de alvo da auditoria central.
+A documentação oficial do Supabase confirma que `generateLink` cria o usuário para os tipos `signup`, `invite` e `magiclink`, além de gerar o link sem enviá-lo. Por isso, a implementação usa `generateLink({ type: 'invite' })` uma única vez e atualiza `app_metadata` com Auth Admin antes da transação; o link permanece no backend e só é entregue pelo Resend após o commit. Essa sequência evita criar o usuário duas vezes. A RPC depende da extensão mínima do tipo de alvo da auditoria central.
 
 ## 7. Estados e transições
 
@@ -148,3 +149,8 @@ O documento só poderá ser convertido em implementação quando:
 - existir ambiente SQA isolado e gates de CI comprovados.
 
 Até lá, manter a PR #152 Draft e limitar as alterações a código puro, testes unitários e documentação.
+
+
+### Correção da sequência Auth — documentação oficial
+
+A referência atual do `supabase-js` declara que `generateLink()` trata a criação do usuário para `signup`, `invite` e `magiclink`, e que sua finalidade é gerar links/OTPs para um provedor de e-mail customizado. Logo, a combinação `createUser()` seguida de `generateLink({ type: 'invite' })` não é válida para a mesma identidade. A implementação foi corrigida para usar uma única chamada `generateLink({ type: 'invite' })`, atualizar `app_metadata` por `updateUserById`, persistir o Auth ID e manter o `action_link` somente no servidor até o commit PostgreSQL. A entrega continua pós-commit via Resend.

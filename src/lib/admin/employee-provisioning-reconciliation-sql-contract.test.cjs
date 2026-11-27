@@ -114,3 +114,11 @@ test("first-access link recovery is restricted to the original actor and service
   assert.ok(sql.includes("revoke all on function public.admin_get_employee_provisioning_invite_link(uuid,uuid)"));
   assert.ok(sql.includes("grant execute on function public.admin_get_employee_provisioning_invite_link(uuid,uuid) to service_role;"));
 });
+
+test("first-access link generation and recovery append central audit events without bearer material", () => {
+  assert.ok(sql.includes("'employee.first_access_link_generated'"));
+  assert.ok(sql.includes("'employee.first_access_link_reissued'"));
+  assert.ok(sql.includes("'provisioning_operation_id'"));
+  assert.ok(sql.includes("'delivery_channel', 'manual'"));
+  assert.doesNotMatch(sql, /'first_access_link'\\s*,|'token_hash'\\s*,|'invite_link_envelope'\\s*,/i);
+});

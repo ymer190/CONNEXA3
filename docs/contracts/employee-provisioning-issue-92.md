@@ -69,22 +69,20 @@ A implementação usa `INSERT ... ON CONFLICT` e bloqueio transacional para impe
 O estado operacional não pode ser marcado como concluído antes do commit da RPC de domínio/auditoria e da persistência do recibo de entrega.
 ## 6. Orquestração isolada e testável
 
-A branch contém `employee-provisioning-orchestrator-core.ts`, uma orquestração pura com dependências injetadas. A sequência é:
+A branch contém `employee-provisioning-orchestrator-core.ts`, uma orquestração pura com dependências injetadas. A sequência implementada é:
 
 1. Adquirir claim persistente e exclusivo.
 2. Marcar a fase `auth_creation_started` antes do efeito externo.
-3. Usar `generateLink({ type: 'invite' })` para criar a identidade e obter o link sem enviá-lo.
-4. Atualizar `app_metadata.first_access_pending=true` e `employee_provisioning_operation_id` via Auth Admin.
-5. Persistir `auth_user_id` na operação.
-6. Executar perfil, vínculo e auditoria central em uma única transação PostgreSQL.
-7. Entregar o link pelo Resend somente após commit confirmado.
-8. Persistir o recibo `provider_message_id` do Resend e a fase `email_sent`.
-9. Marcar operação concluída somente depois da persistência do recibo; falha/resultado ambíguo exige reconciliação, sem duplicar identidade.
-9. Em rollback PostgreSQL confirmado, compensar somente identidade comprovadamente criada pela operação e ainda não aceita; resultado ambíguo não autoriza exclusão.
+3. Criar a identidade por `auth.admin.createUser()`, sem senha e sem envio de e-mail, já com `app_metadata.first_access_pending=true` e `employee_provisioning_operation_id`.
+4. Confirmar os marcadores retornados e persistir o Auth ID.
+5. Executar perfil, vínculo e auditoria central em uma única transação PostgreSQL.
+6. Somente após commit, consultar novamente a identidade e confirmar que continua não confirmada e pertence à operação.
+7. Gerar o link por `auth.admin.generateLink({ type: 'invite', email })` para o usuário existente ainda não confirmado. O GoTrue atualiza o token de convite nesse caso; usuário já confirmado é rejeitado. A geração não envia e-mail.
+8. Adaptar o link ao contrato da #93, persistir o link cifrado e enviar via Resend.
+9. Persistir o recibo `provider_message_id` e a fase `email_sent`; concluir somente depois.
+10. Em rollback confirmado, compensar somente identidade comprovadamente criada pela operação e ainda não aceita. Resultados ambíguos exigem reconciliação manual.
 
-Os testes cobrem replay sem novo convite, conflito de chave, resultado Auth ambíguo, propriedade não comprovada, falha de persistência, rollback/compensação, resultado PostgreSQL ambíguo (sem exclusão), falha ao concluir e a ordem pós-commit do envio. O contrato HTTP está separado em `employee-provisioning-handler.ts`: autoriza antes de processar a entrada, lê `Idempotency-Key` do cabeçalho, deriva ator/hash no servidor e não expõe `auth_user_id` ou dados pessoais. A rota Next.js e a integração dos adapters ainda estão em andamento.
-
-A documentação oficial do Supabase confirma que `generateLink` cria o usuário para os tipos `signup`, `invite` e `magiclink`, além de gerar o link sem enviá-lo. Portanto, não combinar `createUser()` com `generateLink({ type: 'invite' })` para o mesmo e-mail. A implementação usa uma única chamada `generateLink({ type: 'invite' })`, atualiza `app_metadata` por Auth Admin e mantém o link no servidor até o commit PostgreSQL.
+Os testes cobrem replay sem novo convite, conflito de chave, resultado Auth ambíguo, propriedade não comprovada, falha de persistência, rollback/compensação, resultado PostgreSQL ambíguo (sem exclusão), falha ao concluir e ordem pós-commit do envio. O contrato HTTP autoriza antes de processar a entrada, lê `Idempotency-Key` do cabeçalho, deriva ator/hash no servidor e não expõe `auth_user_id` ou dados pessoais.
 
 ## 7. Estados e transições
 
@@ -100,38 +98,25 @@ As transições devem ser condicionais e auditáveis. `completed` e `compensated
 
 ## 8. Contrato concreto da auditoria central #97 — conferido no DEV
 
-Consulta somente leitura ao Supabase `connexa-dev` confirmou a tabela `public.administrative_audit_logs` com os campos:
+Consulta somente leitura ao Supabase `connexa-dev` confirmou a tabela `public.administrative_audit_logs` com os campos `actor_user_id`, `action`, `target_type`, `target_id`, `target_user_id`, `organization_id`, `ticket_reference`, `justification`, `outcome` e `occurred_at`. A tabela não possui coluna `metadata`.
 
-- `actor_user_id uuid`
-- `action text`
-- `target_type text`
-- `target_id text`
-- `target_user_id uuid`
-- `organization_id uuid`
-- `ticket_reference text`
-- `justification text`
-- `outcome text`
-- `occurred_at timestamptz default now()`
+Não existe RPC genérica de escrita de auditoria. As RPCs administrativas existentes escrevem diretamente nessa tabela dentro da própria transação. A #92 segue o mesmo padrão: insere o evento diretamente na tabela central, sem criar RPC/tabela de auditoria paralela.
 
-Não existe RPC genérica de escrita de auditoria. As RPCs administrativas existentes escrevem diretamente nessa tabela dentro da própria transação. A #92 deve seguir o mesmo padrão: a RPC de provisionamento insere o evento diretamente na tabela central, sem criar RPC/tabela de auditoria paralela.
+**Incompatibilidades confirmadas:** a constraint `administrative_audit_logs_target_type_check` aceita somente `device`, `session`, `support_ticket`, `it_support_assignment`, `department` e `organization`; o alvo `profile` ainda não é aceito. A tabela não possui `metadata`. O SQL draft propõe extensões aditivas mínimas na tabela central: aceitar `profile` e adicionar `metadata jsonb null` com validação de objeto.
 
-**Assinatura de leitura existente (não usar para gravar):**
-`admin_list_administrative_audit(p_before timestamptz, p_before_id bigint, p_limit integer)`.
-
-**Incompatibilidade confirmada:** a constraint `administrative_audit_logs_target_type_check` permite somente `device`, `session`, `support_ticket`, `it_support_assignment`, `department` e `organization`. O alvo `profile` solicitado pelo contrato de negócio ainda não é aceito. A tabela também não possui coluna `metadata`; não enviar campo inexistente nem criar coluna paralela nesta etapa.
-
-**Evento requerido para #92:**
+**Evento requerido:**
 - `actor_user_id`: derivado de `auth.uid()` dentro da RPC;
 - `action`: `employee.created`;
-- `target_type`: `profile` (requer extensão mínima e versionada da constraint);
+- `target_type`: `profile`;
 - `target_id`: ID do perfil criado;
 - `target_user_id`: ID Auth do colaborador;
 - `organization_id`: organização escolhida;
 - `justification`: justificativa administrativa sanitizada;
+- `metadata`: objeto JSONB não sensível com `provisioning_operation_id` e `initial_role='member'`; nunca incluir e-mail, token, senha ou segredo;
 - `outcome`: `allowed`;
 - `occurred_at`: default do banco.
 
-A RPC de provisionamento deve inserir esse evento na mesma transação de `profiles` e `organization_members`. Falha de auditoria reverte toda a transação. A migration de extensão da constraint deve depender da fundação #97 já presente no DEV e ser revisada antes da aplicação; não alterar Production.
+A RPC insere esse evento na mesma transação de `profiles` e `organization_members`. Falha de auditoria reverte toda a transação. A extensão é apenas na tabela central existente, sem criar mecanismo paralelo.
 
 ## 9. Dependências e gates
 
@@ -152,16 +137,15 @@ O documento só poderá ser convertido em implementação quando:
 Até lá, manter a PR #152 Draft e limitar as alterações a código puro, testes unitários e documentação.
 
 
-### Correção da sequência Auth — documentação oficial
+### Sequência Auth — documentação e comportamento GoTrue
 
-A referência atual do `supabase-js` declara que `generateLink()` trata a criação do usuário para `signup`, `invite` e `magiclink`, e que sua finalidade é gerar links/OTPs para um provedor de e-mail customizado. Logo, a combinação `createUser()` seguida de `generateLink({ type: 'invite' })` não é válida para a mesma identidade. A implementação foi corrigida para usar uma única chamada `generateLink({ type: 'invite' })`, atualizar `app_metadata` por `updateUserById`, persistir o Auth ID e manter o `action_link` somente no servidor até o commit PostgreSQL. A entrega continua pós-commit via Resend.
-
+`generateLink()` gera link/OTP sem enviar e-mail. Para `type='invite'`, o GoTrue cria uma identidade quando ela ainda não existe; quando encontra identidade existente ainda não confirmada, atualiza o token de convite; se ela já estiver confirmada, retorna erro. A implementação #92 cria primeiro a identidade com `createUser()` e os marcadores confiáveis, e somente após o commit PostgreSQL confirma o mesmo Auth ID e chama `generateLink({ type: 'invite' })`. O link permanece no servidor, é cifrado antes do envio via Resend e só é enviado após o commit.
 
 ## 11. Estado da implementação online (27/11/2026)
 
 - Adicionado `src/lib/admin/employee-provisioning-database.ts` com adapters para os contratos RPC do rascunho.
 - Adicionada rota `POST /api/admin/employees`, com autorização server-side, pré-validação de variáveis obrigatórias e fail-closed se o ambiente não estiver configurado.
-- A criação Auth usa `generateLink({ type: 'invite' })` uma única vez, atualiza `app_metadata` e guarda o link somente no backend até o commit.
+- A criação Auth usa `createUser()` com os marcadores em `app_metadata`; após o commit PostgreSQL, `generateLink({ type: 'invite' })` gera o link para a mesma identidade ainda não confirmada.
 - Adicionado identificador `employee_provisioning_operation_id` em `app_metadata` para provar propriedade da identidade antes de eventual compensação.
 - Link de primeiro acesso e e-mail passam a ser persistidos apenas como envelopes AES-256-GCM na tabela operacional, para permitir reconciliação sem expor token.
 - Corrigida a assertion de teste que esperava o código antigo `INVITE_NOT_CREATED`.

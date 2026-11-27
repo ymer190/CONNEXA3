@@ -73,7 +73,7 @@ test("allows pending to complete and compensation to be retried", () => {
   assert.deepEqual(transitionProvisioningOperation("compensation_pending", "compensated"), { success: true, status: "compensated" });
 });
 
-test("rejects transitions out of terminal states", () => {
+test("requires compensation_pending before marking a pending operation compensated", () => {\n  assert.deepEqual(transitionProvisioningOperation("pending", "compensated"), { success: false, code: "INVALID_TRANSITION" });\n  assert.deepEqual(transitionProvisioningOperation("pending", "compensation_pending"), { success: true, status: "compensation_pending" });\n});\n\ntest("rejects transitions out of terminal states", () => {
   assert.deepEqual(transitionProvisioningOperation("completed", "pending"), { success: false, code: "INVALID_TRANSITION" });
   assert.deepEqual(transitionProvisioningOperation("compensated", "completed"), { success: false, code: "INVALID_TRANSITION" });
 });
@@ -102,7 +102,7 @@ test("covers the complete provisioning status transition matrix", () => {
     "manual_reconciliation_required",
   ] as const;
   const allowed: Record<(typeof statuses)[number], readonly string[]> = {
-    pending: ["completed", "compensation_pending", "compensated", "manual_reconciliation_required"],
+    pending: ["completed", "compensation_pending", "manual_reconciliation_required"],
     completed: [],
     compensation_pending: ["compensated", "manual_reconciliation_required"],
     compensated: [],

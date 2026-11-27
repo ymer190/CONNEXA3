@@ -73,7 +73,7 @@ export function decideIdempotency(
 }
 
 const ALLOWED_TRANSITIONS: Record<ProvisioningStatus, readonly ProvisioningStatus[]> = {
-  pending: ["completed", "compensation_pending", "compensated", "manual_reconciliation_required"],
+  pending: ["completed", "compensation_pending", "manual_reconciliation_required"],
   completed: [],
   compensation_pending: ["compensated", "manual_reconciliation_required"],
   compensated: [],

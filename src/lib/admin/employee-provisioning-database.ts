@@ -23,7 +23,6 @@ type ClaimRow = {
   claim_id?: unknown;
   status?: unknown;
   phase?: unknown;
-  auth_user_id?: unknown;
   has_invite_link?: unknown;
   has_provider_receipt?: unknown;
   failure_code?: unknown;
@@ -114,7 +113,7 @@ export function createEmployeeProvisioningDatabase(client: EmployeeProvisioningR
         return {
           kind: "replay",
           status: row.status as ProvisioningStatus,
-          authUserId: typeof row.auth_user_id === "string" ? row.auth_user_id : null,
+          authUserId: null,
         };
       }
 

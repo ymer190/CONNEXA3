@@ -267,7 +267,6 @@ returns table (
   failure_code text
 )
 language plpgsql
-stable
 security definer
 set search_path = ''
 as $

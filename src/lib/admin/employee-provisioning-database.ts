@@ -89,9 +89,20 @@ export function createEmployeeProvisioningDatabase(client: EmployeeProvisioningR
       }
 
       if (row.result === "conflict") return { kind: "conflict" };
-      if (row.result === "in_progress") return { kind: "in_progress" };
+      if (row.result === "in_progress") {
+        if (typeof row.operation_id !== "string") {
+          throw new Error("In-progress operation ID is invalid.");
+        }
+        return { kind: "in_progress", operationId: row.operation_id };
+      }
       if (row.result === "manual_reconciliation_required") {
-        return { kind: "manual_reconciliation_required" };
+        if (typeof row.operation_id !== "string") {
+          throw new Error("Reconciliation operation ID is invalid.");
+        }
+        return {
+          kind: "manual_reconciliation_required",
+          operationId: row.operation_id,
+        };
       }
 
       if (row.result === "replay") {

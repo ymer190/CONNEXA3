@@ -113,7 +113,7 @@ export async function GET(request: Request): Promise<Response> {
     return handleGet(request);
   }
 
-  let authorization;
+  let authorization: Awaited<ReturnType<typeof requirePlatformAdmin>>;
   try {
     authorization = await requirePlatformAdmin();
   } catch {

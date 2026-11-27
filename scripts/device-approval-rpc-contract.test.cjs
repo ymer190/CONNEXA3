@@ -12,10 +12,6 @@ const initialMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20261126005001_issue_97_device_session_audit.sql"),
   "utf8",
 );
-const gatedMigration = fs.readFileSync(
-  path.join(root, "supabase/migrations/20261126010200_issue_97_sqa_gates.sql"),
-  "utf8",
-);
 const enrollmentRoute = fs.readFileSync(
   path.join(root, "src/app/api/device-sessions/register/route.ts"),
   "utf8",
@@ -42,16 +38,17 @@ test("initial DEV migration exposes the incompatible two-argument function", () 
   );
 });
 
-test("gated SQA migration replaces it with the required three-argument contract", () => {
-  assert.match(gatedMigration, /drop function public\.admin_approve_device\(uuid, text\);/);
-  assert.match(
-    gatedMigration,
-    /create function public\.admin_approve_device\(\s*p_device_id uuid,\s*p_justification text,\s*p_ticket_reference text\s*\)/,
+test("advanced SQA migrations are excluded from the basic integration branch", () => {
+  assert.equal(
+    fs.existsSync(path.join(root, "supabase/migrations/20261126010200_issue_97_sqa_gates.sql")),
+    false,
+    "SQA-only signature changes must remain deferred",
   );
-  assert.match(gatedMigration, /nullif\(btrim\(p_ticket_reference\), ''\) is null/);
-  assert.match(gatedMigration, /t\.ticket_reference = btrim\(p_ticket_reference\)/);
-  assert.match(gatedMigration, /grant execute on function public\.admin_approve_device\(uuid, text, text\) to authenticated/);
-  assert.doesNotMatch(gatedMigration, /grant execute on function public\.admin_approve_device\(uuid, text\)\s+to authenticated/);
+  assert.equal(
+    fs.existsSync(path.join(root, "supabase/migrations/20261126010300_issue_97_revalidate_legacy_devices.sql")),
+    false,
+    "legacy device revalidation must remain deferred",
+  );
 });
 
 
